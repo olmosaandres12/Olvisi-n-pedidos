@@ -1003,3 +1003,202 @@ select.form-control {
   flex-shrink: 0;
   border: 1.5px solid rgba(255,255,255,0.6);
 }
+/* ===================================================
+   OLVISIÓN — Adiciones a style.css
+   Pegar al FINAL del style.css existente
+   =================================================== */
+
+/* ═══════════════════════════════════════════════════
+   TECLADO NUMÉRICO CUSTOM (Numpad)
+   ═══════════════════════════════════════════════════ */
+
+#numpad-overlay {
+  position: fixed; inset: 0; z-index: 9000;
+  background: rgba(2, 41, 102, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex; align-items: flex-end; justify-content: center;
+  animation: fadeIn .18s ease;
+}
+#numpad-overlay.hidden { display: none !important; }
+
+.numpad-sheet {
+  background: var(--blanco);
+  border-radius: 24px 24px 0 0;
+  width: 100%; max-width: 400px;
+  padding: 0 0 max(16px, env(safe-area-inset-bottom)) 0;
+  box-shadow: 0 -8px 40px rgba(3,66,145,.18);
+  animation: slideSheet .25s cubic-bezier(.34,1.2,.64,1);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Handle bar */
+.numpad-handle {
+  width: 40px; height: 4px;
+  background: var(--gris-borde);
+  border-radius: 2px;
+  margin: 12px auto 0;
+}
+
+/* Header */
+.numpad-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 20px 8px;
+}
+.numpad-label-text {
+  font-size: .9rem; font-weight: 700;
+  color: var(--azul); letter-spacing: -.2px;
+}
+.numpad-close-btn {
+  width: 30px; height: 30px; border-radius: 50%;
+  background: var(--gris-bg);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1rem; color: var(--gris-texto);
+  border: none; cursor: pointer;
+  transition: background var(--transition);
+}
+.numpad-close-btn:hover { background: var(--gris-borde); }
+
+/* Display */
+.numpad-display-wrap {
+  margin: 0 20px 12px;
+  background: var(--gris-bg);
+  border: 2px solid var(--gris-borde);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  text-align: center;
+  transition: border-color var(--transition);
+}
+.numpad-display-wrap:has(#numpad-display:not(.numpad-display-empty)) {
+  border-color: var(--azul);
+}
+#numpad-display {
+  font-size: 2rem; font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--gris-dark);
+  letter-spacing: .04em;
+  line-height: 1;
+  min-height: 2.2rem;
+  display: block;
+}
+#numpad-display.numpad-display-empty {
+  color: var(--gris-borde);
+}
+
+/* Grid de teclas */
+.numpad-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  padding: 0 16px 12px;
+}
+
+.numpad-key {
+  border: none; cursor: pointer;
+  border-radius: 14px;
+  font-family: var(--font);
+  font-size: 1.25rem; font-weight: 600;
+  line-height: 1;
+  aspect-ratio: 1;
+  display: flex; align-items: center; justify-content: center;
+  transition: transform .1s ease, background .1s ease, box-shadow .1s ease;
+  -webkit-tap-highlight-color: transparent;
+  position: relative;
+  overflow: hidden;
+}
+.numpad-key:active {
+  transform: scale(.92);
+}
+
+/* Teclas numéricas */
+.numpad-key-num {
+  background: var(--blanco);
+  color: var(--gris-dark);
+  box-shadow: 0 2px 6px rgba(3,66,145,.08), 0 0 0 1.5px var(--gris-borde);
+}
+.numpad-key-num:hover { background: var(--gris-bg); }
+.numpad-key-num:active { background: var(--gris-borde); box-shadow: none; }
+
+/* Teclas especiales: + y - */
+.numpad-key-sign {
+  background: var(--azul-light);
+  color: var(--azul);
+  font-size: 1.5rem;
+  box-shadow: 0 2px 6px rgba(3,66,145,.1), 0 0 0 1.5px #BFD4F5;
+}
+.numpad-key-sign:hover { background: #d5e6fc; }
+.numpad-key-sign:active { background: #c0d8f8; box-shadow: none; }
+
+/* Tecla punto */
+.numpad-key-dot {
+  background: var(--gris-bg);
+  color: var(--gris-dark);
+  font-size: 1.6rem; font-weight: 700;
+  box-shadow: 0 2px 6px rgba(3,66,145,.06), 0 0 0 1.5px var(--gris-borde);
+}
+.numpad-key-dot:active { background: var(--gris-borde); box-shadow: none; }
+
+/* Tecla borrar */
+.numpad-key-del {
+  background: var(--naranja-bg);
+  color: var(--naranja);
+  font-size: .85rem;
+  box-shadow: 0 2px 6px rgba(146,64,14,.1), 0 0 0 1.5px #FCD34D;
+}
+.numpad-key-del:active { background: #fde68a; box-shadow: none; }
+
+/* Tecla limpiar */
+.numpad-key-clear {
+  background: var(--rojo-bg);
+  color: var(--rojo);
+  font-size: .75rem; font-weight: 700;
+  letter-spacing: .01em;
+  box-shadow: 0 2px 6px rgba(220,38,38,.1), 0 0 0 1.5px var(--rojo-borde);
+}
+.numpad-key-clear:active { background: #fecaca; box-shadow: none; }
+
+/* Botón OK */
+.numpad-ok-btn {
+  margin: 4px 16px 0;
+  width: calc(100% - 32px);
+  padding: 16px;
+  border: none; border-radius: var(--radius);
+  background: var(--azul); color: var(--blanco);
+  font-family: var(--font);
+  font-size: 1rem; font-weight: 700;
+  letter-spacing: .02em;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(3,66,145,.3);
+  transition: background var(--transition), transform .1s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.numpad-ok-btn:hover { background: var(--azul-dark); }
+.numpad-ok-btn:active { transform: scale(.98); background: var(--azul-dark); }
+
+/* Inputs de graduación con indicador visual de que son tocables */
+.grad-input[readonly] {
+  cursor: pointer;
+  background: var(--blanco) !important;
+  border-style: solid;
+  position: relative;
+}
+.grad-input[readonly]:focus {
+  border-color: var(--azul);
+  box-shadow: 0 0 0 3px rgba(3,66,145,.15);
+  outline: none;
+}
+
+/* ═══════════════════════════════════════════════════
+   CONFIG SCREEN — Secciones de Marcas y Materiales
+   ═══════════════════════════════════════════════════ */
+
+/* Reutiliza .config-list y .config-item del style.css existente.
+   Solo agrega los IDs de las nuevas secciones si necesitás estilos extra. */
+
+#config-marcas-list,
+#config-materiales-list {
+  /* Hereda de .config-list */
+  display: flex; flex-direction: column; gap: 6px;
+  max-height: 260px; overflow-y: auto;
+}
