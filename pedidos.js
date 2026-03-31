@@ -5,7 +5,6 @@
 
 const Pedidos = (() => {
 
-  // ── Estado inteligente ────────────────────────────
   const LIMITES = {
     'Bichara':  { ok: 2, dem: 4 },
     'Sol':      { ok: 5, dem: 7 },
@@ -33,7 +32,6 @@ const Pedidos = (() => {
     return { ...p, _dias: calcDias(p), _est: calcEstInteligente(p) };
   }
 
-  // ── Obtener pedidos ───────────────────────────────
   async function getPedidosActivos() {
     const { data, error } = await window.supabaseClient
       .from('pedidos').select('*').neq('estado', 'Retirado')
@@ -56,7 +54,6 @@ const Pedidos = (() => {
     return enrich(data);
   }
 
-  // ── Verificar duplicado ───────────────────────────
   async function existeOrden(orden, sufijo, excludeId = null) {
     let q = window.supabaseClient.from('pedidos').select('id').eq('orden', orden);
     if (sufijo) q = q.eq('sufijo', sufijo);
@@ -67,7 +64,6 @@ const Pedidos = (() => {
     return data && data.length > 0;
   }
 
-  // ── Crear pedido(s) ───────────────────────────────
   async function crearPedido(datosArray) {
     for (const d of datosArray) {
       const existe = await existeOrden(d.orden, d.sufijo);
@@ -78,7 +74,7 @@ const Pedidos = (() => {
     }
     const rows = datosArray.map(d => ({
       cliente:      d.cliente,
-      estado:       'Pedido a laboratorio',
+      estado:       'Cristales pedidos a lab',
       orden:        d.orden,
       sufijo:       d.sufijo || null,
       tipo:         d.tipo,
@@ -98,19 +94,15 @@ const Pedidos = (() => {
     return data;
   }
 
-  // ── Actualizar pedido completo ────────────────────
   async function actualizarPedido(id, campos) {
-    // Si cambia la orden, verificar que no duplique
     if (campos.orden !== undefined) {
       const existe = await existeOrden(campos.orden, campos.sufijo, id);
       if (existe) throw new Error(`Ya existe un pedido con el número de orden ${campos.orden}.`);
     }
-    const { error } = await window.supabaseClient
-      .from('pedidos').update(campos).eq('id', id);
+    const { error } = await window.supabaseClient.from('pedidos').update(campos).eq('id', id);
     if (error) throw error;
   }
 
-  // ── Actualizar estado ─────────────────────────────
   async function actualizarEstado(id, nuevoEstado) {
     const updates = { estado: nuevoEstado };
     if (nuevoEstado === 'Retirado') updates.fecha_retiro = new Date().toISOString();
@@ -118,13 +110,13 @@ const Pedidos = (() => {
     if (error) throw error;
   }
 
-  // ── Helpers ───────────────────────────────────────
   function claseEstado(estado) {
     const map = {
-      'Pedido a laboratorio': 'estado-pedido',
-      'En laboratorio':       'estado-lab',
-      'Pendiente de retirar': 'estado-retirar',
-      'Retirado':             'estado-retirado',
+      'Cristales pedidos a lab':     'estado-pedido',
+      'Armazón enviado p/calibrado': 'estado-pedido',
+      'En laboratorio':              'estado-lab',
+      'Pendiente de retirar':        'estado-retirar',
+      'Retirado':                    'estado-retirado',
     };
     return map[estado] || '';
   }
