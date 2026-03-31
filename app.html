@@ -71,7 +71,7 @@
     .numpad-display-wrap { margin:0 20px 12px;background:var(--gris-bg);border:2px solid var(--gris-borde);border-radius:var(--radius);padding:14px 18px;text-align:center;transition:border-color .2s; }
     #numpad-display { font-size:2rem;font-weight:700;font-family:var(--font-mono);color:var(--gris-dark);letter-spacing:.04em;line-height:1;min-height:2.2rem;display:block; }
     #numpad-display.numpad-display-empty { color:var(--gris-borde); }
-    .numpad-grid { display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:0 16px 12px; }
+    .numpad-grid { display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:0 16px 12px; }
     .numpad-key { border:none;cursor:pointer;border-radius:14px;font-family:var(--font);font-size:1.25rem;font-weight:600;line-height:1;aspect-ratio:1;display:flex;align-items:center;justify-content:center;transition:transform .1s ease,background .1s ease;-webkit-tap-highlight-color:transparent; }
     .numpad-key:active { transform:scale(.92); }
     .numpad-key-num { background:var(--blanco);color:var(--gris-dark);box-shadow:0 2px 6px rgba(3,66,145,.08),0 0 0 1.5px var(--gris-borde); }
@@ -171,26 +171,26 @@
       <span id="numpad-display" class="numpad-display-empty">—</span>
     </div>
     <div class="numpad-grid">
-      <!-- Fila 1 -->
+      <!-- Fila 1: signos -->
       <button class="numpad-key numpad-key-sign" data-val="+" aria-label="Más">+</button>
       <button class="numpad-key numpad-key-sign" data-val="-" aria-label="Menos">−</button>
-      <button class="numpad-key numpad-key-num"  data-val="7">7</button>
-      <button class="numpad-key numpad-key-num"  data-val="8">8</button>
-      <!-- Fila 2 -->
-      <button class="numpad-key numpad-key-num"  data-val="9">9</button>
-      <button class="numpad-key numpad-key-num"  data-val="4">4</button>
-      <button class="numpad-key numpad-key-num"  data-val="5">5</button>
-      <button class="numpad-key numpad-key-num"  data-val="6">6</button>
-      <!-- Fila 3 -->
+      <button class="numpad-key numpad-key-del"  id="numpad-del" aria-label="Borrar">⌫</button>
+      <!-- Fila 2: 1 2 3 -->
       <button class="numpad-key numpad-key-num"  data-val="1">1</button>
       <button class="numpad-key numpad-key-num"  data-val="2">2</button>
       <button class="numpad-key numpad-key-num"  data-val="3">3</button>
-      <button class="numpad-key numpad-key-del"  id="numpad-del" aria-label="Borrar">⌫</button>
-      <!-- Fila 4 -->
+      <!-- Fila 3: 4 5 6 -->
+      <button class="numpad-key numpad-key-num"  data-val="4">4</button>
+      <button class="numpad-key numpad-key-num"  data-val="5">5</button>
+      <button class="numpad-key numpad-key-num"  data-val="6">6</button>
+      <!-- Fila 4: 7 8 9 -->
+      <button class="numpad-key numpad-key-num"  data-val="7">7</button>
+      <button class="numpad-key numpad-key-num"  data-val="8">8</button>
+      <button class="numpad-key numpad-key-num"  data-val="9">9</button>
+      <!-- Fila 5: . 0 CLR -->
       <button class="numpad-key numpad-key-dot"  data-val=".">.</button>
       <button class="numpad-key numpad-key-num"  data-val="0">0</button>
       <button class="numpad-key numpad-key-clear" id="numpad-clear" aria-label="Limpiar">CLR</button>
-      <div></div>
     </div>
     <button class="numpad-ok-btn" id="numpad-ok">✓ &nbsp;Confirmar</button>
   </div>
