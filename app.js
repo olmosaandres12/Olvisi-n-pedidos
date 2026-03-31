@@ -187,7 +187,12 @@ const App = (() => {
   }
 
   function gradTablaHTML(num, dc) {
-    const inp = (id) => `<input type="text" class="form-control grad-input" id="${id}" placeholder="—" inputmode="decimal">`;
+    // esf y cil: inputmode="text" para permitir + y -
+    // eje: inputmode="numeric" para grados (solo números)
+    // add: inputmode="text" para permitir + 
+    const inpGrad = (id) => `<input type="text" class="form-control grad-input" id="${id}" placeholder="—" inputmode="text" autocomplete="off" autocorrect="off" spellcheck="false">`;
+    const inpEje  = (id) => `<input type="text" class="form-control grad-input" id="${id}" placeholder="°" inputmode="numeric" autocomplete="off">`;
+    const inpAdd  = (id) => `<input type="text" class="form-control grad-input" id="${id}" placeholder="—" inputmode="text" autocomplete="off" autocorrect="off" spellcheck="false">`;
     return `
       <div class="grad-grid">
         <div class="grad-header"></div>
@@ -196,9 +201,9 @@ const App = (() => {
         <div class="grad-header">Eje</div>
         <div class="grad-header">Ad.</div>
         <div class="grad-ojo">D</div>
-        ${inp(`g-${dc}-esf-D-${num}`)}${inp(`g-${dc}-cil-D-${num}`)}${inp(`g-${dc}-eje-D-${num}`)}${inp(`g-${dc}-add-D-${num}`)}
+        ${inpGrad(`g-${dc}-esf-D-${num}`)}${inpGrad(`g-${dc}-cil-D-${num}`)}${inpEje(`g-${dc}-eje-D-${num}`)}${inpAdd(`g-${dc}-add-D-${num}`)}
         <div class="grad-ojo">I</div>
-        ${inp(`g-${dc}-esf-I-${num}`)}${inp(`g-${dc}-cil-I-${num}`)}${inp(`g-${dc}-eje-I-${num}`)}${inp(`g-${dc}-add-I-${num}`)}
+        ${inpGrad(`g-${dc}-esf-I-${num}`)}${inpGrad(`g-${dc}-cil-I-${num}`)}${inpEje(`g-${dc}-eje-I-${num}`)}${inpAdd(`g-${dc}-add-I-${num}`)}
       </div>
     `;
   }
