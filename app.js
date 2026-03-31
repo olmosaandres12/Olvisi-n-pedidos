@@ -13,6 +13,68 @@ const App = (() => {
   let _pendingGuardar = null;
   let _detalleId      = null;
 
+  // ── Push Notifications ────────────────────────────
+  const VAPID_PUBLIC = 'BNHBkj7wiOQKz06CN3-AdpB1n0RXBKUuKvneiQ_zkUt9Q_yOUifGe_NeXL3eePKDXdmSNkTyBNnqWHed3VeY5LQ';
+
+  async function initPush() {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    try {
+      const reg = await navigator.serviceWorker.register('/sw.js');
+      await navigator.serviceWorker.ready;
+
+      const perm = await Notification.requestPermission();
+      if (perm !== 'granted') return;
+
+      const existing = await reg.pushManager.getSubscription();
+      if (existing) {
+        await guardarSuscripcion(existing);
+        return;
+      }
+
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC),
+      });
+
+      await guardarSuscripcion(sub);
+      toast('🔔 Notificaciones activadas', 'success');
+    } catch (e) {
+      console.warn('Push init error:', e);
+    }
+  }
+
+  async function guardarSuscripcion(sub) {
+    const { data: { user } } = await window.supabaseClient.auth.getUser();
+    if (!user) return;
+    const subJson = sub.toJSON();
+    await window.supabaseClient.from('push_subscriptions').upsert({
+      user_id: user.id,
+      subscription: subJson,
+    }, { onConflict: 'user_id' });
+  }
+
+  async function enviarNotificacion(title, body) {
+    try {
+      await fetch(`${SUPABASE_URL}/functions/v1/push-notify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({ title, body }),
+      });
+    } catch (e) {
+      console.warn('Push send error:', e);
+    }
+  }
+
+  function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64  = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const raw     = atob(base64);
+    return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+  }
+
   // ── INIT ─────────────────────────────────────────
   async function init() {
     const session = await Auth.init();
@@ -72,6 +134,9 @@ const App = (() => {
     const overlay = document.getElementById('loading-overlay');
     overlay.classList.add('fade-out');
     setTimeout(() => overlay.remove(), 400);
+
+    // Iniciar push notifications en segundo plano
+    setTimeout(() => initPush(), 2000);
 
     showScreen('inicio');
   }
@@ -250,6 +315,21 @@ const App = (() => {
       renderSegPanel('seg-content-lab',     enLab.sort(sortPorEstado));
       renderSegPanel('seg-content-retirar', retirar.sort(sortPorEstado));
       updateBadge();
+
+      // Verificar críticos y demorados para notificar
+      const criticos  = todos.filter(p => p._est.valor === 'critico');
+      const demorados = todos.filter(p => p._est.valor === 'demorado');
+      if (criticos.length > 0) {
+        enviarNotificacion(
+          '🔴 Pedidos críticos — OLVISIÓN',
+          `${criticos.length} pedido${criticos.length>1?'s':''} superó el tiempo límite del laboratorio`
+        );
+      } else if (demorados.length > 0) {
+        enviarNotificacion(
+          '⚠️ Pedidos demorados — OLVISIÓN',
+          `${demorados.length} pedido${demorados.length>1?'s':''} está demorado en el laboratorio`
+        );
+      }
     } catch (e) { toast('Error: ' + e.message, 'error'); }
   }
 
@@ -366,19 +446,29 @@ const App = (() => {
     const estClase = p._est.valor === 'critico' ? 'critico' : p._est.valor === 'demorado' ? 'demorado' : '';
     const urgente  = p.urgente === 'Si' ? '<span class="pedido-urgente">URGENTE</span>' : '';
     const scls     = Pedidos.claseEstado(p.estado);
-    const ESTADOS  = [
-      'Cristales pedidos a lab',
-      'Armazón enviado p/calibrado',
-      'En laboratorio',
-      'Pendiente de retirar',
-      'Retirado',
-    ];
+    const ESTADOS  = ['Cristales pedidos a lab','Armazón enviado p/calibrado','En laboratorio','Pendiente de retirar','Retirado'];
     const opts = ESTADOS.map(e => `<option value="${e}"${e===p.estado?' selected':''}>${e}</option>`).join('');
+
+    // Avatar del usuario que cargó el pedido
+    const avatarColor = (nombre) => {
+      const n = (nombre || '').toLowerCase();
+      if (n.includes('andr')) return '#034291';
+      if (n.includes('sand')) return '#7B1FA2';
+      if (n.includes('vale')) return '#00695C';
+      return '#888';
+    };
+    const avatarInitial = (nombre) => (nombre || '?').charAt(0).toUpperCase();
+    const color = avatarColor(p.cargado_por);
+    const ini   = avatarInitial(p.cargado_por);
 
     return `<div class="pedido-card ${estClase}" data-id="${p.id}">
       <div class="pedido-card-tap" data-id="${p.id}">
         <div class="pedido-card-header">
-          <span class="pedido-orden">#${esc(p.orden)}${sufijo}</span>${urgente}
+          <span class="pedido-orden">#${esc(p.orden)}${sufijo}</span>
+          <div style="display:flex;align-items:center;gap:6px">
+            ${urgente}
+            <span class="pedido-avatar" style="background:${color}" title="${esc(p.cargado_por||'')}">${ini}</span>
+          </div>
         </div>
         <div class="pedido-card-body">
           <div class="pedido-cliente">${esc(p.cliente)}</div>
@@ -412,6 +502,13 @@ const App = (() => {
         try {
           await Pedidos.actualizarEstado(id, est);
           toast(`Estado: ${est}`, 'success');
+
+          // Notificar si se retiró
+          if (est === 'Retirado') {
+            const p = _pedidosCache.find(x => x.id === id);
+            if (p) enviarNotificacion('✅ Pedido retirado — OLVISIÓN', `#${p.orden} de ${p.cliente} fue retirado`);
+          }
+
           _pedidosCache = await Pedidos.getTodosPedidos();
           if (_currentScreen === 'pedidos')     renderPedidosList();
           if (_currentScreen === 'seguimiento') loadSeguimiento();
@@ -845,6 +942,14 @@ const App = (() => {
         : [buildRow(data.ant1, null)];
 
       await Pedidos.crearPedido(rows);
+
+      // Notificar pedido nuevo
+      const sufStr = data.doble ? ` (${data.base.orden}-A y -B)` : ` #${data.base.orden}`;
+      enviarNotificacion(
+        '📋 Nuevo pedido — OLVISIÓN',
+        `${nombre} cargó un pedido${sufStr} para ${data.base.cliente}`
+      );
+
       closeModal();
       toast('Pedido guardado ✓', 'success');
       resetForm();
