@@ -53,7 +53,7 @@ const App = (() => {
     }, { onConflict: 'user_id' });
   }
 
-  async function enviarNotificacion(title, body) {
+  async function enviarNotificacion(title, body, soloAdmin = false) {
     try {
       await fetch(`${SUPABASE_URL}/functions/v1/push-notify`, {
         method: 'POST',
@@ -61,7 +61,7 @@ const App = (() => {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
         },
-        body: JSON.stringify({ title, body }),
+        body: JSON.stringify({ title, body, soloAdmin }),
       });
     } catch (e) {
       console.warn('Push send error:', e);
@@ -316,18 +316,20 @@ const App = (() => {
       renderSegPanel('seg-content-retirar', retirar.sort(sortPorEstado));
       updateBadge();
 
-      // Verificar críticos y demorados para notificar
+      // Verificar críticos y demorados — solo admin
       const criticos  = todos.filter(p => p._est.valor === 'critico');
       const demorados = todos.filter(p => p._est.valor === 'demorado');
       if (criticos.length > 0) {
         enviarNotificacion(
           '🔴 Pedidos críticos — OLVISIÓN',
-          `${criticos.length} pedido${criticos.length>1?'s':''} superó el tiempo límite del laboratorio`
+          `${criticos.length} pedido${criticos.length>1?'s':''} superó el tiempo límite`,
+          true  // soloAdmin
         );
       } else if (demorados.length > 0) {
         enviarNotificacion(
           '⚠️ Pedidos demorados — OLVISIÓN',
-          `${demorados.length} pedido${demorados.length>1?'s':''} está demorado en el laboratorio`
+          `${demorados.length} pedido${demorados.length>1?'s':''} está demorado en laboratorio`,
+          true  // soloAdmin
         );
       }
     } catch (e) { toast('Error: ' + e.message, 'error'); }
@@ -503,10 +505,13 @@ const App = (() => {
           await Pedidos.actualizarEstado(id, est);
           toast(`Estado: ${est}`, 'success');
 
-          // Notificar si se retiró
+          // Notificar cambio de estado — a todos
           if (est === 'Retirado') {
             const p = _pedidosCache.find(x => x.id === id);
-            if (p) enviarNotificacion('✅ Pedido retirado — OLVISIÓN', `#${p.orden} de ${p.cliente} fue retirado`);
+            if (p) enviarNotificacion('✅ Pedido retirado — OLVISIÓN', `#${p.orden} de ${p.cliente} fue retirado`, false);
+          } else {
+            const p = _pedidosCache.find(x => x.id === id);
+            if (p) enviarNotificacion('🔄 Estado actualizado — OLVISIÓN', `#${p.orden} de ${p.cliente}: ${est}`, false);
           }
 
           _pedidosCache = await Pedidos.getTodosPedidos();
@@ -943,11 +948,12 @@ const App = (() => {
 
       await Pedidos.crearPedido(rows);
 
-      // Notificar pedido nuevo
+      // Notificar pedido nuevo — solo admin
       const sufStr = data.doble ? ` (${data.base.orden}-A y -B)` : ` #${data.base.orden}`;
       enviarNotificacion(
         '📋 Nuevo pedido — OLVISIÓN',
-        `${nombre} cargó un pedido${sufStr} para ${data.base.cliente}`
+        `${nombre} cargó un pedido${sufStr} para ${data.base.cliente}`,
+        true  // soloAdmin
       );
 
       closeModal();
