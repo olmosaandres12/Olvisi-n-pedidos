@@ -833,3 +833,264 @@ select.form-control {
   border: 1px solid var(--gris-borde);
   font-size: .875rem;
 }
+/* ===================================================
+   OLVISIÓN — Estilos del Dashboard / Panel Admin
+   Agregar al final de style.css
+   =================================================== */
+
+/* ── Sección labels ──────────────────────────────── */
+.dash-section-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--gris-texto, #888);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin: 20px 0 10px;
+  padding: 0 2px;
+}
+
+/* ── Período cards (semana / mes / año / promedio) ── */
+.dash-periodo-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.dash-periodo-card {
+  border-radius: 16px;
+  padding: 16px 14px;
+  color: #fff;
+  position: relative;
+  overflow: hidden;
+}
+.dash-periodo-card::after {
+  content: '';
+  position: absolute;
+  top: -20px; right: -20px;
+  width: 80px; height: 80px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.08);
+}
+.dash-periodo-blue   { background: linear-gradient(135deg, #034291, #0460D9); }
+.dash-periodo-yellow { background: linear-gradient(135deg, #F9A825, #FFCA28); }
+.dash-periodo-teal   { background: linear-gradient(135deg, #00695C, #00897B); }
+.dash-periodo-purple { background: linear-gradient(135deg, #4527A0, #7B1FA2); }
+
+.dash-periodo-yellow .dash-periodo-value,
+.dash-periodo-yellow .dash-periodo-label,
+.dash-periodo-yellow .dash-periodo-delta { color: #4A3000; }
+
+.dash-periodo-value {
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -1px;
+}
+.dash-periodo-label {
+  font-size: 11px;
+  opacity: 0.85;
+  margin-top: 4px;
+  font-weight: 500;
+}
+.dash-periodo-delta {
+  font-size: 10px;
+  opacity: 0.7;
+  margin-top: 6px;
+}
+.dash-periodo-delta.neg { opacity: 0.85; }
+
+/* ── KPI grid (estado actual) ────────────────────── */
+.dash-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.dash-kpi-card {
+  background: #fff;
+  border-radius: 14px;
+  padding: 14px;
+  border: 1px solid #eaecf0;
+  position: relative;
+  overflow: hidden;
+}
+.dash-kpi-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  border-radius: 3px 3px 0 0;
+}
+.dash-kpi-blue::before   { background: #034291; }
+.dash-kpi-yellow::before { background: #F9A825; }
+.dash-kpi-green::before  { background: #2E7D32; }
+.dash-kpi-red::before    { background: #C62828; }
+.dash-kpi-orange::before { background: #E65100; }
+.dash-kpi-teal::before   { background: #00695C; }
+.dash-kpi-purple::before { background: #4527A0; }
+
+.dash-kpi-icon { font-size: 20px; margin-bottom: 6px; }
+.dash-kpi-value {
+  font-size: 30px;
+  font-weight: 800;
+  color: #034291;
+  line-height: 1;
+  letter-spacing: -1px;
+}
+.dash-kpi-label {
+  font-size: 11px;
+  color: #888;
+  margin-top: 4px;
+  font-weight: 500;
+}
+
+/* ── Wide cards (gráficos y tablas) ──────────────── */
+.dash-wide-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 16px;
+  border: 1px solid #eaecf0;
+  margin-bottom: 4px;
+}
+
+/* ── Gráfico de barras ───────────────────────────── */
+.dash-bar-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 110px;
+  padding-top: 24px;
+}
+.dash-bar-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+}
+.dash-bar {
+  width: 100%;
+  border-radius: 6px 6px 0 0;
+  transition: opacity 0.2s;
+  min-height: 4px;
+}
+.dash-bar:hover { opacity: 0.75; cursor: pointer; }
+.dash-bar-lbl {
+  font-size: 9px;
+  color: #888;
+  white-space: nowrap;
+  text-transform: capitalize;
+}
+.dash-bar-val {
+  font-size: 10px;
+  font-weight: 700;
+  color: #034291;
+  min-height: 14px;
+}
+
+/* ── Ranking (laboratorios / lentes) ─────────────── */
+.dash-rank-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.dash-rank-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.dash-rank-num {
+  font-size: 11px;
+  font-weight: 700;
+  color: #bbb;
+  width: 14px;
+  flex-shrink: 0;
+}
+.dash-rank-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1a1a2e;
+  width: 64px;
+  flex-shrink: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dash-rank-bar-bg {
+  flex: 1;
+  background: #F0F4FF;
+  border-radius: 6px;
+  height: 8px;
+  overflow: hidden;
+}
+.dash-rank-bar-fill {
+  height: 100%;
+  border-radius: 6px;
+  transition: width 0.6s cubic-bezier(0.34,1.56,0.64,1);
+}
+.dash-rank-count {
+  font-size: 13px;
+  font-weight: 700;
+  color: #034291;
+  width: 28px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* ── Tabla promedio por lab ───────────────────────── */
+.dash-avg-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.dash-avg-table th {
+  color: #888;
+  font-weight: 600;
+  text-align: left;
+  padding: 4px 4px 8px;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.dash-avg-table td {
+  padding: 8px 4px;
+  border-bottom: 1px solid #f8f8f8;
+  vertical-align: middle;
+}
+.dash-avg-table tr:last-child td { border: none; }
+
+/* ── Pills de estado ─────────────────────────────── */
+.dash-pill {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.dash-pill-red    { background: #FFEBEE; color: #C62828; }
+.dash-pill-yellow { background: #FFF8E1; color: #7A5200; }
+.dash-pill-green  { background: #E8F5E9; color: #1B5E20; }
+
+/* ── Empty state ─────────────────────────────────── */
+.dash-empty {
+  color: #bbb;
+  font-size: 13px;
+  text-align: center;
+  padding: 12px 0;
+}
+
+/* ── Dark mode (respeta el sistema) ──────────────── */
+@media (prefers-color-scheme: dark) {
+  .dash-kpi-card  { background: #1a1a2e; border-color: #2a2a3e; }
+  .dash-wide-card { background: #1a1a2e; border-color: #2a2a3e; }
+  .dash-kpi-value { color: #5B9BFF; }
+  .dash-rank-name { color: #ddd; }
+  .dash-rank-bar-bg { background: #2a2a3e; }
+  .dash-avg-table th { border-color: #2a2a3e; }
+  .dash-avg-table td { border-color: #222; }
+  .dash-bar-val { color: #5B9BFF; }
+  .dash-rank-count { color: #5B9BFF; }
+  .dash-periodo-delta { opacity: 0.75; }
+}
