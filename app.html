@@ -6,7 +6,6 @@
   <title>OLVISIÓN — Pedidos</title>
   <link rel="stylesheet" href="style.css">
   <style>
-    /* ── Modal detalle ── */
     .detalle-overlay { position:fixed;inset:0;z-index:7000;background:rgba(2,41,102,.5);backdrop-filter:blur(4px);display:flex;align-items:flex-end;justify-content:center;animation:fadeIn .2s ease; }
     .detalle-overlay.hidden { display:none; }
     .detalle-sheet { background:var(--blanco);border-radius:var(--radius-lg) var(--radius-lg) 0 0;width:100%;max-width:520px;max-height:92dvh;overflow-y:auto;animation:slideSheet .3s ease;padding-bottom:env(safe-area-inset-bottom); }
@@ -23,8 +22,6 @@
     .detalle-label { font-size:12px;color:var(--gris-texto);flex-shrink:0; }
     .detalle-valor { font-size:13px;font-weight:600;color:var(--gris-dark);text-align:right;flex:1; }
     .detalle-grad { font-family:var(--font-mono);font-size:12px;background:var(--blanco);border-radius:6px;padding:8px 10px;margin-top:6px;color:var(--gris-dark);border:1px solid var(--gris-borde);line-height:1.8; }
-
-    /* ── Modal edición ── */
     .edit-overlay { position:fixed;inset:0;z-index:8000;background:rgba(2,41,102,.5);backdrop-filter:blur(4px);display:flex;align-items:flex-end;justify-content:center;animation:fadeIn .2s ease; }
     .edit-overlay.hidden { display:none; }
     .edit-sheet { background:var(--blanco);border-radius:var(--radius-lg) var(--radius-lg) 0 0;width:100%;max-width:520px;max-height:94dvh;overflow-y:auto;animation:slideSheet .3s ease;padding-bottom:env(safe-area-inset-bottom); }
@@ -34,8 +31,6 @@
     .edit-body { padding:16px 20px; }
     .edit-save-btn { width:100%;margin-top:8px;margin-bottom:16px;padding:16px;border-radius:var(--radius);background:var(--azul);color:#fff;font-size:1rem;font-weight:700;border:none;cursor:pointer; }
     .edit-save-btn:active { background:var(--azul-dark); }
-
-    /* ── Modal exportar PDF ── */
     .export-overlay { position:fixed;inset:0;z-index:9000;background:rgba(2,41,102,.5);backdrop-filter:blur(4px);display:flex;align-items:flex-end;justify-content:center;animation:fadeIn .2s ease; }
     .export-overlay.hidden { display:none; }
     .export-sheet { background:var(--blanco);border-radius:var(--radius-lg) var(--radius-lg) 0 0;width:100%;max-width:520px;animation:slideSheet .3s ease;padding-bottom:env(safe-area-inset-bottom); }
@@ -48,16 +43,7 @@
     #btn-generar-pdf { width:100%;margin-top:16px;padding:16px;border-radius:var(--radius);background:var(--azul);color:#fff;font-size:1rem;font-weight:700;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px; }
     #btn-generar-pdf:active { background:var(--azul-dark); }
     #btn-generar-pdf:disabled { opacity:.6;cursor:not-allowed; }
-
-    /* ── Botón exportar en panel ── */
-    .btn-export-pdf {
-      display:inline-flex;align-items:center;gap:6px;
-      padding:10px 18px;border-radius:20px;
-      background:var(--azul);color:#fff;
-      font-size:.85rem;font-weight:700;border:none;cursor:pointer;
-      transition:background .15s;
-      box-shadow:0 2px 8px rgba(3,66,145,.3);
-    }
+    .btn-export-pdf { display:inline-flex;align-items:center;gap:6px;padding:10px 18px;border-radius:20px;background:var(--azul);color:#fff;font-size:.85rem;font-weight:700;border:none;cursor:pointer;transition:background .15s;box-shadow:0 2px 8px rgba(3,66,145,.3); }
     .btn-export-pdf:active { background:var(--azul-dark); }
   </style>
 </head>
@@ -70,7 +56,6 @@
 
 <div id="toast-container"></div>
 
-<!-- Modal confirmar nuevo pedido -->
 <div id="confirm-modal" class="modal-overlay hidden">
   <div class="modal-sheet">
     <div class="modal-header">
@@ -85,7 +70,6 @@
   </div>
 </div>
 
-<!-- Modal detalle pedido -->
 <div id="detalle-modal" class="detalle-overlay hidden">
   <div class="detalle-sheet">
     <div class="detalle-header">
@@ -99,7 +83,6 @@
   </div>
 </div>
 
-<!-- Modal edición pedido -->
 <div id="edit-modal" class="edit-overlay hidden">
   <div class="edit-sheet">
     <div class="edit-header">
@@ -110,7 +93,6 @@
   </div>
 </div>
 
-<!-- Modal exportar PDF -->
 <div id="export-modal" class="export-overlay hidden">
   <div class="export-sheet">
     <div class="export-header">
@@ -284,6 +266,7 @@
       <div class="section-header">
         <div><div class="section-title">Configuración</div><div class="section-subtitle">Laboratorios y tratamientos</div></div>
       </div>
+
       <div class="form-section">
         <div class="form-section-title">Laboratorios</div>
         <div id="config-labs-list" class="config-list"></div>
@@ -292,6 +275,7 @@
           <button class="btn btn-primary btn-sm" onclick="App.addLab()">Agregar</button>
         </div>
       </div>
+
       <div class="form-section">
         <div class="form-section-title">Tratamientos</div>
         <div class="form-group">
@@ -310,6 +294,19 @@
           <button class="btn btn-primary btn-sm" onclick="App.addTratamiento()">Agregar</button>
         </div>
       </div>
+
+      <!-- Notificaciones push -->
+      <div class="form-section">
+        <div class="form-section-title">Notificaciones</div>
+        <p style="font-size:.85rem;color:var(--gris-texto);margin-bottom:16px;line-height:1.5">
+          Recibí alertas cuando se carga un pedido nuevo, se retira uno, o hay pedidos críticos o demorados.
+        </p>
+        <button class="btn btn-primary btn-full" id="btn-activar-notif" onclick="App.activarNotificaciones()">
+          🔔 Activar notificaciones push
+        </button>
+        <p id="notif-status" style="font-size:.8rem;color:var(--gris-texto);text-align:center;margin-top:10px;line-height:1.4"></p>
+      </div>
+
     </section>
 
   </main>
