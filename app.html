@@ -45,17 +45,63 @@
     #btn-generar-pdf:disabled { opacity:.6;cursor:not-allowed; }
     .btn-export-pdf { display:inline-flex;align-items:center;gap:6px;padding:10px 18px;border-radius:20px;background:var(--azul);color:#fff;font-size:.85rem;font-weight:700;border:none;cursor:pointer;transition:background .15s;box-shadow:0 2px 8px rgba(3,66,145,.3); }
     .btn-export-pdf:active { background:var(--azul-dark); }
+
+    /* ── Teclado numérico custom ── */
+    #numpad-overlay {
+      position:fixed;inset:0;z-index:9500;
+      background:rgba(2,41,102,.55);
+      backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+      display:flex;align-items:flex-end;justify-content:center;
+      animation:fadeIn .18s ease;
+    }
+    #numpad-overlay.hidden { display:none !important; }
+    .numpad-sheet {
+      background:var(--blanco);
+      border-radius:24px 24px 0 0;
+      width:100%;max-width:400px;
+      padding:0 0 max(16px, env(safe-area-inset-bottom)) 0;
+      box-shadow:0 -8px 40px rgba(3,66,145,.18);
+      animation:slideSheet .25s cubic-bezier(.34,1.2,.64,1);
+      user-select:none;-webkit-user-select:none;
+    }
+    .numpad-handle { width:40px;height:4px;background:var(--gris-borde);border-radius:2px;margin:12px auto 0; }
+    .numpad-header { display:flex;align-items:center;justify-content:space-between;padding:14px 20px 8px; }
+    .numpad-label-text { font-size:.9rem;font-weight:700;color:var(--azul);letter-spacing:-.2px; }
+    .numpad-close-btn { width:30px;height:30px;border-radius:50%;background:var(--gris-bg);display:flex;align-items:center;justify-content:center;font-size:1rem;color:var(--gris-texto);border:none;cursor:pointer; }
+    .numpad-display-wrap { margin:0 20px 12px;background:var(--gris-bg);border:2px solid var(--gris-borde);border-radius:var(--radius);padding:14px 18px;text-align:center;transition:border-color .2s; }
+    #numpad-display { font-size:2rem;font-weight:700;font-family:var(--font-mono);color:var(--gris-dark);letter-spacing:.04em;line-height:1;min-height:2.2rem;display:block; }
+    #numpad-display.numpad-display-empty { color:var(--gris-borde); }
+    .numpad-grid { display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:0 16px 12px; }
+    .numpad-key { border:none;cursor:pointer;border-radius:14px;font-family:var(--font);font-size:1.25rem;font-weight:600;line-height:1;aspect-ratio:1;display:flex;align-items:center;justify-content:center;transition:transform .1s ease,background .1s ease;-webkit-tap-highlight-color:transparent; }
+    .numpad-key:active { transform:scale(.92); }
+    .numpad-key-num { background:var(--blanco);color:var(--gris-dark);box-shadow:0 2px 6px rgba(3,66,145,.08),0 0 0 1.5px var(--gris-borde); }
+    .numpad-key-num:active { background:var(--gris-borde);box-shadow:none; }
+    .numpad-key-sign { background:var(--azul-light);color:var(--azul);font-size:1.5rem;box-shadow:0 2px 6px rgba(3,66,145,.1),0 0 0 1.5px #BFD4F5; }
+    .numpad-key-sign:active { background:#c0d8f8;box-shadow:none; }
+    .numpad-key-dot { background:var(--gris-bg);color:var(--gris-dark);font-size:1.6rem;font-weight:700;box-shadow:0 2px 6px rgba(3,66,145,.06),0 0 0 1.5px var(--gris-borde); }
+    .numpad-key-dot:active { background:var(--gris-borde);box-shadow:none; }
+    .numpad-key-del { background:var(--naranja-bg);color:var(--naranja);font-size:.85rem;box-shadow:0 2px 6px rgba(146,64,14,.1),0 0 0 1.5px #FCD34D; }
+    .numpad-key-del:active { background:#fde68a;box-shadow:none; }
+    .numpad-key-clear { background:var(--rojo-bg);color:var(--rojo);font-size:.75rem;font-weight:700;box-shadow:0 2px 6px rgba(220,38,38,.1),0 0 0 1.5px var(--rojo-borde); }
+    .numpad-key-clear:active { background:#fecaca;box-shadow:none; }
+    .numpad-ok-btn { margin:4px 16px 0;width:calc(100% - 32px);padding:16px;border:none;border-radius:var(--radius);background:var(--azul);color:var(--blanco);font-family:var(--font);font-size:1rem;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(3,66,145,.3);transition:background .2s,transform .1s;-webkit-tap-highlight-color:transparent; }
+    .numpad-ok-btn:active { transform:scale(.98);background:var(--azul-dark); }
+    .grad-input[readonly] { cursor:pointer;background:var(--blanco) !important; }
+    .grad-input[readonly]:focus { border-color:var(--azul);box-shadow:0 0 0 3px rgba(3,66,145,.15);outline:none; }
   </style>
 </head>
 <body>
 
+<!-- ── Loading ── -->
 <div id="loading-overlay">
   <div class="loading-logo">OL<span>VISIÓN</span></div>
   <div class="spinner-ring"></div>
 </div>
 
+<!-- ── Toasts ── -->
 <div id="toast-container"></div>
 
+<!-- ── Modal confirmación nuevo pedido ── -->
 <div id="confirm-modal" class="modal-overlay hidden">
   <div class="modal-sheet">
     <div class="modal-header">
@@ -70,6 +116,7 @@
   </div>
 </div>
 
+<!-- ── Modal detalle pedido ── -->
 <div id="detalle-modal" class="detalle-overlay hidden">
   <div class="detalle-sheet">
     <div class="detalle-header">
@@ -83,6 +130,7 @@
   </div>
 </div>
 
+<!-- ── Modal edición pedido ── -->
 <div id="edit-modal" class="edit-overlay hidden">
   <div class="edit-sheet">
     <div class="edit-header">
@@ -93,6 +141,7 @@
   </div>
 </div>
 
+<!-- ── Modal exportar PDF ── -->
 <div id="export-modal" class="export-overlay hidden">
   <div class="export-sheet">
     <div class="export-header">
@@ -110,6 +159,46 @@
   </div>
 </div>
 
+<!-- ── Teclado numérico custom ── -->
+<div id="numpad-overlay" class="hidden" role="dialog" aria-modal="true" aria-label="Teclado numérico">
+  <div class="numpad-sheet">
+    <div class="numpad-handle"></div>
+    <div class="numpad-header">
+      <span class="numpad-label-text" id="numpad-label">Valor</span>
+      <button class="numpad-close-btn" id="numpad-close" aria-label="Cerrar teclado">✕</button>
+    </div>
+    <div class="numpad-display-wrap">
+      <span id="numpad-display" class="numpad-display-empty">—</span>
+    </div>
+    <div class="numpad-grid">
+      <!-- Fila 1 -->
+      <button class="numpad-key numpad-key-sign" data-val="+" aria-label="Más">+</button>
+      <button class="numpad-key numpad-key-sign" data-val="-" aria-label="Menos">−</button>
+      <button class="numpad-key numpad-key-num"  data-val="7">7</button>
+      <button class="numpad-key numpad-key-num"  data-val="8">8</button>
+      <!-- Fila 2 -->
+      <button class="numpad-key numpad-key-num"  data-val="9">9</button>
+      <button class="numpad-key numpad-key-num"  data-val="4">4</button>
+      <button class="numpad-key numpad-key-num"  data-val="5">5</button>
+      <button class="numpad-key numpad-key-num"  data-val="6">6</button>
+      <!-- Fila 3 -->
+      <button class="numpad-key numpad-key-num"  data-val="1">1</button>
+      <button class="numpad-key numpad-key-num"  data-val="2">2</button>
+      <button class="numpad-key numpad-key-num"  data-val="3">3</button>
+      <button class="numpad-key numpad-key-del"  id="numpad-del" aria-label="Borrar">⌫</button>
+      <!-- Fila 4 -->
+      <button class="numpad-key numpad-key-dot"  data-val=".">.</button>
+      <button class="numpad-key numpad-key-num"  data-val="0">0</button>
+      <button class="numpad-key numpad-key-clear" id="numpad-clear" aria-label="Limpiar">CLR</button>
+      <div></div>
+    </div>
+    <button class="numpad-ok-btn" id="numpad-ok">✓ &nbsp;Confirmar</button>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════
+     APP LAYOUT
+     ════════════════════════════════════════════════ -->
 <div class="app-layout" id="app-layout" style="display:none">
 
   <header class="app-header">
@@ -126,11 +215,16 @@
 
   <main class="app-content">
 
+    <!-- ── INICIO — Nuevo pedido ── -->
     <section class="screen" id="screen-inicio">
       <div class="section-header">
-        <div><div class="section-title">Nuevo pedido</div><div class="section-subtitle">Campos obligatorios marcados con *</div></div>
+        <div>
+          <div class="section-title">Nuevo pedido</div>
+          <div class="section-subtitle">Campos obligatorios marcados con *</div>
+        </div>
       </div>
       <form id="form-nuevo-pedido" novalidate>
+
         <div class="form-section">
           <div class="form-section-title">Cliente</div>
           <div class="form-group">
@@ -171,6 +265,7 @@
             </div>
           </div>
         </div>
+
         <div class="toggle-group">
           <span class="toggle-label">¿Pedido con 2 anteojos?</span>
           <label class="toggle-switch">
@@ -178,14 +273,17 @@
             <span class="toggle-slider"></span>
           </label>
         </div>
+
         <div class="form-section">
           <div class="form-section-title" id="bloque1-title">Anteojo</div>
           <div id="bloque1-fields"></div>
         </div>
+
         <div class="second-glass-block hidden" id="bloque-anteojo2">
           <div class="second-glass-title">Anteojo B</div>
           <div id="bloque2-fields"></div>
         </div>
+
         <div style="display:flex;gap:10px;margin-bottom:32px">
           <button type="button" class="btn btn-secondary" style="flex:1" onclick="App.resetForm()">Limpiar</button>
           <button type="submit" class="btn btn-primary" style="flex:2" id="btn-guardar">
@@ -193,29 +291,43 @@
             Guardar pedido
           </button>
         </div>
+
       </form>
     </section>
 
+    <!-- ── SEGUIMIENTO ── -->
     <section class="screen" id="screen-seguimiento">
       <div class="section-header">
-        <div><div class="section-title">Seguimiento</div><div class="section-subtitle">Estado actual de pedidos</div></div>
+        <div>
+          <div class="section-title">Seguimiento</div>
+          <div class="section-subtitle">Estado actual de pedidos</div>
+        </div>
         <button class="btn btn-secondary btn-sm" onclick="App.loadSeguimiento()">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
         </button>
       </div>
       <div class="seg-tabs">
-        <button class="seg-tab active" data-tab="lab" onclick="App.switchSegTab('lab')">🏭 En laboratorio <span class="seg-tab-count" id="seg-count-lab">0</span></button>
-        <button class="seg-tab" data-tab="retirar" onclick="App.switchSegTab('retirar')">📍 Para retirar <span class="seg-tab-count" id="seg-count-retirar">0</span></button>
+        <button class="seg-tab active" data-tab="lab" onclick="App.switchSegTab('lab')">
+          🏭 En laboratorio <span class="seg-tab-count" id="seg-count-lab">0</span>
+        </button>
+        <button class="seg-tab" data-tab="retirar" onclick="App.switchSegTab('retirar')">
+          📍 Para retirar <span class="seg-tab-count" id="seg-count-retirar">0</span>
+        </button>
       </div>
       <div id="seg-content-lab" class="seg-panel">
-        <div class="skeleton skeleton-card"></div><div class="skeleton skeleton-card"></div>
+        <div class="skeleton skeleton-card"></div>
+        <div class="skeleton skeleton-card"></div>
       </div>
       <div id="seg-content-retirar" class="seg-panel hidden"></div>
     </section>
 
+    <!-- ── PEDIDOS ── -->
     <section class="screen" id="screen-pedidos">
       <div class="section-header">
-        <div><div class="section-title">Pedidos</div><div class="section-subtitle" id="pedidos-subtitle">Cargando...</div></div>
+        <div>
+          <div class="section-title">Pedidos</div>
+          <div class="section-subtitle" id="pedidos-subtitle">Cargando...</div>
+        </div>
         <button class="btn btn-secondary btn-sm" onclick="App.loadPedidos()">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
         </button>
@@ -248,13 +360,20 @@
         <button class="estado-tab" data-estado="Pendiente de retirar" onclick="App.switchEstadoTab('Pendiente de retirar')">📍 Retirar</button>
         <button class="estado-tab" data-estado="Retirado" onclick="App.switchEstadoTab('Retirado')">✅ Retirado</button>
       </div>
-      <div id="pedidos-skeleton"><div class="skeleton skeleton-card"></div><div class="skeleton skeleton-card"></div></div>
+      <div id="pedidos-skeleton">
+        <div class="skeleton skeleton-card"></div>
+        <div class="skeleton skeleton-card"></div>
+      </div>
       <div id="pedidos-list-container" style="display:none"></div>
     </section>
 
+    <!-- ── PANEL ADMIN ── -->
     <section class="screen" id="screen-panel">
       <div class="section-header">
-        <div><div class="section-title">Panel</div><div class="section-subtitle">Resumen general</div></div>
+        <div>
+          <div class="section-title">Panel</div>
+          <div class="section-subtitle">Resumen general</div>
+        </div>
         <button class="btn btn-secondary btn-sm" onclick="App.refreshPanel()">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
         </button>
@@ -262,11 +381,16 @@
       <div id="panel-kpis"></div>
     </section>
 
+    <!-- ── CONFIGURACIÓN ── -->
     <section class="screen" id="screen-config">
       <div class="section-header">
-        <div><div class="section-title">Configuración</div><div class="section-subtitle">Laboratorios y tratamientos</div></div>
+        <div>
+          <div class="section-title">Configuración</div>
+          <div class="section-subtitle">Laboratorios, marcas, materiales y tratamientos</div>
+        </div>
       </div>
 
+      <!-- Laboratorios -->
       <div class="form-section">
         <div class="form-section-title">Laboratorios</div>
         <div id="config-labs-list" class="config-list"></div>
@@ -276,6 +400,33 @@
         </div>
       </div>
 
+      <!-- Marcas de armazón -->
+      <div class="form-section">
+        <div class="form-section-title">Marcas de armazón</div>
+        <div id="config-marcas-list" class="config-list"
+             style="display:flex;flex-direction:column;gap:6px;max-height:260px;overflow-y:auto">
+          <p style="color:var(--gris-texto);font-size:.85rem;padding:8px 0">Cargando...</p>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <input type="text" id="new-marca-input" class="form-control" placeholder="Nueva marca...">
+          <button class="btn btn-primary btn-sm" onclick="App.addMarca()">Agregar</button>
+        </div>
+      </div>
+
+      <!-- Materiales de armazón -->
+      <div class="form-section">
+        <div class="form-section-title">Materiales de armazón</div>
+        <div id="config-materiales-list" class="config-list"
+             style="display:flex;flex-direction:column;gap:6px;max-height:260px;overflow-y:auto">
+          <p style="color:var(--gris-texto);font-size:.85rem;padding:8px 0">Cargando...</p>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <input type="text" id="new-material-input" class="form-control" placeholder="Nuevo material...">
+          <button class="btn btn-primary btn-sm" onclick="App.addMaterial()">Agregar</button>
+        </div>
+      </div>
+
+      <!-- Tratamientos -->
       <div class="form-section">
         <div class="form-section-title">Tratamientos</div>
         <div class="form-group">
@@ -295,7 +446,7 @@
         </div>
       </div>
 
-      <!-- Notificaciones push -->
+      <!-- Notificaciones -->
       <div class="form-section">
         <div class="form-section-title">Notificaciones</div>
         <p style="font-size:.85rem;color:var(--gris-texto);margin-bottom:16px;line-height:1.5">
@@ -311,6 +462,7 @@
 
   </main>
 
+  <!-- ── Bottom nav ── -->
   <nav class="bottom-nav">
     <button class="nav-item active" id="nav-inicio" onclick="App.showScreen('inicio')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
