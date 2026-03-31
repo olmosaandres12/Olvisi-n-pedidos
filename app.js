@@ -54,14 +54,12 @@ const App = (() => {
     document.getElementById('modal-cancel-btn').addEventListener('click',  closeModal);
     document.getElementById('modal-confirm-btn').addEventListener('click', handleConfirm);
 
-    // Detalle modal
     document.getElementById('btn-cerrar-detalle').addEventListener('click', cerrarDetalle);
     document.getElementById('btn-abrir-edicion').addEventListener('click',  abrirEdicion);
     document.getElementById('detalle-modal').addEventListener('click', (e) => {
       if (e.target === document.getElementById('detalle-modal')) cerrarDetalle();
     });
 
-    // Edit modal
     document.getElementById('btn-cerrar-edit').addEventListener('click', cerrarEdicion);
     document.getElementById('edit-modal').addEventListener('click', (e) => {
       if (e.target === document.getElementById('edit-modal')) cerrarEdicion();
@@ -187,9 +185,6 @@ const App = (() => {
   }
 
   function gradTablaHTML(num, dc) {
-    // esf y cil: inputmode="text" para permitir + y -
-    // eje: inputmode="numeric" para grados (solo números)
-    // add: inputmode="text" para permitir + 
     const inpGrad = (id) => `<input type="text" class="form-control grad-input" id="${id}" placeholder="—" inputmode="text" autocomplete="off" autocorrect="off" spellcheck="false">`;
     const inpEje  = (id) => `<input type="text" class="form-control grad-input" id="${id}" placeholder="°" inputmode="numeric" autocomplete="off">`;
     const inpAdd  = (id) => `<input type="text" class="form-control grad-input" id="${id}" placeholder="—" inputmode="text" autocomplete="off" autocorrect="off" spellcheck="false">`;
@@ -244,7 +239,11 @@ const App = (() => {
     try {
       const todos   = await Pedidos.getPedidosActivos();
       _pedidosCache = todos;
-      const enLab   = todos.filter(p => p.estado === 'En laboratorio' || p.estado === 'Pedido a laboratorio');
+      const enLab   = todos.filter(p =>
+        p.estado === 'Cristales pedidos a lab' ||
+        p.estado === 'Armazón enviado p/calibrado' ||
+        p.estado === 'En laboratorio'
+      );
       const retirar = todos.filter(p => p.estado === 'Pendiente de retirar');
       document.getElementById('seg-count-lab').textContent    = enLab.length;
       document.getElementById('seg-count-retirar').textContent = retirar.length;
@@ -367,8 +366,14 @@ const App = (() => {
     const estClase = p._est.valor === 'critico' ? 'critico' : p._est.valor === 'demorado' ? 'demorado' : '';
     const urgente  = p.urgente === 'Si' ? '<span class="pedido-urgente">URGENTE</span>' : '';
     const scls     = Pedidos.claseEstado(p.estado);
-    const opts     = ['Pedido a laboratorio','En laboratorio','Pendiente de retirar','Retirado']
-      .map(e => `<option value="${e}"${e===p.estado?' selected':''}>${e}</option>`).join('');
+    const ESTADOS  = [
+      'Cristales pedidos a lab',
+      'Armazón enviado p/calibrado',
+      'En laboratorio',
+      'Pendiente de retirar',
+      'Retirado',
+    ];
+    const opts = ESTADOS.map(e => `<option value="${e}"${e===p.estado?' selected':''}>${e}</option>`).join('');
 
     return `<div class="pedido-card ${estClase}" data-id="${p.id}">
       <div class="pedido-card-tap" data-id="${p.id}">
@@ -441,11 +446,8 @@ const App = (() => {
       const p = await Pedidos.getPedidoById(id);
       const sufijo = p.sufijo ? `-${p.sufijo}` : '';
       document.getElementById('detalle-orden').textContent = `#${p.orden}${sufijo}`;
-
       const fechaCarga  = p.fecha_carga  ? new Date(p.fecha_carga).toLocaleDateString('es-AR')  : '—';
       const fechaRetiro = p.fecha_retiro ? new Date(p.fecha_retiro).toLocaleDateString('es-AR') : '—';
-
-      // Solo admin ve el botón editar
       document.getElementById('btn-abrir-edicion').style.display = Auth.isAdmin() ? '' : 'none';
 
       body.innerHTML = `
@@ -457,7 +459,6 @@ const App = (() => {
           <div class="detalle-row"><span class="detalle-label">Urgente</span><span class="detalle-valor">${p.urgente === 'Si' ? '⚡ Sí' : 'No'}</span></div>
           <div class="detalle-row"><span class="detalle-label">Fecha carga</span><span class="detalle-valor">${fechaCarga}</span></div>
         </div>
-
         <div class="detalle-seccion">
           <div class="detalle-seccion-title">Lente</div>
           <div class="detalle-row"><span class="detalle-label">Laboratorio</span><span class="detalle-valor">${esc(p.laboratorio || '—')}</span></div>
@@ -470,13 +471,11 @@ const App = (() => {
             <div class="detalle-grad">${esc(p.graduacion).replace(/\|/g,'<br>')}</div>
           </div>` : ''}
         </div>
-
         ${p.armazon ? `
         <div class="detalle-seccion">
           <div class="detalle-seccion-title">Armazón</div>
           <div class="detalle-row"><span class="detalle-label">Detalle</span><span class="detalle-valor">${esc(p.armazon)}</span></div>
         </div>` : ''}
-
         <div class="detalle-seccion">
           <div class="detalle-seccion-title">Estado</div>
           <div class="detalle-row"><span class="detalle-label">Estado actual</span><span class="detalle-valor">${esc(p.estado)}</span></div>
@@ -518,6 +517,9 @@ const App = (() => {
         `<option value="${u}"${u===p.urgente?' selected':''}>${u==='Si'?'Sí':'No'}</option>`).join('');
       const etapas = ['No','Si'].map(u =>
         `<option value="${u}"${u===p.dos_etapas?' selected':''}>${u==='Si'?'Sí':'No'}</option>`).join('');
+      const ESTADOS = ['Cristales pedidos a lab','Armazón enviado p/calibrado','En laboratorio','Pendiente de retirar','Retirado'];
+      const estados = ESTADOS.map(e =>
+        `<option value="${e}"${e===p.estado?' selected':''}>${e}</option>`).join('');
 
       editBody.innerHTML = `
         <div class="form-section">
@@ -541,7 +543,6 @@ const App = (() => {
             <select id="e-tipo" class="form-control">${tipos}</select>
           </div>
         </div>
-
         <div class="form-section">
           <div class="form-section-title">Lente</div>
           <div class="form-row">
@@ -567,7 +568,6 @@ const App = (() => {
             <select id="e-etapas" class="form-control">${etapas}</select>
           </div>
         </div>
-
         <div class="form-section">
           <div class="form-section-title">Armazón</div>
           <div class="form-group">
@@ -575,7 +575,13 @@ const App = (() => {
             <input type="text" id="e-armazon" class="form-control" value="${esc(p.armazon || '')}">
           </div>
         </div>
-
+        <div class="form-section">
+          <div class="form-section-title">Estado</div>
+          <div class="form-group">
+            <label class="form-label">Estado actual</label>
+            <select id="e-estado" class="form-control">${estados}</select>
+          </div>
+        </div>
         <button class="edit-save-btn" onclick="App.guardarEdicion(${p.id})">
           Guardar cambios
         </button>
@@ -588,8 +594,8 @@ const App = (() => {
   async function guardarEdicion(id) {
     const btn = document.querySelector('.edit-save-btn');
     if (btn) { btn.textContent = 'Guardando...'; btn.disabled = true; }
-
     try {
+      const nuevoEstado = document.getElementById('e-estado')?.value;
       const campos = {
         cliente:     document.getElementById('e-cliente')?.value.trim(),
         orden:       document.getElementById('e-orden')?.value.trim(),
@@ -601,8 +607,9 @@ const App = (() => {
         graduacion:  document.getElementById('e-graduacion')?.value.trim() || null,
         dos_etapas:  document.getElementById('e-etapas')?.value,
         armazon:     document.getElementById('e-armazon')?.value.trim() || null,
+        estado:      nuevoEstado,
       };
-
+      if (nuevoEstado === 'Retirado') campos.fecha_retiro = new Date().toISOString();
       await Pedidos.actualizarPedido(id, campos);
       cerrarEdicion();
       toast('Pedido actualizado ✓', 'success');
@@ -817,20 +824,20 @@ const App = (() => {
       const nombre   = Auth.getNombre();
       const fechaISO = new Date(data.base.fecha_carga + 'T12:00:00').toISOString();
       const buildRow = (ant, sufijo) => ({
-        cliente:     data.base.cliente,
-        orden:       data.base.orden,
+        cliente:      data.base.cliente,
+        orden:        data.base.orden,
         sufijo,
-        tipo:        data.base.tipo,
-        urgente:     data.base.urgente,
-        laboratorio: ant.laboratorio,
-        tipo_lente:  ant.tipo_lente,
-        tratamiento: ant.tratamiento || null,
-        graduacion:  ant.graduacion  || null,
-        dos_etapas:  ant.dos_etapas  || 'No',
-        armazon:     [ant.armazon, ant.marca && `Marca: ${ant.marca}`, ant.codigoref && `Ref: ${ant.codigoref}`, ant.material && `Mat: ${ant.material}`, ant.color && `Color: ${ant.color}`].filter(Boolean).join(' / ') || null,
-        cargado_por: nombre,
-        fecha_carga: fechaISO,
-        fecha_pedido:fechaISO,
+        tipo:         data.base.tipo,
+        urgente:      data.base.urgente,
+        laboratorio:  ant.laboratorio,
+        tipo_lente:   ant.tipo_lente,
+        tratamiento:  ant.tratamiento || null,
+        graduacion:   ant.graduacion  || null,
+        dos_etapas:   ant.dos_etapas  || 'No',
+        armazon:      [ant.armazon, ant.marca && `Marca: ${ant.marca}`, ant.codigoref && `Ref: ${ant.codigoref}`, ant.material && `Mat: ${ant.material}`, ant.color && `Color: ${ant.color}`].filter(Boolean).join(' / ') || null,
+        cargado_por:  nombre,
+        fecha_carga:  fechaISO,
+        fecha_pedido: fechaISO,
       });
 
       const rows = data.doble
