@@ -8,16 +8,13 @@
 </head>
 <body>
 
-<!-- Loading overlay -->
 <div id="loading-overlay">
   <div class="loading-logo">OL<span>VISIÓN</span></div>
   <div class="spinner-ring"></div>
 </div>
 
-<!-- Toast container -->
 <div id="toast-container"></div>
 
-<!-- Modal de confirmación -->
 <div id="confirm-modal" class="modal-overlay hidden">
   <div class="modal-sheet">
     <div class="modal-header">
@@ -32,97 +29,28 @@
   </div>
 </div>
 
-<!-- APP LAYOUT -->
 <div class="app-layout" id="app-layout" style="display:none">
 
-  <!-- Header -->
   <header class="app-header">
-    <div class="app-header-logo">OL<span>VISIÓN</span></div>
+    <button class="app-header-logo-btn" id="logo-home-btn" aria-label="Inicio">
+      <img src="logo.png" alt="OLVISIÓN" class="app-header-logo-img" id="logo-img" onerror="this.style.display='none';document.getElementById('logo-text').style.display='block'">
+      <span class="app-header-logo-text" id="logo-text" style="display:none">OL<span>VISIÓN</span></span>
+    </button>
     <div class="header-actions">
       <span class="header-user" id="header-user"></span>
       <button class="btn-logout" id="btn-logout">Salir</button>
     </div>
   </header>
 
-  <!-- Main content -->
   <main class="app-content">
 
-    <!-- ══ SCREEN: PANEL (admin only) ══════════════ -->
-    <section class="screen" id="screen-panel">
+    <!-- ══ INICIO — Nuevo pedido ══════════════════ -->
+    <section class="screen" id="screen-inicio">
       <div class="section-header">
-        <div>
-          <div class="section-title">Panel</div>
-          <div class="section-subtitle">Resumen general</div>
-        </div>
-        <button class="btn btn-secondary btn-sm" id="btn-refresh-panel" onclick="AppController.refreshPanel()">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
-          Actualizar
-        </button>
+        <div><div class="section-title">Nuevo pedido</div><div class="section-subtitle">Campos obligatorios marcados con *</div></div>
       </div>
-      <div id="panel-kpis"></div>
-
-      <div class="panel-table-section">
-        <div class="panel-table-title">Para retirar</div>
-        <div class="panel-table" id="panel-pendientes">
-          <div class="panel-row"><div class="skeleton" style="width:100%;height:16px"></div></div>
-        </div>
-      </div>
-
-      <div class="panel-table-section">
-        <div class="panel-table-title">Críticos y demorados</div>
-        <div class="panel-table" id="panel-criticos">
-          <div class="panel-row"><div class="skeleton" style="width:100%;height:16px"></div></div>
-        </div>
-      </div>
-
-      <div class="panel-table-section">
-        <div class="panel-table-title">Últimos 10 ingresados</div>
-        <div class="panel-table" id="panel-ultimos">
-          <div class="panel-row"><div class="skeleton" style="width:100%;height:16px"></div></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ══ SCREEN: PEDIDOS ══════════════════════════ -->
-    <section class="screen" id="screen-pedidos">
-      <div class="section-header">
-        <div>
-          <div class="section-title">Pedidos activos</div>
-          <div class="section-subtitle" id="pedidos-subtitle">Cargando...</div>
-        </div>
-        <button class="btn btn-secondary btn-sm" onclick="AppController.loadPedidos()">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
-          Refrescar
-        </button>
-      </div>
-
-      <div class="search-bar">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        <input type="search" id="search-input" placeholder="Buscar por cliente u orden..." autocomplete="off" inputmode="search">
-        <button class="search-clear hidden" id="search-clear">✕</button>
-      </div>
-
-      <div id="pedidos-skeleton">
-        <div class="skeleton skeleton-card"></div>
-        <div class="skeleton skeleton-card"></div>
-        <div class="skeleton skeleton-card"></div>
-      </div>
-
-      <div class="pedidos-list" id="pedidos-list" style="display:none"></div>
-    </section>
-
-    <!-- ══ SCREEN: NUEVO PEDIDO ═════════════════════ -->
-    <section class="screen" id="screen-nuevo">
-      <div class="section-header">
-        <div>
-          <div class="section-title">Nuevo pedido</div>
-          <div class="section-subtitle">Completar todos los campos obligatorios</div>
-        </div>
-      </div>
-
       <form id="form-nuevo-pedido" novalidate>
 
-        <!-- Sección: Datos del cliente -->
         <div class="form-section">
           <div class="form-section-title">Cliente</div>
           <div class="form-group">
@@ -133,7 +61,7 @@
           <div class="form-row">
             <div class="form-group">
               <label class="form-label required" for="f-orden">Nº de orden</label>
-              <input type="text" id="f-orden" class="form-control" placeholder="Ej: 12345" autocomplete="off" inputmode="text">
+              <input type="text" id="f-orden" class="form-control" placeholder="Ej: 12345" autocomplete="off">
               <div class="form-error" id="err-orden">Campo obligatorio</div>
             </div>
             <div class="form-group">
@@ -146,19 +74,24 @@
               <div class="form-error" id="err-urgente">Campo obligatorio</div>
             </div>
           </div>
-          <div class="form-group">
-            <label class="form-label required" for="f-tipo">Tipo de pedido</label>
-            <select id="f-tipo" class="form-control">
-              <option value="">— Seleccionar —</option>
-              <option value="Cristales">Cristales</option>
-              <option value="Armazón + Cristales">Armazón + Cristales</option>
-              <option value="Armazón">Armazón</option>
-            </select>
-            <div class="form-error" id="err-tipo">Campo obligatorio</div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label required" for="f-tipo">Tipo de pedido</label>
+              <select id="f-tipo" class="form-control">
+                <option value="">— Seleccionar —</option>
+                <option value="Cristales">Cristales</option>
+                <option value="Armazón + Cristales">Armazón + Cristales</option>
+                <option value="Armazón">Armazón</option>
+              </select>
+              <div class="form-error" id="err-tipo">Campo obligatorio</div>
+            </div>
+            <div class="form-group">
+              <label class="form-label required" for="f-fecha-carga">Fecha</label>
+              <input type="date" id="f-fecha-carga" class="form-control">
+            </div>
           </div>
         </div>
 
-        <!-- Toggle 2 anteojos -->
         <div class="toggle-group">
           <span class="toggle-label">¿Pedido con 2 anteojos?</span>
           <label class="toggle-switch">
@@ -167,654 +100,165 @@
           </label>
         </div>
 
-        <!-- BLOQUE ANTEOJO 1 -->
         <div class="form-section">
           <div class="form-section-title" id="bloque1-title">Anteojo</div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label required" for="f-lab1">Laboratorio</label>
-              <select id="f-lab1" class="form-control">
-                <option value="">— Seleccionar —</option>
-                <option value="Sol">Sol</option>
-                <option value="Bichara">Bichara</option>
-                <option value="Cristian">Cristian</option>
-                <option value="Vitolen">Vitolen</option>
-              </select>
-              <div class="form-error" id="err-lab1">Campo obligatorio</div>
-            </div>
-            <div class="form-group">
-              <label class="form-label required" for="f-lente1">Tipo de lente</label>
-              <select id="f-lente1" class="form-control">
-                <option value="">— Seleccionar —</option>
-                <option value="Monofocal">Monofocal</option>
-                <option value="Bifocal">Bifocal</option>
-                <option value="Ocupacional">Ocupacional</option>
-                <option value="Progresivo">Progresivo</option>
-                <option value="Teñido">Teñido</option>
-              </select>
-              <div class="form-error" id="err-lente1">Campo obligatorio</div>
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="f-tratamiento1">Tratamiento</label>
-            <input type="text" id="f-tratamiento1" class="form-control" placeholder="Ej: AR, Fotocromatico...">
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label" for="f-grad-od1">Graduación OD</label>
-              <input type="text" id="f-grad-od1" class="form-control" placeholder="+1.00 -0.50 x90" inputmode="text">
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="f-grad-oi1">Graduación OI</label>
-              <input type="text" id="f-grad-oi1" class="form-control" placeholder="-0.25 -0.75 x75" inputmode="text">
-            </div>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label" for="f-etapas1">2 etapas</label>
-              <select id="f-etapas1" class="form-control">
-                <option value="No">No</option>
-                <option value="Si">Sí</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="f-armazon1">Armazón</label>
-              <input type="text" id="f-armazon1" class="form-control" placeholder="Descripción">
-            </div>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label" for="f-marca1">Marca</label>
-              <input type="text" id="f-marca1" class="form-control" placeholder="Ej: Ray-Ban">
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="f-codigoref1">Código / Ref</label>
-              <input type="text" id="f-codigoref1" class="form-control" placeholder="RB3025">
-            </div>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label" for="f-material1">Material</label>
-              <input type="text" id="f-material1" class="form-control" placeholder="Metal, Acetato...">
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="f-color1">Color</label>
-              <input type="text" id="f-color1" class="form-control" placeholder="Negro, Dorado...">
-            </div>
-          </div>
+          <div id="bloque1-fields"></div>
         </div>
 
-        <!-- BLOQUE ANTEOJO 2 (oculto por defecto) -->
         <div class="second-glass-block hidden" id="bloque-anteojo2">
           <div class="second-glass-title">Anteojo B</div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label required" for="f-lab2">Laboratorio</label>
-              <select id="f-lab2" class="form-control">
-                <option value="">— Seleccionar —</option>
-                <option value="Sol">Sol</option>
-                <option value="Bichara">Bichara</option>
-                <option value="Cristian">Cristian</option>
-                <option value="Vitolen">Vitolen</option>
-              </select>
-              <div class="form-error" id="err-lab2">Campo obligatorio</div>
-            </div>
-            <div class="form-group">
-              <label class="form-label required" for="f-lente2">Tipo de lente</label>
-              <select id="f-lente2" class="form-control">
-                <option value="">— Seleccionar —</option>
-                <option value="Monofocal">Monofocal</option>
-                <option value="Bifocal">Bifocal</option>
-                <option value="Ocupacional">Ocupacional</option>
-                <option value="Progresivo">Progresivo</option>
-                <option value="Teñido">Teñido</option>
-              </select>
-              <div class="form-error" id="err-lente2">Campo obligatorio</div>
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="f-tratamiento2">Tratamiento</label>
-            <input type="text" id="f-tratamiento2" class="form-control" placeholder="Ej: AR, Fotocromatico...">
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label" for="f-grad-od2">Graduación OD</label>
-              <input type="text" id="f-grad-od2" class="form-control" placeholder="+1.00 -0.50 x90" inputmode="text">
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="f-grad-oi2">Graduación OI</label>
-              <input type="text" id="f-grad-oi2" class="form-control" placeholder="-0.25 -0.75 x75" inputmode="text">
-            </div>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label" for="f-etapas2">2 etapas</label>
-              <select id="f-etapas2" class="form-control">
-                <option value="No">No</option>
-                <option value="Si">Sí</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="f-armazon2">Armazón</label>
-              <input type="text" id="f-armazon2" class="form-control" placeholder="Descripción">
-            </div>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label" for="f-marca2">Marca</label>
-              <input type="text" id="f-marca2" class="form-control" placeholder="Ej: Ray-Ban">
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="f-codigoref2">Código / Ref</label>
-              <input type="text" id="f-codigoref2" class="form-control" placeholder="RB3025">
-            </div>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label" for="f-material2">Material</label>
-              <input type="text" id="f-material2" class="form-control" placeholder="Metal, Acetato...">
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="f-color2">Color</label>
-              <input type="text" id="f-color2" class="form-control" placeholder="Negro, Dorado...">
-            </div>
-          </div>
+          <div id="bloque2-fields"></div>
         </div>
 
         <div style="display:flex;gap:10px;margin-bottom:32px">
-          <button type="button" class="btn btn-secondary" style="flex:1" onclick="AppController.resetForm()">
-            Limpiar
-          </button>
+          <button type="button" class="btn btn-secondary" style="flex:1" onclick="App.resetForm()">Limpiar</button>
           <button type="submit" class="btn btn-primary" style="flex:2" id="btn-guardar">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
             Guardar pedido
           </button>
         </div>
-
       </form>
+    </section>
+
+    <!-- ══ SEGUIMIENTO ════════════════════════════ -->
+    <section class="screen" id="screen-seguimiento">
+      <div class="section-header">
+        <div><div class="section-title">Seguimiento</div><div class="section-subtitle">Estado actual de pedidos</div></div>
+        <button class="btn btn-secondary btn-sm" onclick="App.loadSeguimiento()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+        </button>
+      </div>
+      <div class="seg-tabs">
+        <button class="seg-tab active" data-tab="lab" onclick="App.switchSegTab('lab')">🏭 En laboratorio <span class="seg-tab-count" id="seg-count-lab">0</span></button>
+        <button class="seg-tab" data-tab="retirar" onclick="App.switchSegTab('retirar')">📍 Para retirar <span class="seg-tab-count" id="seg-count-retirar">0</span></button>
+      </div>
+      <div id="seg-content-lab" class="seg-panel">
+        <div class="skeleton skeleton-card"></div><div class="skeleton skeleton-card"></div>
+      </div>
+      <div id="seg-content-retirar" class="seg-panel hidden"></div>
+    </section>
+
+    <!-- ══ PEDIDOS ════════════════════════════════ -->
+    <section class="screen" id="screen-pedidos">
+      <div class="section-header">
+        <div><div class="section-title">Pedidos</div><div class="section-subtitle" id="pedidos-subtitle">Cargando...</div></div>
+        <button class="btn btn-secondary btn-sm" onclick="App.loadPedidos()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+        </button>
+      </div>
+      <div class="filtros-bar">
+        <div class="search-bar" style="margin-bottom:10px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="search" id="search-input" placeholder="Buscar por cliente, orden..." autocomplete="off">
+          <button class="search-clear hidden" id="search-clear">✕</button>
+        </div>
+        <div class="filtros-row">
+          <select class="form-control filtro-select" id="filtro-lab"><option value="">Todos los labs</option></select>
+          <select class="form-control filtro-select" id="filtro-lente">
+            <option value="">Todos los tipos</option>
+            <option value="Monofocal">Monofocal</option>
+            <option value="Bifocal">Bifocal</option>
+            <option value="Ocupacional">Ocupacional</option>
+            <option value="Progresivo">Progresivo</option>
+            <option value="Teñido">Teñido</option>
+          </select>
+          <input type="date" class="form-control filtro-select" id="filtro-fecha">
+          <button class="btn btn-secondary btn-sm" onclick="App.limpiarFiltros()">✕</button>
+        </div>
+      </div>
+      <div class="estado-tabs">
+        <button class="estado-tab active" data-estado="todos" onclick="App.switchEstadoTab('todos')">Todos</button>
+        <button class="estado-tab" data-estado="Pedido a laboratorio" onclick="App.switchEstadoTab('Pedido a laboratorio')">⚠️ Pendiente</button>
+        <button class="estado-tab" data-estado="En laboratorio" onclick="App.switchEstadoTab('En laboratorio')">🏭 En lab.</button>
+        <button class="estado-tab" data-estado="Pendiente de retirar" onclick="App.switchEstadoTab('Pendiente de retirar')">📍 Retirar</button>
+        <button class="estado-tab" data-estado="Retirado" onclick="App.switchEstadoTab('Retirado')">✅ Retirado</button>
+      </div>
+      <div id="pedidos-skeleton"><div class="skeleton skeleton-card"></div><div class="skeleton skeleton-card"></div></div>
+      <div id="pedidos-list-container" style="display:none"></div>
+    </section>
+
+    <!-- ══ PANEL KPIs ═════════════════════════════ -->
+    <section class="screen" id="screen-panel">
+      <div class="section-header">
+        <div><div class="section-title">Panel</div><div class="section-subtitle">Resumen general</div></div>
+        <button class="btn btn-secondary btn-sm" onclick="App.refreshPanel()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+        </button>
+      </div>
+      <div id="panel-kpis"></div>
+      <div class="panel-table-section"><div class="panel-table-title">Para retirar</div><div class="panel-table" id="panel-pendientes"></div></div>
+      <div class="panel-table-section"><div class="panel-table-title">Críticos y demorados</div><div class="panel-table" id="panel-criticos"></div></div>
+      <div class="panel-table-section"><div class="panel-table-title">Últimos 10 ingresados</div><div class="panel-table" id="panel-ultimos"></div></div>
+    </section>
+
+    <!-- ══ CONFIGURACIÓN ═════════════════════════ -->
+    <section class="screen" id="screen-config">
+      <div class="section-header">
+        <div><div class="section-title">Configuración</div><div class="section-subtitle">Laboratorios y tratamientos</div></div>
+      </div>
+      <div class="form-section">
+        <div class="form-section-title">Laboratorios</div>
+        <div id="config-labs-list" class="config-list"></div>
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <input type="text" id="new-lab-input" class="form-control" placeholder="Nuevo laboratorio...">
+          <button class="btn btn-primary btn-sm" onclick="App.addLab()">Agregar</button>
+        </div>
+      </div>
+      <div class="form-section">
+        <div class="form-section-title">Tratamientos</div>
+        <div class="form-group">
+          <label class="form-label">Tipo de lente</label>
+          <select id="config-lente-select" class="form-control" onchange="App.loadConfigTratamientos()">
+            <option value="Monofocal">Monofocal</option>
+            <option value="Bifocal">Bifocal</option>
+            <option value="Ocupacional">Ocupacional</option>
+            <option value="Progresivo">Progresivo</option>
+            <option value="Teñido">Teñido</option>
+          </select>
+        </div>
+        <div id="config-trat-list" class="config-list"></div>
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <input type="text" id="new-trat-input" class="form-control" placeholder="Nuevo tratamiento...">
+          <button class="btn btn-primary btn-sm" onclick="App.addTratamiento()">Agregar</button>
+        </div>
+      </div>
     </section>
 
   </main>
 
-  <!-- Bottom nav -->
   <nav class="bottom-nav">
-    <!-- Panel (solo admin) -->
-    <button class="nav-item hidden" id="nav-panel" onclick="AppController.showScreen('panel')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-      Panel
+    <button class="nav-item active" id="nav-inicio" onclick="App.showScreen('inicio')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      Inicio
+    </button>
+    <button class="nav-item" id="nav-seguimiento" onclick="App.showScreen('seguimiento')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      Estado
       <span class="nav-badge hidden" id="criticos-badge">0</span>
     </button>
-
-    <!-- Pedidos -->
-    <button class="nav-item active" id="nav-pedidos" onclick="AppController.showScreen('pedidos')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>
+    <button class="nav-item" id="nav-pedidos" onclick="App.showScreen('pedidos')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
       Pedidos
     </button>
-
-    <!-- Nuevo pedido -->
-    <button class="nav-item" id="nav-nuevo" onclick="AppController.showScreen('nuevo')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
-      Nuevo
+    <button class="nav-item hidden" id="nav-panel" onclick="App.showScreen('panel')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+      Panel
+    </button>
+    <button class="nav-item hidden" id="nav-config" onclick="App.showScreen('config')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      Config
     </button>
   </nav>
 
 </div>
 
-<!-- Supabase CDN -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
-<script>
-  window.supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-</script>
+<script>window.supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);</script>
 <script src="auth.js"></script>
 <script src="pedidos.js"></script>
 <script src="panel.js"></script>
-
-<script>
-// ===================================================
-//  APP CONTROLLER — Lógica principal de la SPA
-// ===================================================
-const AppController = (() => {
-
-  let _pedidosCache  = [];
-  let _currentScreen = 'pedidos';
-  let _pendingGuardar = null; // datos en espera de confirmación
-
-  // ── INIT ─────────────────────────────────────────
-  async function init() {
-    const session = await Auth.init();
-    if (!session) return; // Auth redirige a index.html
-
-    // Mostrar interfaz
-    document.getElementById('app-layout').style.display = 'flex';
-    document.getElementById('header-user').textContent = Auth.getNombre();
-
-    // Nav items según rol
-    if (Auth.isAdmin()) {
-      document.getElementById('nav-panel').classList.remove('hidden');
-      showScreen('panel');
-    } else {
-      showScreen('pedidos');
-    }
-
-    // Ocultar loading
-    const overlay = document.getElementById('loading-overlay');
-    overlay.classList.add('fade-out');
-    setTimeout(() => overlay.remove(), 400);
-
-    // Logout
-    document.getElementById('btn-logout').addEventListener('click', () => Auth.logout());
-
-    // Toggle 2 anteojos
-    document.getElementById('toggle-dos-anteojos').addEventListener('change', (e) => {
-      const bloque2 = document.getElementById('bloque-anteojo2');
-      const title1  = document.getElementById('bloque1-title');
-      if (e.target.checked) {
-        bloque2.classList.remove('hidden');
-        title1.textContent = 'Anteojo A';
-      } else {
-        bloque2.classList.add('hidden');
-        title1.textContent = 'Anteojo';
-      }
-    });
-
-    // Search
-    const searchIn = document.getElementById('search-input');
-    const clearBtn = document.getElementById('search-clear');
-    searchIn.addEventListener('input', () => {
-      clearBtn.classList.toggle('hidden', !searchIn.value);
-      filterPedidos(searchIn.value);
-    });
-    clearBtn.addEventListener('click', () => {
-      searchIn.value = '';
-      clearBtn.classList.add('hidden');
-      filterPedidos('');
-    });
-
-    // Form submit
-    document.getElementById('form-nuevo-pedido').addEventListener('submit', handleFormSubmit);
-
-    // Modal
-    document.getElementById('modal-close-btn').addEventListener('click', closeModal);
-    document.getElementById('modal-cancel-btn').addEventListener('click', closeModal);
-    document.getElementById('modal-confirm-btn').addEventListener('click', handleConfirm);
-  }
-
-  // ── NAVIGATION ───────────────────────────────────
-  function showScreen(name) {
-    // Desactivar todos
-    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-
-    document.getElementById(`screen-${name}`)?.classList.add('active');
-    document.getElementById(`nav-${name}`)?.classList.add('active');
-    _currentScreen = name;
-
-    if (name === 'pedidos') loadPedidos();
-    if (name === 'panel')   refreshPanel();
-  }
-
-  // ── PEDIDOS LIST ─────────────────────────────────
-  async function loadPedidos() {
-    const listEl   = document.getElementById('pedidos-list');
-    const skelEl   = document.getElementById('pedidos-skeleton');
-    const subEl    = document.getElementById('pedidos-subtitle');
-    const searchIn = document.getElementById('search-input');
-
-    skelEl.style.display = 'flex';
-    skelEl.style.flexDirection = 'column';
-    listEl.style.display = 'none';
-    subEl.textContent = 'Cargando...';
-
-    try {
-      _pedidosCache = await Pedidos.getPedidosActivos();
-      skelEl.style.display = 'none';
-      listEl.style.display = 'flex';
-      filterPedidos(searchIn.value);
-      updateCriticosBadge();
-    } catch (e) {
-      skelEl.style.display = 'none';
-      listEl.style.display = 'flex';
-      listEl.innerHTML = `<div class="empty-state"><p style="color:var(--rojo)">Error: ${escHtml(e.message)}</p></div>`;
-      subEl.textContent = 'Error al cargar';
-    }
-  }
-
-  function filterPedidos(query) {
-    const subEl  = document.getElementById('pedidos-subtitle');
-    const listEl = document.getElementById('pedidos-list');
-
-    const q = (query || '').toLowerCase().trim();
-    const filtered = q
-      ? _pedidosCache.filter(p =>
-          (p.cliente?.toLowerCase() || '').includes(q) ||
-          (p.orden?.toLowerCase()   || '').includes(q)
-        )
-      : _pedidosCache;
-
-    const total = _pedidosCache.length;
-    subEl.textContent = q
-      ? `${filtered.length} resultado${filtered.length !== 1 ? 's' : ''} de ${total}`
-      : `${total} pedido${total !== 1 ? 's' : ''} activo${total !== 1 ? 's' : ''}`;
-
-    if (filtered.length === 0) {
-      listEl.innerHTML = `
-        <div class="empty-state">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <h3>${q ? 'Sin resultados' : 'Sin pedidos activos'}</h3>
-          <p>${q ? `No hay pedidos que coincidan con "${escHtml(q)}"` : 'No hay pedidos en proceso'}</p>
-        </div>
-      `;
-      return;
-    }
-
-    listEl.innerHTML = filtered.map(renderPedidoCard).join('');
-
-    // Attach estado change listeners
-    listEl.querySelectorAll('.estado-select').forEach(sel => {
-      sel.addEventListener('change', async (e) => {
-        const id     = parseInt(e.target.dataset.id);
-        const estado = e.target.value;
-        const prevVal = e.target.dataset.prev;
-        e.target.dataset.prev = estado;
-
-        // Visual feedback
-        e.target.className = `estado-select ${Pedidos.claseEstado(estado)}`;
-
-        try {
-          await Pedidos.actualizarEstado(id, estado);
-          toast(`Estado actualizado: ${estado}`, 'success');
-          // Refrescar lista en background
-          _pedidosCache = await Pedidos.getPedidosActivos();
-          filterPedidos(document.getElementById('search-input').value);
-          updateCriticosBadge();
-        } catch (err) {
-          toast(`Error: ${err.message}`, 'error');
-          // Revertir
-          e.target.value     = prevVal;
-          e.target.className = `estado-select ${Pedidos.claseEstado(prevVal)}`;
-        }
-      });
-    });
-  }
-
-  function renderPedidoCard(p) {
-    const sufijo    = p.sufijo ? `-${p.sufijo}` : '';
-    const estClase  = p._est.valor === 'critico' ? 'critico' : p._est.valor === 'demorado' ? 'demorado' : '';
-    const urgente   = p.urgente === 'Si' ? '<span class="pedido-urgente">URGENTE</span>' : '';
-    const selectCls = Pedidos.claseEstado(p.estado);
-
-    const estados = ['Pedido a laboratorio', 'En laboratorio', 'Pendiente de retirar', 'Retirado'];
-    const opts = estados.map(e => `<option value="${e}" ${e === p.estado ? 'selected' : ''}>${e}</option>`).join('');
-
-    return `
-      <div class="pedido-card ${estClase}">
-        <div class="pedido-card-header">
-          <span class="pedido-orden">#${escHtml(p.orden)}${sufijo}</span>
-          ${urgente}
-        </div>
-        <div class="pedido-card-body">
-          <div class="pedido-cliente">${escHtml(p.cliente)}</div>
-          <div class="pedido-meta">
-            ${p.laboratorio ? `<span class="meta-chip lab">${escHtml(p.laboratorio)}</span>` : ''}
-            ${p.tipo_lente  ? `<span class="meta-chip">${escHtml(p.tipo_lente)}</span>` : ''}
-            ${p.tipo        ? `<span class="meta-chip">${escHtml(p.tipo)}</span>` : ''}
-            ${p.dos_etapas === 'Si' ? `<span class="meta-chip">2 etapas</span>` : ''}
-          </div>
-        </div>
-        <div class="pedido-card-footer">
-          <div class="estado-info">
-            <span class="est-inteligente ${p._est.clase}">${p._est.texto}</span>
-            <span class="dias-badge">${p._dias} día${p._dias !== 1 ? 's' : ''}</span>
-          </div>
-          <select
-            class="estado-select ${selectCls}"
-            data-id="${p.id}"
-            data-prev="${escHtml(p.estado)}"
-            aria-label="Cambiar estado"
-          >${opts}</select>
-        </div>
-      </div>
-    `;
-  }
-
-  // ── PANEL ─────────────────────────────────────────
-  async function refreshPanel() {
-    if (!Auth.isAdmin()) return;
-    await Panel.render();
-    updateCriticosBadge();
-  }
-
-  // ── BADGE CRÍTICOS ────────────────────────────────
-  async function updateCriticosBadge() {
-    if (!Auth.isAdmin()) return;
-    try {
-      const todos = _pedidosCache.length ? _pedidosCache : await Pedidos.getPedidosActivos();
-      const count = Panel.contarCriticos(todos);
-      const badge = document.getElementById('criticos-badge');
-      if (count > 0) {
-        badge.textContent = count;
-        badge.classList.remove('hidden');
-      } else {
-        badge.classList.add('hidden');
-      }
-    } catch {}
-  }
-
-  // ── FORM NUEVO PEDIDO ─────────────────────────────
-  function getFormData() {
-    const g  = id => document.getElementById(id)?.value.trim() ?? '';
-    const doble = document.getElementById('toggle-dos-anteojos').checked;
-
-    return {
-      doble,
-      base: {
-        cliente:      g('f-cliente'),
-        orden:        g('f-orden'),
-        urgente:      g('f-urgente'),
-        tipo:         g('f-tipo'),
-      },
-      ant1: {
-        laboratorio:  g('f-lab1'),
-        tipo_lente:   g('f-lente1'),
-        tratamiento:  g('f-tratamiento1'),
-        grad_od:      g('f-grad-od1'),
-        grad_oi:      g('f-grad-oi1'),
-        dos_etapas:   g('f-etapas1'),
-        armazon:      g('f-armazon1'),
-        marca:        g('f-marca1'),
-        codigoref:    g('f-codigoref1'),
-        material:     g('f-material1'),
-        color:        g('f-color1'),
-      },
-      ant2: doble ? {
-        laboratorio:  g('f-lab2'),
-        tipo_lente:   g('f-lente2'),
-        tratamiento:  g('f-tratamiento2'),
-        grad_od:      g('f-grad-od2'),
-        grad_oi:      g('f-grad-oi2'),
-        dos_etapas:   g('f-etapas2'),
-        armazon:      g('f-armazon2'),
-        marca:        g('f-marca2'),
-        codigoref:    g('f-codigoref2'),
-        material:     g('f-material2'),
-        color:        g('f-color2'),
-      } : null,
-    };
-  }
-
-  function validateForm(data) {
-    let valid = true;
-
-    function setErr(fieldId, errId, condition) {
-      const f = document.getElementById(fieldId);
-      const e = document.getElementById(errId);
-      if (!f || !e) return;
-      if (condition) {
-        f.classList.add('error'); e.classList.add('visible'); valid = false;
-      } else {
-        f.classList.remove('error'); e.classList.remove('visible');
-      }
-    }
-
-    setErr('f-cliente', 'err-cliente', !data.base.cliente);
-    setErr('f-orden',   'err-orden',   !data.base.orden);
-    setErr('f-urgente', 'err-urgente', !data.base.urgente);
-    setErr('f-tipo',    'err-tipo',    !data.base.tipo);
-    setErr('f-lab1',    'err-lab1',    !data.ant1.laboratorio);
-    setErr('f-lente1',  'err-lente1',  !data.ant1.tipo_lente);
-
-    if (data.doble) {
-      setErr('f-lab2',   'err-lab2',   !data.ant2.laboratorio);
-      setErr('f-lente2', 'err-lente2', !data.ant2.tipo_lente);
-    }
-
-    return valid;
-  }
-
-  async function handleFormSubmit(e) {
-    e.preventDefault();
-    const data = getFormData();
-    if (!validateForm(data)) {
-      toast('Completá los campos obligatorios', 'warn');
-      return;
-    }
-
-    // Mostrar modal de confirmación
-    const doble = data.doble;
-    let html = '';
-    const rf = (label, val) => val ? `<div class="modal-row"><span class="modal-label">${label}</span><span class="modal-value">${escHtml(val)}</span></div>` : '';
-
-    if (doble) {
-      html += `<p style="font-weight:600;margin-bottom:10px;color:var(--azul)">Pedido con 2 anteojos</p>`;
-      html += rf('Cliente', data.base.cliente);
-      html += rf('Orden', `${data.base.orden}-A / ${data.base.orden}-B`);
-      html += rf('Tipo', data.base.tipo);
-      html += rf('Urgente', data.base.urgente);
-      html += `<div style="margin:10px 0 6px;font-size:.78rem;font-weight:700;color:var(--azul);text-transform:uppercase">Anteojo A</div>`;
-      html += rf('Laboratorio', data.ant1.laboratorio);
-      html += rf('Tipo lente', data.ant1.tipo_lente);
-      html += rf('Graduación', buildGradLabel(data.ant1));
-      html += `<div style="margin:10px 0 6px;font-size:.78rem;font-weight:700;color:var(--azul);text-transform:uppercase">Anteojo B</div>`;
-      html += rf('Laboratorio', data.ant2.laboratorio);
-      html += rf('Tipo lente', data.ant2.tipo_lente);
-      html += rf('Graduación', buildGradLabel(data.ant2));
-    } else {
-      html += rf('Cliente', data.base.cliente);
-      html += rf('Orden', data.base.orden);
-      html += rf('Tipo', data.base.tipo);
-      html += rf('Urgente', data.base.urgente);
-      html += rf('Laboratorio', data.ant1.laboratorio);
-      html += rf('Tipo lente', data.ant1.tipo_lente);
-      html += rf('Graduación', buildGradLabel(data.ant1));
-      html += rf('Tratamiento', data.ant1.tratamiento);
-      html += rf('2 etapas', data.ant1.dos_etapas);
-    }
-
-    document.getElementById('modal-body-content').innerHTML = html;
-    _pendingGuardar = data;
-    document.getElementById('confirm-modal').classList.remove('hidden');
-  }
-
-  function buildGradLabel(ant) {
-    if (!ant.grad_od && !ant.grad_oi) return null;
-    return [ant.grad_od && `OD: ${ant.grad_od}`, ant.grad_oi && `OI: ${ant.grad_oi}`].filter(Boolean).join(' | ');
-  }
-
-  async function handleConfirm() {
-    if (!_pendingGuardar) return;
-    const data   = _pendingGuardar;
-    const btn    = document.getElementById('modal-confirm-btn');
-    btn.classList.add('btn-loading');
-    btn.disabled = true;
-
-    try {
-      const nombre = Auth.getNombre();
-      const rows   = [];
-
-      const baseRow = (ant, sufijo) => ({
-        ...data.base,
-        ...ant,
-        sufijo,
-        cargado_por: nombre,
-      });
-
-      if (data.doble) {
-        rows.push(baseRow(data.ant1, 'A'));
-        rows.push(baseRow(data.ant2, 'B'));
-      } else {
-        rows.push(baseRow(data.ant1, null));
-      }
-
-      await Pedidos.crearPedido(rows);
-      closeModal();
-      toast('Pedido guardado correctamente', 'success');
-      resetForm();
-      showScreen('pedidos');
-    } catch (err) {
-      closeModal();
-      toast(err.message, 'error');
-    } finally {
-      btn.classList.remove('btn-loading');
-      btn.disabled = false;
-    }
-  }
-
-  function resetForm() {
-    document.getElementById('form-nuevo-pedido').reset();
-    document.getElementById('bloque-anteojo2').classList.add('hidden');
-    document.getElementById('bloque1-title').textContent = 'Anteojo';
-    // Limpiar errores
-    document.querySelectorAll('.form-control').forEach(el => el.classList.remove('error'));
-    document.querySelectorAll('.form-error').forEach(el => el.classList.remove('visible'));
-    _pendingGuardar = null;
-  }
-
-  function closeModal() {
-    document.getElementById('confirm-modal').classList.add('hidden');
-    _pendingGuardar = null;
-  }
-
-  // ── TOAST ─────────────────────────────────────────
-  function toast(msg, tipo = 'success') {
-    const container = document.getElementById('toast-container');
-    const div = document.createElement('div');
-    div.className = `toast toast-${tipo}`;
-    div.textContent = msg;
-    container.appendChild(div);
-    setTimeout(() => div.remove(), 3100);
-  }
-
-  // ── UTILS ─────────────────────────────────────────
-  function escHtml(str) {
-    if (!str) return '';
-    return String(str)
-      .replace(/&/g,'&amp;').replace(/</g,'&lt;')
-      .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  }
-
-  // Exponer al global
-  window.toast     = toast;
-  window.escHtml   = escHtml;
-
-  return { init, showScreen, loadPedidos, refreshPanel, resetForm };
-})();
-
-// Arrancar
-AppController.init();
-</script>
+<script src="app.js"></script>
 
 </body>
 </html>
