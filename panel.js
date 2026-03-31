@@ -5,13 +5,10 @@
 
 const Panel = (() => {
 
-  // ── Renderizar panel completo ─────────────────────
   async function render() {
     const kpiEl = document.getElementById('panel-kpis');
     if (!kpiEl) return;
-
     kpiEl.innerHTML = '<div style="padding:24px;text-align:center;color:#888;font-size:13px">Cargando panel...</div>';
-
     try {
       const todos = await Pedidos.getTodosPedidos();
       renderDashboard(todos);
@@ -20,21 +17,13 @@ const Panel = (() => {
     }
   }
 
-  // ── Contar críticos para badge ────────────────────
   function contarCriticos(pedidos) {
-    return pedidos.filter(p =>
-      p.estado !== 'Retirado' && p._est.valor === 'critico'
-    ).length;
+    return pedidos.filter(p => p.estado !== 'Retirado' && p._est.valor === 'critico').length;
   }
 
-  // ── Navegación desde tarjetas ─────────────────────
   function irAPedidos(estado) {
     App.showScreen('pedidos');
-    if (estado && estado !== 'todos') {
-      App.switchEstadoTab(estado);
-    } else {
-      App.switchEstadoTab('todos');
-    }
+    App.switchEstadoTab(estado && estado !== 'todos' ? estado : 'todos');
   }
 
   function irAPedidosDemorados() {
@@ -55,11 +44,15 @@ const Panel = (() => {
     setTimeout(() => window.toast('Buscá los chips URGENTE en cada pedido ⚡', 'success'), 600);
   }
 
-  // ── Dashboard principal ───────────────────────────
   function renderDashboard(todos) {
     const activos = todos.filter(p => p.estado !== 'Retirado');
 
-    const enLab     = activos.filter(p => p.estado === 'Pedido a laboratorio' || p.estado === 'En laboratorio').length;
+    // ── KPIs estado actual ────────────────────────
+    const enLab     = activos.filter(p =>
+      p.estado === 'Cristales pedidos a lab' ||
+      p.estado === 'Armazón enviado p/calibrado' ||
+      p.estado === 'En laboratorio'
+    ).length;
     const paraRet   = activos.filter(p => p.estado === 'Pendiente de retirar').length;
     const hoy       = new Date().toDateString();
     const retHoy    = todos.filter(p => p.estado === 'Retirado' && p.fecha_retiro && new Date(p.fecha_retiro).toDateString() === hoy).length;
@@ -68,6 +61,7 @@ const Panel = (() => {
     const urgentes  = activos.filter(p => p.urgente === 'Si').length;
     const totalActivos = activos.length;
 
+    // ── Métricas temporales ───────────────────────
     const ahora     = new Date();
     const iniSemana = new Date(ahora); iniSemana.setDate(ahora.getDate() - ahora.getDay() + 1); iniSemana.setHours(0,0,0,0);
     const iniMes    = new Date(ahora.getFullYear(), ahora.getMonth(), 1);
@@ -87,10 +81,10 @@ const Panel = (() => {
 
     let promDias = 0;
     if (activos.length > 0) {
-      const sum = activos.reduce((a, p) => a + p._dias, 0);
-      promDias = (sum / activos.length).toFixed(1);
+      promDias = (activos.reduce((a, p) => a + p._dias, 0) / activos.length).toFixed(1);
     }
 
+    // ── Rankings ──────────────────────────────────
     const labCounts = {};
     todos.filter(p => new Date(p.fecha_carga) >= iniMes).forEach(p => {
       if (!p.laboratorio) return;
@@ -117,6 +111,7 @@ const Panel = (() => {
     });
     const lenteRanking = Object.entries(lenteCounts).sort((a,b) => b[1]-a[1]);
 
+    // ── Gráficos ──────────────────────────────────
     const dias7 = [];
     for (let i = 6; i >= 0; i--) {
       const d = new Date(); d.setDate(d.getDate() - i); d.setHours(0,0,0,0);
@@ -141,274 +136,201 @@ const Panel = (() => {
     if (!kpiEl) return;
 
     kpiEl.innerHTML = `
-
-      <!-- PERÍODO CARDS -->
       <div class="dash-section-label">Actividad del período</div>
       <div class="dash-periodo-grid">
-
         <div class="dash-periodo-card dash-periodo-blue dash-clickable" onclick="Panel.irAPedidos('todos')">
           <div class="dash-periodo-value">${pedidosSemana}</div>
           <div class="dash-periodo-label">Esta semana</div>
-          <div class="dash-periodo-delta ${deltaSem >= 0 ? '' : 'neg'}">
-            ${deltaSem >= 0 ? '↑' : '↓'} ${Math.abs(deltaSem)} vs sem. anterior
-          </div>
+          <div class="dash-periodo-delta ${deltaSem >= 0 ? '' : 'neg'}">${deltaSem >= 0 ? '↑' : '↓'} ${Math.abs(deltaSem)} vs sem. anterior</div>
           <div class="dash-tap-hint">Ver pedidos →</div>
         </div>
-
         <div class="dash-periodo-card dash-periodo-yellow dash-clickable" onclick="Panel.irAPedidos('todos')">
           <div class="dash-periodo-value">${pedidosMes}</div>
           <div class="dash-periodo-label">Este mes</div>
-          <div class="dash-periodo-delta ${deltaMes >= 0 ? '' : 'neg'}">
-            ${deltaMes >= 0 ? '↑' : '↓'} ${Math.abs(deltaMes)} vs mes anterior
-          </div>
+          <div class="dash-periodo-delta ${deltaMes >= 0 ? '' : 'neg'}">${deltaMes >= 0 ? '↑' : '↓'} ${Math.abs(deltaMes)} vs mes anterior</div>
           <div class="dash-tap-hint">Ver pedidos →</div>
         </div>
-
         <div class="dash-periodo-card dash-periodo-teal dash-clickable" onclick="Panel.irAPedidos('todos')">
           <div class="dash-periodo-value">${pedidosAnio}</div>
           <div class="dash-periodo-label">Este año</div>
           <div class="dash-periodo-delta">Total ${ahora.getFullYear()}</div>
           <div class="dash-tap-hint">Ver pedidos →</div>
         </div>
-
         <div class="dash-periodo-card dash-periodo-purple">
           <div class="dash-periodo-value">${promDias}<span style="font-size:14px">d</span></div>
           <div class="dash-periodo-label">Prom. días en lab.</div>
           <div class="dash-periodo-delta">Todos los activos</div>
         </div>
-
       </div>
 
-      <!-- KPI ESTADO ACTUAL -->
       <div class="dash-section-label">Estado actual</div>
       <div class="dash-kpi-grid">
-
-        <div class="dash-kpi-card dash-kpi-blue dash-clickable" onclick="Panel.irAPedidos('En laboratorio')">
+        <div class="dash-kpi-card dash-kpi-blue dash-clickable" onclick="Panel.irAPedidos('Cristales pedidos a lab')">
           <div class="dash-kpi-icon">🔬</div>
           <div class="dash-kpi-value">${enLab}</div>
           <div class="dash-kpi-label">En laboratorio</div>
           <div class="dash-tap-hint-sm">Ver →</div>
         </div>
-
         <div class="dash-kpi-card dash-kpi-yellow dash-clickable" onclick="Panel.irAPedidos('Pendiente de retirar')">
           <div class="dash-kpi-icon">📦</div>
           <div class="dash-kpi-value">${paraRet}</div>
           <div class="dash-kpi-label">Para retirar</div>
           <div class="dash-tap-hint-sm">Ver →</div>
         </div>
-
         <div class="dash-kpi-card dash-kpi-green dash-clickable" onclick="Panel.irAPedidos('Retirado')">
           <div class="dash-kpi-icon">✅</div>
           <div class="dash-kpi-value">${retHoy}</div>
           <div class="dash-kpi-label">Retirados hoy</div>
           <div class="dash-tap-hint-sm">Ver →</div>
         </div>
-
         <div class="dash-kpi-card dash-kpi-orange dash-clickable" onclick="Panel.irAPedidosDemorados()">
           <div class="dash-kpi-icon">⚠️</div>
           <div class="dash-kpi-value">${demorados}</div>
           <div class="dash-kpi-label">Demorados</div>
           <div class="dash-tap-hint-sm">Ver →</div>
         </div>
-
         <div class="dash-kpi-card dash-kpi-red dash-clickable" onclick="Panel.irAPedidosCriticos()">
           <div class="dash-kpi-icon">🔴</div>
           <div class="dash-kpi-value">${criticos}</div>
           <div class="dash-kpi-label">Críticos</div>
           <div class="dash-tap-hint-sm">Ver →</div>
         </div>
-
         <div class="dash-kpi-card dash-kpi-purple dash-clickable" onclick="Panel.irAPedidosUrgentes()">
           <div class="dash-kpi-icon">⚡</div>
           <div class="dash-kpi-value">${urgentes}</div>
           <div class="dash-kpi-label">Urgentes activos</div>
           <div class="dash-tap-hint-sm">Ver →</div>
         </div>
-
         <div class="dash-kpi-card dash-kpi-teal dash-clickable" style="grid-column:span 2" onclick="Panel.irAPedidos('todos')">
           <div class="dash-kpi-icon">📋</div>
           <div class="dash-kpi-value">${totalActivos}</div>
           <div class="dash-kpi-label">Total activos</div>
           <div class="dash-tap-hint-sm">Ver todos →</div>
         </div>
-
       </div>
 
-      <!-- GRÁFICO: pedidos por día -->
       <div class="dash-section-label">Pedidos por día (últimos 7 días)</div>
       <div class="dash-wide-card">
         <div class="dash-bar-chart">
           ${dias7.map((d, i) => {
             const h = Math.max(4, Math.round((d.count / maxDia) * 80));
-            const isHoy = i === 6;
-            return `
-              <div class="dash-bar-col">
-                <div class="dash-bar-val">${d.count}</div>
-                <div class="dash-bar" style="height:${h}px;background:${isHoy ? '#034291' : '#B5D4F4'}"></div>
-                <div class="dash-bar-lbl">${d.label}</div>
-              </div>`;
+            return `<div class="dash-bar-col">
+              <div class="dash-bar-val">${d.count}</div>
+              <div class="dash-bar" style="height:${h}px;background:${i===6?'#034291':'#B5D4F4'}"></div>
+              <div class="dash-bar-lbl">${d.label}</div>
+            </div>`;
           }).join('')}
         </div>
       </div>
 
-      <!-- GRÁFICO: pedidos por mes -->
       <div class="dash-section-label">Pedidos por mes (últimos 6 meses)</div>
       <div class="dash-wide-card">
         <div class="dash-bar-chart">
           ${meses6.map((m, i) => {
             const h = Math.max(4, Math.round((m.count / maxMes) * 80));
-            const isActual = i === 5;
-            return `
-              <div class="dash-bar-col">
-                <div class="dash-bar-val">${m.count}</div>
-                <div class="dash-bar" style="height:${h}px;background:${isActual ? '#034291' : '#B5D4F4'}"></div>
-                <div class="dash-bar-lbl">${m.label}</div>
-              </div>`;
+            return `<div class="dash-bar-col">
+              <div class="dash-bar-val">${m.count}</div>
+              <div class="dash-bar" style="height:${h}px;background:${i===5?'#034291':'#B5D4F4'}"></div>
+              <div class="dash-bar-lbl">${m.label}</div>
+            </div>`;
           }).join('')}
         </div>
       </div>
 
-      <!-- RANKING LABORATORIOS -->
       <div class="dash-section-label">Ranking de laboratorios (este mes)</div>
       <div class="dash-wide-card">
-        ${labRanking.length === 0
-          ? '<p class="dash-empty">Sin datos del mes actual</p>'
-          : `<div class="dash-rank-list">
-              ${labRanking.map(([lab, count], i) => {
-                const pct = Math.round((count / labRanking[0][1]) * 100);
-                const color = LAB_COLORS[i % LAB_COLORS.length];
-                return `
-                  <div class="dash-rank-item">
-                    <div class="dash-rank-num">${i + 1}</div>
-                    <div class="dash-rank-name">${lab}</div>
-                    <div class="dash-rank-bar-bg">
-                      <div class="dash-rank-bar-fill" style="width:${pct}%;background:${color}"></div>
-                    </div>
-                    <div class="dash-rank-count">${count}</div>
-                  </div>`;
-              }).join('')}
-            </div>`
+        ${labRanking.length === 0 ? '<p class="dash-empty">Sin datos del mes actual</p>' :
+          `<div class="dash-rank-list">${labRanking.map(([lab, count], i) => {
+            const pct = Math.round((count / labRanking[0][1]) * 100);
+            return `<div class="dash-rank-item">
+              <div class="dash-rank-num">${i+1}</div>
+              <div class="dash-rank-name">${lab}</div>
+              <div class="dash-rank-bar-bg"><div class="dash-rank-bar-fill" style="width:${pct}%;background:${LAB_COLORS[i%LAB_COLORS.length]}"></div></div>
+              <div class="dash-rank-count">${count}</div>
+            </div>`;
+          }).join('')}</div>`
         }
       </div>
 
-      <!-- PROMEDIO POR LABORATORIO -->
       <div class="dash-section-label">Tiempo promedio por laboratorio</div>
       <div class="dash-wide-card">
-        ${labPromedios.length === 0
-          ? '<p class="dash-empty">Sin pedidos activos</p>'
-          : `<table class="dash-avg-table">
-              <thead><tr><th>Laboratorio</th><th>Días prom.</th><th>Límite OK</th><th>Estado</th></tr></thead>
-              <tbody>
-                ${labPromedios.map(r => `
-                  <tr>
-                    <td><strong>${r.lab}</strong></td>
-                    <td>${r.avg}d</td>
-                    <td style="color:#888;font-size:11px">${getLimite(r.lab)}</td>
-                    <td><span class="dash-pill dash-pill-${r.estado.clase}">${r.estado.texto}</span></td>
-                  </tr>`).join('')}
-              </tbody>
-            </table>`
+        ${labPromedios.length === 0 ? '<p class="dash-empty">Sin pedidos activos</p>' :
+          `<table class="dash-avg-table">
+            <thead><tr><th>Laboratorio</th><th>Días prom.</th><th>Límite OK</th><th>Estado</th></tr></thead>
+            <tbody>${labPromedios.map(r => `
+              <tr>
+                <td><strong>${r.lab}</strong></td>
+                <td>${r.avg}d</td>
+                <td style="color:#888;font-size:11px">${getLimite(r.lab)}</td>
+                <td><span class="dash-pill dash-pill-${r.estado.clase}">${r.estado.texto}</span></td>
+              </tr>`).join('')}
+            </tbody>
+          </table>`
         }
       </div>
 
-      <!-- RANKING TIPO DE LENTE -->
       <div class="dash-section-label">Tipos de lente más pedidos (este mes)</div>
       <div class="dash-wide-card">
-        ${lenteRanking.length === 0
-          ? '<p class="dash-empty">Sin datos del mes actual</p>'
-          : `<div class="dash-rank-list">
-              ${lenteRanking.map(([lente, count], i) => {
-                const pct = lenteRanking[0][1] > 0 ? Math.round((count / lenteRanking[0][1]) * 100) : 0;
-                const color = LAB_COLORS[i % LAB_COLORS.length];
-                return `
-                  <div class="dash-rank-item">
-                    <div class="dash-rank-num">${i + 1}</div>
-                    <div class="dash-rank-name" style="font-size:11px">${lente}</div>
-                    <div class="dash-rank-bar-bg">
-                      <div class="dash-rank-bar-fill" style="width:${pct}%;background:${color}"></div>
-                    </div>
-                    <div class="dash-rank-count">${count}</div>
-                  </div>`;
-              }).join('')}
-            </div>`
+        ${lenteRanking.length === 0 ? '<p class="dash-empty">Sin datos del mes actual</p>' :
+          `<div class="dash-rank-list">${lenteRanking.map(([lente, count], i) => {
+            const pct = lenteRanking[0][1] > 0 ? Math.round((count/lenteRanking[0][1])*100) : 0;
+            return `<div class="dash-rank-item">
+              <div class="dash-rank-num">${i+1}</div>
+              <div class="dash-rank-name" style="font-size:11px">${lente}</div>
+              <div class="dash-rank-bar-bg"><div class="dash-rank-bar-fill" style="width:${pct}%;background:${LAB_COLORS[i%LAB_COLORS.length]}"></div></div>
+              <div class="dash-rank-count">${count}</div>
+            </div>`;
+          }).join('')}</div>`
         }
       </div>
 
-      <!-- TABLA CRÍTICOS Y DEMORADOS -->
       <div class="dash-section-label">Críticos y demorados 🔴</div>
-      <div class="dash-wide-card" id="panel-criticos">
-        ${renderFilasCriticos(todos)}
-      </div>
+      <div class="dash-wide-card" id="panel-criticos">${renderFilasCriticos(todos)}</div>
 
-      <!-- TABLA PARA RETIRAR -->
       <div class="dash-section-label">Para retirar 📦</div>
-      <div class="dash-wide-card" id="panel-pendientes">
-        ${renderFilasPendientes(todos)}
-      </div>
+      <div class="dash-wide-card" id="panel-pendientes">${renderFilasPendientes(todos)}</div>
 
-      <!-- TABLA ÚLTIMOS INGRESADOS -->
       <div class="dash-section-label">Últimos 10 pedidos ingresados</div>
-      <div class="dash-wide-card" id="panel-ultimos">
-        ${renderFilasUltimos(todos)}
-      </div>
-
+      <div class="dash-wide-card" id="panel-ultimos">${renderFilasUltimos(todos)}</div>
     `;
   }
 
-  // ── Helpers ───────────────────────────────────────
   function getLimite(lab) {
-    const limites = { Bichara:'≤2 días', Sol:'≤5 días', Vitolen:'≤5 días', Cristian:'≤7 días' };
-    return limites[lab] || '—';
+    return { Bichara:'≤2 días', Sol:'≤5 días', Vitolen:'≤5 días', Cristian:'≤7 días' }[lab] || '—';
   }
 
   function getEstadoLab(lab, avg) {
-    const reglas = {
-      Bichara: { ok: 2, dem: 4 },
-      Sol:     { ok: 5, dem: 7 },
-      Vitolen: { ok: 5, dem: 7 },
-      Cristian:{ ok: 7, dem: 10 },
-    };
-    const r = reglas[lab] || { ok: 5, dem: 7 };
-    if (avg <= r.ok)  return { texto: '✅ OK',       clase: 'green'  };
-    if (avg <= r.dem) return { texto: '⚠️ Demorado', clase: 'yellow' };
-    return                   { texto: '🔴 Crítico',  clase: 'red'    };
+    const r = { Bichara:{ok:2,dem:4}, Sol:{ok:5,dem:7}, Vitolen:{ok:5,dem:7}, Cristian:{ok:7,dem:10} }[lab] || {ok:5,dem:7};
+    if (avg <= r.ok)  return { texto:'✅ OK',       clase:'green'  };
+    if (avg <= r.dem) return { texto:'⚠️ Demorado', clase:'yellow' };
+    return                   { texto:'🔴 Crítico',  clase:'red'    };
   }
 
   function renderFilasCriticos(todos) {
-    const rows = todos
-      .filter(p => p.estado !== 'Retirado' && (p._est.valor === 'critico' || p._est.valor === 'demorado'))
-      .sort((a, b) => b._dias - a._dias).slice(0, 10);
-    if (!rows.length) return '<p class="dash-empty">Sin pedidos críticos o demorados</p>';
-    return rows.map(p => panelRow(p)).join('');
+    const rows = todos.filter(p => p.estado !== 'Retirado' && (p._est.valor === 'critico' || p._est.valor === 'demorado')).sort((a,b) => b._dias-a._dias).slice(0,10);
+    return rows.length ? rows.map(panelRow).join('') : '<p class="dash-empty">Sin pedidos críticos o demorados</p>';
   }
 
   function renderFilasPendientes(todos) {
-    const rows = todos
-      .filter(p => p.estado === 'Pendiente de retirar')
-      .sort((a, b) => b._dias - a._dias).slice(0, 10);
-    if (!rows.length) return '<p class="dash-empty">Sin pedidos pendientes de retiro</p>';
-    return rows.map(p => panelRow(p)).join('');
+    const rows = todos.filter(p => p.estado === 'Pendiente de retirar').sort((a,b) => b._dias-a._dias).slice(0,10);
+    return rows.length ? rows.map(panelRow).join('') : '<p class="dash-empty">Sin pedidos pendientes de retiro</p>';
   }
 
   function renderFilasUltimos(todos) {
-    const rows = todos
-      .sort((a, b) => new Date(b.fecha_carga) - new Date(a.fecha_carga)).slice(0, 10);
-    if (!rows.length) return '<p class="dash-empty">Sin pedidos</p>';
-    return rows.map(p => panelRow(p)).join('');
+    const rows = todos.sort((a,b) => new Date(b.fecha_carga)-new Date(a.fecha_carga)).slice(0,10);
+    return rows.length ? rows.map(panelRow).join('') : '<p class="dash-empty">Sin pedidos</p>';
   }
 
   function panelRow(p) {
     const estClase = p._est.valor === 'critico' ? 'critico' : p._est.valor === 'demorado' ? 'demorado' : '';
     const sufijo   = p.sufijo ? `-${p.sufijo}` : '';
-    return `
-      <div class="panel-row ${estClase}">
-        <span class="pr-orden">${p.orden}${sufijo}</span>
-        <span class="pr-cliente">${escHtml(p.cliente)}</span>
-        <span class="pr-lab">${p.laboratorio || '—'}</span>
-        <span class="pr-dias">${p._dias}d</span>
-        <span class="pr-est ${p._est.clase}">${p._est.texto}</span>
-      </div>
-    `;
+    return `<div class="panel-row ${estClase}">
+      <span class="pr-orden">${p.orden}${sufijo}</span>
+      <span class="pr-cliente">${escHtml(p.cliente)}</span>
+      <span class="pr-lab">${p.laboratorio || '—'}</span>
+      <span class="pr-dias">${p._dias}d</span>
+      <span class="pr-est ${p._est.clase}">${p._est.texto}</span>
+    </div>`;
   }
 
   function escHtml(str) {
