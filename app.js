@@ -977,6 +977,48 @@ const App = (() => {
     _pendingGuardar = null;
   }
 
+  // ── Activar notificaciones manualmente ───────────
+  async function activarNotificaciones() {
+    const btn    = document.getElementById('btn-activar-notif');
+    const status = document.getElementById('notif-status');
+
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      if (status) status.textContent = '⚠️ Tu navegador no soporta notificaciones push';
+      return;
+    }
+
+    try {
+      if (btn) { btn.disabled = true; btn.textContent = 'Activando...'; }
+
+      const reg  = await navigator.serviceWorker.register('/sw.js');
+      await navigator.serviceWorker.ready;
+      const perm = await Notification.requestPermission();
+
+      if (perm !== 'granted') {
+        if (status) status.textContent = '❌ Permiso denegado. Activalo desde Ajustes → OLVISIÓN → Notificaciones.';
+        if (btn) { btn.textContent = '🔔 Activar notificaciones push'; btn.disabled = false; }
+        return;
+      }
+
+      let sub = await reg.pushManager.getSubscription();
+      if (!sub) {
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC),
+        });
+      }
+
+      await guardarSuscripcion(sub);
+      if (btn) { btn.textContent = '✅ Notificaciones activadas'; btn.style.background = 'var(--verde)'; }
+      if (status) status.textContent = 'Vas a recibir alertas de pedidos nuevos, retirados y críticos.';
+      toast('🔔 Notificaciones activadas', 'success');
+    } catch (e) {
+      if (btn) { btn.textContent = '🔔 Activar notificaciones push'; btn.disabled = false; }
+      if (status) status.textContent = `Error: ${e.message}`;
+      console.error('Push error:', e);
+    }
+  }
+
   // ── UTILS ─────────────────────────────────────────
   function todayStr() { return new Date().toISOString().slice(0,10); }
 
@@ -1004,7 +1046,7 @@ const App = (() => {
     onLenteChange, setDistancia,
     loadConfigScreen, loadConfigTratamientos,
     addLab, deleteLab, addTratamiento, deleteTratamiento,
-    guardarEdicion,
+    guardarEdicion, activarNotificaciones,
   };
 })();
 
