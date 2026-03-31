@@ -2,9 +2,123 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>OLVISIÓN — Pedidos</title>
   <link rel="stylesheet" href="style.css">
+  <style>
+    /* ── Modal detalle / edición ── */
+    .detalle-overlay {
+      position: fixed; inset: 0; z-index: 7000;
+      background: rgba(2,41,102,.5);
+      backdrop-filter: blur(4px);
+      display: flex; align-items: flex-end; justify-content: center;
+      animation: fadeIn .2s ease;
+    }
+    .detalle-overlay.hidden { display: none; }
+
+    .detalle-sheet {
+      background: var(--blanco);
+      border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+      width: 100%; max-width: 520px;
+      max-height: 92dvh; overflow-y: auto;
+      animation: slideSheet .3s ease;
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+
+    .detalle-header {
+      position: sticky; top: 0; z-index: 10;
+      background: var(--blanco);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 20px 12px;
+      border-bottom: 1px solid var(--gris-borde);
+    }
+    .detalle-orden {
+      font-size: 1.1rem; font-weight: 800;
+      color: var(--azul); font-family: var(--font-mono);
+    }
+    .detalle-actions { display: flex; gap: 8px; align-items: center; }
+    .btn-editar {
+      padding: 8px 16px; border-radius: 20px;
+      background: var(--azul-light); color: var(--azul);
+      font-size: .82rem; font-weight: 700; border: none; cursor: pointer;
+      transition: background .15s;
+    }
+    .btn-editar:active { background: var(--azul-mid); }
+    .btn-cerrar-detalle {
+      width: 30px; height: 30px; border-radius: 50%;
+      background: var(--gris-bg); border: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; color: var(--gris-texto);
+    }
+
+    .detalle-body { padding: 16px 20px; }
+
+    /* Secciones del detalle */
+    .detalle-seccion {
+      margin-bottom: 16px;
+      background: var(--gris-bg);
+      border-radius: var(--radius);
+      padding: 14px;
+    }
+    .detalle-seccion-title {
+      font-size: 10px; font-weight: 700; color: var(--gris-texto);
+      text-transform: uppercase; letter-spacing: .08em; margin-bottom: 10px;
+    }
+    .detalle-row {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      padding: 5px 0; border-bottom: 1px solid var(--gris-borde);
+      gap: 12px;
+    }
+    .detalle-row:last-child { border-bottom: none; padding-bottom: 0; }
+    .detalle-label { font-size: 12px; color: var(--gris-texto); flex-shrink: 0; }
+    .detalle-valor { font-size: 13px; font-weight: 600; color: var(--gris-dark); text-align: right; flex: 1; }
+    .detalle-grad {
+      font-family: var(--font-mono); font-size: 12px;
+      background: var(--blanco); border-radius: 6px;
+      padding: 8px 10px; margin-top: 6px; color: var(--gris-dark);
+      border: 1px solid var(--gris-borde); line-height: 1.8;
+    }
+
+    /* ── Modo edición ── */
+    .edit-overlay {
+      position: fixed; inset: 0; z-index: 8000;
+      background: rgba(2,41,102,.5);
+      backdrop-filter: blur(4px);
+      display: flex; align-items: flex-end; justify-content: center;
+      animation: fadeIn .2s ease;
+    }
+    .edit-overlay.hidden { display: none; }
+    .edit-sheet {
+      background: var(--blanco);
+      border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+      width: 100%; max-width: 520px;
+      max-height: 94dvh; overflow-y: auto;
+      animation: slideSheet .3s ease;
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    .edit-header {
+      position: sticky; top: 0; z-index: 10;
+      background: var(--azul);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 20px;
+    }
+    .edit-header-title { font-size: 1rem; font-weight: 700; color: #fff; }
+    .btn-cerrar-edit {
+      width: 30px; height: 30px; border-radius: 50%;
+      background: rgba(255,255,255,.2); border: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; color: #fff;
+    }
+    .edit-body { padding: 16px 20px; }
+    .edit-save-btn {
+      width: 100%; margin-top: 8px; margin-bottom: 16px;
+      padding: 16px; border-radius: var(--radius);
+      background: var(--azul); color: #fff;
+      font-size: 1rem; font-weight: 700; border: none; cursor: pointer;
+      transition: background .15s;
+    }
+    .edit-save-btn:active { background: var(--azul-dark); }
+  </style>
 </head>
 <body>
 
@@ -15,6 +129,7 @@
 
 <div id="toast-container"></div>
 
+<!-- Modal confirmar nuevo pedido -->
 <div id="confirm-modal" class="modal-overlay hidden">
   <div class="modal-sheet">
     <div class="modal-header">
@@ -29,17 +144,37 @@
   </div>
 </div>
 
+<!-- Modal detalle pedido -->
+<div id="detalle-modal" class="detalle-overlay hidden">
+  <div class="detalle-sheet">
+    <div class="detalle-header">
+      <span class="detalle-orden" id="detalle-orden">#—</span>
+      <div class="detalle-actions">
+        <button class="btn-editar" id="btn-abrir-edicion">✏️ Editar</button>
+        <button class="btn-cerrar-detalle" id="btn-cerrar-detalle">✕</button>
+      </div>
+    </div>
+    <div class="detalle-body" id="detalle-body"></div>
+  </div>
+</div>
+
+<!-- Modal edición pedido -->
+<div id="edit-modal" class="edit-overlay hidden">
+  <div class="edit-sheet">
+    <div class="edit-header">
+      <span class="edit-header-title">Editar pedido</span>
+      <button class="btn-cerrar-edit" id="btn-cerrar-edit">✕</button>
+    </div>
+    <div class="edit-body" id="edit-body"></div>
+  </div>
+</div>
+
 <div class="app-layout" id="app-layout" style="display:none">
 
   <header class="app-header">
     <button class="app-header-logo-btn" id="logo-home-btn" aria-label="Inicio">
-      <!-- Logo blanco sobre header azul — usa logo-white.png -->
-      <img
-        src="logo-white.png"
-        alt="OLVISIÓN"
-        class="app-header-logo-img"
-        onerror="this.style.display='none';document.getElementById('logo-text').style.display='block'"
-      >
+      <img src="logo-white.png" alt="OLVISIÓN" class="app-header-logo-img"
+        onerror="this.style.display='none';document.getElementById('logo-text').style.display='block'">
       <span class="app-header-logo-text" id="logo-text" style="display:none">OL<span>VISIÓN</span></span>
     </button>
     <div class="header-actions">
@@ -50,13 +185,12 @@
 
   <main class="app-content">
 
-    <!-- ══ INICIO — Nuevo pedido ══════════════════ -->
+    <!-- ══ INICIO ══════════════════════════════════ -->
     <section class="screen" id="screen-inicio">
       <div class="section-header">
         <div><div class="section-title">Nuevo pedido</div><div class="section-subtitle">Campos obligatorios marcados con *</div></div>
       </div>
       <form id="form-nuevo-pedido" novalidate>
-
         <div class="form-section">
           <div class="form-section-title">Cliente</div>
           <div class="form-group">
@@ -183,7 +317,7 @@
       <div id="pedidos-list-container" style="display:none"></div>
     </section>
 
-    <!-- ══ PANEL KPIs ═════════════════════════════ -->
+    <!-- ══ PANEL ══════════════════════════════════ -->
     <section class="screen" id="screen-panel">
       <div class="section-header">
         <div><div class="section-title">Panel</div><div class="section-subtitle">Resumen general</div></div>
@@ -194,7 +328,7 @@
       <div id="panel-kpis"></div>
     </section>
 
-    <!-- ══ CONFIGURACIÓN ═════════════════════════ -->
+    <!-- ══ CONFIGURACIÓN ══════════════════════════ -->
     <section class="screen" id="screen-config">
       <div class="section-header">
         <div><div class="section-title">Configuración</div><div class="section-subtitle">Laboratorios y tratamientos</div></div>
