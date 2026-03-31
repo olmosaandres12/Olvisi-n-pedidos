@@ -961,3 +961,33 @@ select.form-control {
 
 /* ── Empty state ─────────────────────────────────── */
 .dash-empty { color: #bbb; font-size: 13px; text-align: center; padding: 12px 0; }
+/* ===================================================
+   FIX iPhone — Safe Area (pegar al final de style.css)
+   =================================================== */
+
+/* Header respeta la barra de estado del iPhone */
+.app-header {
+  padding-top: max(0px, env(safe-area-inset-top));
+  height: calc(56px + env(safe-area-inset-top));
+}
+
+/* El contenido baja para no quedar debajo del header */
+.app-content {
+  margin-top: calc(56px + env(safe-area-inset-top));
+}
+
+/* Nav inferior respeta el home indicator del iPhone */
+.bottom-nav {
+  padding-bottom: max(8px, env(safe-area-inset-bottom));
+  height: calc(var(--nav-h) + env(safe-area-inset-bottom));
+}
+
+/* El contenido no queda tapado por el nav */
+.app-content {
+  margin-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom));
+}
+
+/* Loading overlay también respeta safe area */
+#loading-overlay {
+  padding-top: env(safe-area-inset-top);
+}
