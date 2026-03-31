@@ -14,7 +14,7 @@ const Panel = (() => {
 
     try {
       const todos = await Pedidos.getTodosPedidos();
-      renderDashboard(null, todos);
+      renderDashboard(todos);
     } catch (e) {
       kpiEl.innerHTML = `<p style="color:var(--rojo);padding:16px">Error cargando panel: ${e.message}</p>`;
     }
@@ -27,50 +27,70 @@ const Panel = (() => {
     ).length;
   }
 
+  // ── Navegación desde tarjetas ─────────────────────
+  function irAPedidos(estado) {
+    App.showScreen('pedidos');
+    if (estado && estado !== 'todos') {
+      App.switchEstadoTab(estado);
+    } else {
+      App.switchEstadoTab('todos');
+    }
+  }
+
+  function irAPedidosDemorados() {
+    App.showScreen('pedidos');
+    App.switchEstadoTab('todos');
+    setTimeout(() => window.toast('Demorados resaltados en naranja ⚠️', 'warn'), 600);
+  }
+
+  function irAPedidosCriticos() {
+    App.showScreen('pedidos');
+    App.switchEstadoTab('todos');
+    setTimeout(() => window.toast('Críticos resaltados en rojo 🔴', 'error'), 600);
+  }
+
+  function irAPedidosUrgentes() {
+    App.showScreen('pedidos');
+    App.switchEstadoTab('todos');
+    setTimeout(() => window.toast('Buscá los chips URGENTE en cada pedido ⚡', 'success'), 600);
+  }
+
   // ── Dashboard principal ───────────────────────────
-  function renderDashboard(container, todos) {
+  function renderDashboard(todos) {
     const activos = todos.filter(p => p.estado !== 'Retirado');
 
-    // --- KPIs de estado actual ---
-    const enLab    = activos.filter(p => p.estado === 'Pedido a laboratorio' || p.estado === 'En laboratorio').length;
-    const paraRet  = activos.filter(p => p.estado === 'Pendiente de retirar').length;
-    const hoy      = new Date().toDateString();
-    const retHoy   = todos.filter(p => p.estado === 'Retirado' && p.fecha_retiro && new Date(p.fecha_retiro).toDateString() === hoy).length;
+    const enLab     = activos.filter(p => p.estado === 'Pedido a laboratorio' || p.estado === 'En laboratorio').length;
+    const paraRet   = activos.filter(p => p.estado === 'Pendiente de retirar').length;
+    const hoy       = new Date().toDateString();
+    const retHoy    = todos.filter(p => p.estado === 'Retirado' && p.fecha_retiro && new Date(p.fecha_retiro).toDateString() === hoy).length;
     const demorados = activos.filter(p => p._est.valor === 'demorado').length;
     const criticos  = activos.filter(p => p._est.valor === 'critico').length;
     const urgentes  = activos.filter(p => p.urgente === 'Si').length;
     const totalActivos = activos.length;
 
-    // --- Métricas temporales ---
-    const ahora    = new Date();
+    const ahora     = new Date();
     const iniSemana = new Date(ahora); iniSemana.setDate(ahora.getDate() - ahora.getDay() + 1); iniSemana.setHours(0,0,0,0);
-    const iniMes   = new Date(ahora.getFullYear(), ahora.getMonth(), 1);
-    const iniAnio  = new Date(ahora.getFullYear(), 0, 1);
+    const iniMes    = new Date(ahora.getFullYear(), ahora.getMonth(), 1);
+    const iniAnio   = new Date(ahora.getFullYear(), 0, 1);
 
     const pedidosSemana = todos.filter(p => new Date(p.fecha_carga) >= iniSemana).length;
     const pedidosMes    = todos.filter(p => new Date(p.fecha_carga) >= iniMes).length;
     const pedidosAnio   = todos.filter(p => new Date(p.fecha_carga) >= iniAnio).length;
 
-    // --- Semana anterior ---
     const iniSemAnt = new Date(iniSemana); iniSemAnt.setDate(iniSemAnt.getDate() - 7);
-    const finSemAnt = new Date(iniSemana);
-    const semAnt    = todos.filter(p => { const f = new Date(p.fecha_carga); return f >= iniSemAnt && f < finSemAnt; }).length;
+    const semAnt    = todos.filter(p => { const f = new Date(p.fecha_carga); return f >= iniSemAnt && f < iniSemana; }).length;
     const deltaSem  = pedidosSemana - semAnt;
 
-    // --- Mes anterior ---
     const iniMesAnt = new Date(ahora.getFullYear(), ahora.getMonth() - 1, 1);
-    const finMesAnt = new Date(iniMes);
-    const mesAnt    = todos.filter(p => { const f = new Date(p.fecha_carga); return f >= iniMesAnt && f < finMesAnt; }).length;
+    const mesAnt    = todos.filter(p => { const f = new Date(p.fecha_carga); return f >= iniMesAnt && f < iniMes; }).length;
     const deltaMes  = pedidosMes - mesAnt;
 
-    // --- Promedio días en lab (todos activos) ---
     let promDias = 0;
     if (activos.length > 0) {
       const sum = activos.reduce((a, p) => a + p._dias, 0);
       promDias = (sum / activos.length).toFixed(1);
     }
 
-    // --- Ranking laboratorios (mes actual) ---
     const labCounts = {};
     todos.filter(p => new Date(p.fecha_carga) >= iniMes).forEach(p => {
       if (!p.laboratorio) return;
@@ -78,7 +98,6 @@ const Panel = (() => {
     });
     const labRanking = Object.entries(labCounts).sort((a,b) => b[1]-a[1]);
 
-    // --- Promedio días por laboratorio (activos) ---
     const labDias = {}; const labN = {};
     activos.forEach(p => {
       if (!p.laboratorio) return;
@@ -91,7 +110,6 @@ const Panel = (() => {
       estado: getEstadoLab(lab, labDias[lab] / labN[lab])
     })).sort((a,b) => parseFloat(b.avg) - parseFloat(a.avg));
 
-    // --- Ranking tipo de lente (mes actual) ---
     const lenteCounts = {};
     todos.filter(p => new Date(p.fecha_carga) >= iniMes).forEach(p => {
       if (!p.tipo_lente) return;
@@ -99,7 +117,6 @@ const Panel = (() => {
     });
     const lenteRanking = Object.entries(lenteCounts).sort((a,b) => b[1]-a[1]);
 
-    // --- Gráfico: pedidos por día (últimos 7 días) ---
     const dias7 = [];
     for (let i = 6; i >= 0; i--) {
       const d = new Date(); d.setDate(d.getDate() - i); d.setHours(0,0,0,0);
@@ -109,7 +126,6 @@ const Panel = (() => {
     }
     const maxDia = Math.max(...dias7.map(d => d.count), 1);
 
-    // --- Gráfico: pedidos por mes (últimos 6 meses) ---
     const meses6 = [];
     for (let i = 5; i >= 0; i--) {
       const m = new Date(ahora.getFullYear(), ahora.getMonth() - i, 1);
@@ -121,7 +137,6 @@ const Panel = (() => {
 
     const LAB_COLORS = ['#034291','#0460D9','#F9A825','#C62828','#00695C','#4527A0'];
 
-    // ── HTML del panel ────────────────────────────────
     const kpiEl = document.getElementById('panel-kpis');
     if (!kpiEl) return;
 
@@ -131,26 +146,29 @@ const Panel = (() => {
       <div class="dash-section-label">Actividad del período</div>
       <div class="dash-periodo-grid">
 
-        <div class="dash-periodo-card dash-periodo-blue">
+        <div class="dash-periodo-card dash-periodo-blue dash-clickable" onclick="Panel.irAPedidos('todos')">
           <div class="dash-periodo-value">${pedidosSemana}</div>
           <div class="dash-periodo-label">Esta semana</div>
           <div class="dash-periodo-delta ${deltaSem >= 0 ? '' : 'neg'}">
-            ${deltaSem >= 0 ? '↑' : '↓'} ${Math.abs(deltaSem)} vs semana anterior
+            ${deltaSem >= 0 ? '↑' : '↓'} ${Math.abs(deltaSem)} vs sem. anterior
           </div>
+          <div class="dash-tap-hint">Ver pedidos →</div>
         </div>
 
-        <div class="dash-periodo-card dash-periodo-yellow">
+        <div class="dash-periodo-card dash-periodo-yellow dash-clickable" onclick="Panel.irAPedidos('todos')">
           <div class="dash-periodo-value">${pedidosMes}</div>
           <div class="dash-periodo-label">Este mes</div>
           <div class="dash-periodo-delta ${deltaMes >= 0 ? '' : 'neg'}">
             ${deltaMes >= 0 ? '↑' : '↓'} ${Math.abs(deltaMes)} vs mes anterior
           </div>
+          <div class="dash-tap-hint">Ver pedidos →</div>
         </div>
 
-        <div class="dash-periodo-card dash-periodo-teal">
+        <div class="dash-periodo-card dash-periodo-teal dash-clickable" onclick="Panel.irAPedidos('todos')">
           <div class="dash-periodo-value">${pedidosAnio}</div>
           <div class="dash-periodo-label">Este año</div>
-          <div class="dash-periodo-delta">Total acumulado ${ahora.getFullYear()}</div>
+          <div class="dash-periodo-delta">Total ${ahora.getFullYear()}</div>
+          <div class="dash-tap-hint">Ver pedidos →</div>
         </div>
 
         <div class="dash-periodo-card dash-periodo-purple">
@@ -165,46 +183,53 @@ const Panel = (() => {
       <div class="dash-section-label">Estado actual</div>
       <div class="dash-kpi-grid">
 
-        <div class="dash-kpi-card dash-kpi-blue">
+        <div class="dash-kpi-card dash-kpi-blue dash-clickable" onclick="Panel.irAPedidos('En laboratorio')">
           <div class="dash-kpi-icon">🔬</div>
           <div class="dash-kpi-value">${enLab}</div>
           <div class="dash-kpi-label">En laboratorio</div>
+          <div class="dash-tap-hint-sm">Ver →</div>
         </div>
 
-        <div class="dash-kpi-card dash-kpi-yellow">
+        <div class="dash-kpi-card dash-kpi-yellow dash-clickable" onclick="Panel.irAPedidos('Pendiente de retirar')">
           <div class="dash-kpi-icon">📦</div>
           <div class="dash-kpi-value">${paraRet}</div>
           <div class="dash-kpi-label">Para retirar</div>
+          <div class="dash-tap-hint-sm">Ver →</div>
         </div>
 
-        <div class="dash-kpi-card dash-kpi-green">
+        <div class="dash-kpi-card dash-kpi-green dash-clickable" onclick="Panel.irAPedidos('Retirado')">
           <div class="dash-kpi-icon">✅</div>
           <div class="dash-kpi-value">${retHoy}</div>
           <div class="dash-kpi-label">Retirados hoy</div>
+          <div class="dash-tap-hint-sm">Ver →</div>
         </div>
 
-        <div class="dash-kpi-card dash-kpi-orange">
+        <div class="dash-kpi-card dash-kpi-orange dash-clickable" onclick="Panel.irAPedidosDemorados()">
           <div class="dash-kpi-icon">⚠️</div>
           <div class="dash-kpi-value">${demorados}</div>
           <div class="dash-kpi-label">Demorados</div>
+          <div class="dash-tap-hint-sm">Ver →</div>
         </div>
 
-        <div class="dash-kpi-card dash-kpi-red">
+        <div class="dash-kpi-card dash-kpi-red dash-clickable" onclick="Panel.irAPedidosCriticos()">
           <div class="dash-kpi-icon">🔴</div>
           <div class="dash-kpi-value">${criticos}</div>
           <div class="dash-kpi-label">Críticos</div>
+          <div class="dash-tap-hint-sm">Ver →</div>
         </div>
 
-        <div class="dash-kpi-card dash-kpi-purple">
+        <div class="dash-kpi-card dash-kpi-purple dash-clickable" onclick="Panel.irAPedidosUrgentes()">
           <div class="dash-kpi-icon">⚡</div>
           <div class="dash-kpi-value">${urgentes}</div>
           <div class="dash-kpi-label">Urgentes activos</div>
+          <div class="dash-tap-hint-sm">Ver →</div>
         </div>
 
-        <div class="dash-kpi-card dash-kpi-teal" style="grid-column: span 2">
+        <div class="dash-kpi-card dash-kpi-teal dash-clickable" style="grid-column:span 2" onclick="Panel.irAPedidos('todos')">
           <div class="dash-kpi-icon">📋</div>
           <div class="dash-kpi-value">${totalActivos}</div>
           <div class="dash-kpi-label">Total activos</div>
+          <div class="dash-tap-hint-sm">Ver todos →</div>
         </div>
 
       </div>
@@ -330,7 +355,7 @@ const Panel = (() => {
     `;
   }
 
-  // ── Helpers estado lab ────────────────────────────
+  // ── Helpers ───────────────────────────────────────
   function getLimite(lab) {
     const limites = { Bichara:'≤2 días', Sol:'≤5 días', Vitolen:'≤5 días', Cristian:'≤7 días' };
     return limites[lab] || '—';
@@ -346,16 +371,13 @@ const Panel = (() => {
     const r = reglas[lab] || { ok: 5, dem: 7 };
     if (avg <= r.ok)  return { texto: '✅ OK',       clase: 'green'  };
     if (avg <= r.dem) return { texto: '⚠️ Demorado', clase: 'yellow' };
-    return               { texto: '🔴 Crítico',  clase: 'red'    };
+    return                   { texto: '🔴 Crítico',  clase: 'red'    };
   }
 
-  // ── Filas de tablas ───────────────────────────────
   function renderFilasCriticos(todos) {
     const rows = todos
       .filter(p => p.estado !== 'Retirado' && (p._est.valor === 'critico' || p._est.valor === 'demorado'))
-      .sort((a, b) => b._dias - a._dias)
-      .slice(0, 10);
-
+      .sort((a, b) => b._dias - a._dias).slice(0, 10);
     if (!rows.length) return '<p class="dash-empty">Sin pedidos críticos o demorados</p>';
     return rows.map(p => panelRow(p)).join('');
   }
@@ -363,18 +385,14 @@ const Panel = (() => {
   function renderFilasPendientes(todos) {
     const rows = todos
       .filter(p => p.estado === 'Pendiente de retirar')
-      .sort((a, b) => b._dias - a._dias)
-      .slice(0, 10);
-
+      .sort((a, b) => b._dias - a._dias).slice(0, 10);
     if (!rows.length) return '<p class="dash-empty">Sin pedidos pendientes de retiro</p>';
     return rows.map(p => panelRow(p)).join('');
   }
 
   function renderFilasUltimos(todos) {
     const rows = todos
-      .sort((a, b) => new Date(b.fecha_carga) - new Date(a.fecha_carga))
-      .slice(0, 10);
-
+      .sort((a, b) => new Date(b.fecha_carga) - new Date(a.fecha_carga)).slice(0, 10);
     if (!rows.length) return '<p class="dash-empty">Sin pedidos</p>';
     return rows.map(p => panelRow(p)).join('');
   }
@@ -398,5 +416,5 @@ const Panel = (() => {
     return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
-  return { render, contarCriticos };
+  return { render, contarCriticos, irAPedidos, irAPedidosDemorados, irAPedidosCriticos, irAPedidosUrgentes };
 })();
