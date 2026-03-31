@@ -6,9 +6,9 @@
   <title>OLVISIÓN — Iniciar sesión</title>
   <meta name="description" content="Sistema de gestión de pedidos de laboratorio — OLVISIÓN">
 
-  <!-- ── PWA / Ícono de app en iPhone ── -->
+  <!-- PWA / Ícono iPhone -->
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="OLVISIÓN">
   <link rel="apple-touch-icon" href="logo.png">
   <link rel="apple-touch-icon" sizes="180x180" href="logo.png">
@@ -19,7 +19,7 @@
 
   <link rel="stylesheet" href="style.css">
   <style>
-    /* ── Splash screen ── */
+    /* ── Splash (fondo blanco, logo azul) ── */
     #splash-screen {
       position: fixed; inset: 0;
       background: #ffffff;
@@ -36,9 +36,8 @@
       animation: splashIn 0.6s cubic-bezier(0.34,1.56,0.64,1) both;
     }
     .splash-tagline {
-      margin-top: 16px; font-size: 0.82rem;
-      color: #999; font-family: -apple-system, sans-serif;
-      letter-spacing: 0.4px;
+      margin-top: 14px; font-size: 0.82rem;
+      color: #999; letter-spacing: 0.4px;
       animation: splashIn 0.5s ease 0.2s both;
     }
     .splash-spinner {
@@ -54,46 +53,45 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* ── Login: fondo blanco ── */
+    /* ── Login (fondo azul, logo blanco) ── */
     .login-page {
       min-height: 100dvh;
-      background: #F5F6FA;          /* gris claro en vez de azul */
+      background: var(--azul);
       display: flex; flex-direction: column;
       align-items: center; justify-content: center;
       padding: 24px;
     }
-
-    /* Logo azul en el login */
     .login-logo {
-      margin-bottom: 28px; text-align: center;
+      margin-bottom: 40px; text-align: center;
     }
     .login-logo-img {
-      width: 180px; max-width: 60vw;
+      width: 220px; max-width: 68vw;
       display: block; margin: 0 auto;
+      filter: drop-shadow(0 4px 20px rgba(0,0,0,0.15));
     }
     .login-logo-fallback {
       display: none;
     }
     .login-logo-fallback h1 {
-      font-size: 2rem; font-weight: 800;
-      color: var(--azul); letter-spacing: -1px;
+      font-size: 2.2rem; font-weight: 800;
+      color: #fff; letter-spacing: -1px;
     }
     .login-logo-fallback p {
-      font-size: .85rem; color: var(--gris-texto); margin-top: 4px;
+      font-size: .85rem; color: rgba(255,255,255,.6); margin-top: 4px;
     }
 
-    /* Card de login sobre fondo claro */
+    /* Card sobre fondo azul */
     .login-card {
-      background: #ffffff;
-      border-radius: 20px;
-      padding: 28px 24px;
+      background: rgba(255,255,255,0.97);
+      border-radius: 24px;
+      padding: 32px 24px;
       width: 100%; max-width: 380px;
-      box-shadow: 0 4px 24px rgba(3,66,145,0.10);
-      border: 1px solid #DDE3EE;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.18);
     }
     .login-card h2 {
-      font-size: 1.1rem; font-weight: 600;
-      color: var(--gris-dark); margin-bottom: 20px;
+      font-size: 1.15rem; font-weight: 700;
+      color: var(--azul); margin-bottom: 24px;
+      text-align: center; letter-spacing: -0.3px;
     }
 
     .login-error-box {
@@ -107,8 +105,8 @@
     .login-error-box.visible { display: block; }
 
     .login-footer {
-      text-align: center; margin-top: 20px;
-      font-size: .78rem; color: #aaa;
+      text-align: center; margin-top: 24px;
+      font-size: .78rem; color: rgba(255,255,255,.35);
     }
     .eye-btn {
       position: absolute; right: 12px; top: 50%;
@@ -120,7 +118,7 @@
 </head>
 <body>
 
-<!-- ── Splash screen (fondo blanco, logo original) ── -->
+<!-- Splash: fondo blanco, logo azul (logo.png) -->
 <div id="splash-screen">
   <img
     src="logo.png"
@@ -133,13 +131,12 @@
   <div class="splash-spinner"></div>
 </div>
 
-<!-- ── Login (fondo blanco, logo azul) ── -->
+<!-- Login: fondo azul, logo blanco (logo-white.png) -->
 <main class="login-page" id="login-main" style="display:none">
 
   <div class="login-logo">
-    <!-- Logo azul sobre fondo blanco — el logo.png ya es azul sobre blanco -->
     <img
-      src="logo.png"
+      src="logo-white.png"
       alt="OLVISIÓN"
       class="login-logo-img"
       onerror="this.style.display='none';document.getElementById('login-logo-fb').style.display='block'"
@@ -197,12 +194,10 @@
 
 <script>
 (async () => {
-  const splash   = document.getElementById('splash-screen');
-  const loginEl  = document.getElementById('login-main');
-
-  const splashMin   = new Promise(r => setTimeout(r, 1400));
-  const sessionCheck = window.supabaseClient.auth.getSession();
-  const [, { data: { session } }] = await Promise.all([splashMin, sessionCheck]);
+  const splash    = document.getElementById('splash-screen');
+  const loginEl   = document.getElementById('login-main');
+  const splashMin = new Promise(r => setTimeout(r, 1400));
+  const [, { data: { session } }] = await Promise.all([splashMin, window.supabaseClient.auth.getSession()]);
 
   splash.classList.add('fade-out');
   setTimeout(() => splash.remove(), 500);
@@ -218,11 +213,11 @@
     loginEl.style.transform = 'translateY(0)';
   });
 
-  const form    = document.getElementById('login-form');
-  const btnLog  = document.getElementById('btn-login');
-  const errBox  = document.getElementById('login-error');
-  const togPass = document.getElementById('toggle-pass');
-  const passIn  = document.getElementById('password');
+  const form     = document.getElementById('login-form');
+  const btnLog   = document.getElementById('btn-login');
+  const errBox   = document.getElementById('login-error');
+  const togPass  = document.getElementById('toggle-pass');
+  const passIn   = document.getElementById('password');
   const eyeSlash = document.getElementById('eye-slash');
   const eyeOpen  = document.getElementById('eye-open');
   const eyeCirc  = document.getElementById('eye-circle');
