@@ -33,7 +33,13 @@
 
   <header class="app-header">
     <button class="app-header-logo-btn" id="logo-home-btn" aria-label="Inicio">
-      <img src="logo.png" alt="OLVISIÓN" class="app-header-logo-img" id="logo-img" onerror="this.style.display='none';document.getElementById('logo-text').style.display='block'">
+      <!-- Logo blanco sobre header azul — usa logo-white.png -->
+      <img
+        src="logo-white.png"
+        alt="OLVISIÓN"
+        class="app-header-logo-img"
+        onerror="this.style.display='none';document.getElementById('logo-text').style.display='block'"
+      >
       <span class="app-header-logo-text" id="logo-text" style="display:none">OL<span>VISIÓN</span></span>
     </button>
     <div class="header-actions">
@@ -186,9 +192,6 @@
         </button>
       </div>
       <div id="panel-kpis"></div>
-      <div class="panel-table-section"><div class="panel-table-title">Para retirar</div><div class="panel-table" id="panel-pendientes"></div></div>
-      <div class="panel-table-section"><div class="panel-table-title">Críticos y demorados</div><div class="panel-table" id="panel-criticos"></div></div>
-      <div class="panel-table-section"><div class="panel-table-title">Últimos 10 ingresados</div><div class="panel-table" id="panel-ultimos"></div></div>
     </section>
 
     <!-- ══ CONFIGURACIÓN ═════════════════════════ -->
