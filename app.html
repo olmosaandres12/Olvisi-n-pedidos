@@ -6,117 +6,57 @@
   <title>OLVISIÓN — Pedidos</title>
   <link rel="stylesheet" href="style.css">
   <style>
-    /* ── Modal detalle / edición ── */
     .detalle-overlay {
       position: fixed; inset: 0; z-index: 7000;
-      background: rgba(2,41,102,.5);
-      backdrop-filter: blur(4px);
+      background: rgba(2,41,102,.5); backdrop-filter: blur(4px);
       display: flex; align-items: flex-end; justify-content: center;
       animation: fadeIn .2s ease;
     }
     .detalle-overlay.hidden { display: none; }
-
     .detalle-sheet {
-      background: var(--blanco);
-      border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-      width: 100%; max-width: 520px;
-      max-height: 92dvh; overflow-y: auto;
-      animation: slideSheet .3s ease;
-      padding-bottom: env(safe-area-inset-bottom);
+      background: var(--blanco); border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+      width: 100%; max-width: 520px; max-height: 92dvh; overflow-y: auto;
+      animation: slideSheet .3s ease; padding-bottom: env(safe-area-inset-bottom);
     }
-
     .detalle-header {
-      position: sticky; top: 0; z-index: 10;
-      background: var(--blanco);
+      position: sticky; top: 0; z-index: 10; background: var(--blanco);
       display: flex; align-items: center; justify-content: space-between;
-      padding: 16px 20px 12px;
-      border-bottom: 1px solid var(--gris-borde);
+      padding: 16px 20px 12px; border-bottom: 1px solid var(--gris-borde);
     }
-    .detalle-orden {
-      font-size: 1.1rem; font-weight: 800;
-      color: var(--azul); font-family: var(--font-mono);
-    }
+    .detalle-orden { font-size: 1.1rem; font-weight: 800; color: var(--azul); font-family: var(--font-mono); }
     .detalle-actions { display: flex; gap: 8px; align-items: center; }
     .btn-editar {
       padding: 8px 16px; border-radius: 20px;
       background: var(--azul-light); color: var(--azul);
       font-size: .82rem; font-weight: 700; border: none; cursor: pointer;
-      transition: background .15s;
     }
-    .btn-editar:active { background: var(--azul-mid); }
     .btn-cerrar-detalle {
       width: 30px; height: 30px; border-radius: 50%;
       background: var(--gris-bg); border: none; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
       font-size: 14px; color: var(--gris-texto);
     }
-
     .detalle-body { padding: 16px 20px; }
-
-    /* Secciones del detalle */
-    .detalle-seccion {
-      margin-bottom: 16px;
-      background: var(--gris-bg);
-      border-radius: var(--radius);
-      padding: 14px;
-    }
-    .detalle-seccion-title {
-      font-size: 10px; font-weight: 700; color: var(--gris-texto);
-      text-transform: uppercase; letter-spacing: .08em; margin-bottom: 10px;
-    }
-    .detalle-row {
-      display: flex; justify-content: space-between; align-items: flex-start;
-      padding: 5px 0; border-bottom: 1px solid var(--gris-borde);
-      gap: 12px;
-    }
+    .detalle-seccion { margin-bottom: 16px; background: var(--gris-bg); border-radius: var(--radius); padding: 14px; }
+    .detalle-seccion-title { font-size: 10px; font-weight: 700; color: var(--gris-texto); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 10px; }
+    .detalle-row { display: flex; justify-content: space-between; align-items: flex-start; padding: 5px 0; border-bottom: 1px solid var(--gris-borde); gap: 12px; }
     .detalle-row:last-child { border-bottom: none; padding-bottom: 0; }
     .detalle-label { font-size: 12px; color: var(--gris-texto); flex-shrink: 0; }
     .detalle-valor { font-size: 13px; font-weight: 600; color: var(--gris-dark); text-align: right; flex: 1; }
-    .detalle-grad {
-      font-family: var(--font-mono); font-size: 12px;
-      background: var(--blanco); border-radius: 6px;
-      padding: 8px 10px; margin-top: 6px; color: var(--gris-dark);
-      border: 1px solid var(--gris-borde); line-height: 1.8;
-    }
-
-    /* ── Modo edición ── */
+    .detalle-grad { font-family: var(--font-mono); font-size: 12px; background: var(--blanco); border-radius: 6px; padding: 8px 10px; margin-top: 6px; color: var(--gris-dark); border: 1px solid var(--gris-borde); line-height: 1.8; }
     .edit-overlay {
       position: fixed; inset: 0; z-index: 8000;
-      background: rgba(2,41,102,.5);
-      backdrop-filter: blur(4px);
+      background: rgba(2,41,102,.5); backdrop-filter: blur(4px);
       display: flex; align-items: flex-end; justify-content: center;
       animation: fadeIn .2s ease;
     }
     .edit-overlay.hidden { display: none; }
-    .edit-sheet {
-      background: var(--blanco);
-      border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-      width: 100%; max-width: 520px;
-      max-height: 94dvh; overflow-y: auto;
-      animation: slideSheet .3s ease;
-      padding-bottom: env(safe-area-inset-bottom);
-    }
-    .edit-header {
-      position: sticky; top: 0; z-index: 10;
-      background: var(--azul);
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 16px 20px;
-    }
+    .edit-sheet { background: var(--blanco); border-radius: var(--radius-lg) var(--radius-lg) 0 0; width: 100%; max-width: 520px; max-height: 94dvh; overflow-y: auto; animation: slideSheet .3s ease; padding-bottom: env(safe-area-inset-bottom); }
+    .edit-header { position: sticky; top: 0; z-index: 10; background: var(--azul); display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; }
     .edit-header-title { font-size: 1rem; font-weight: 700; color: #fff; }
-    .btn-cerrar-edit {
-      width: 30px; height: 30px; border-radius: 50%;
-      background: rgba(255,255,255,.2); border: none; cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 14px; color: #fff;
-    }
+    .btn-cerrar-edit { width: 30px; height: 30px; border-radius: 50%; background: rgba(255,255,255,.2); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; color: #fff; }
     .edit-body { padding: 16px 20px; }
-    .edit-save-btn {
-      width: 100%; margin-top: 8px; margin-bottom: 16px;
-      padding: 16px; border-radius: var(--radius);
-      background: var(--azul); color: #fff;
-      font-size: 1rem; font-weight: 700; border: none; cursor: pointer;
-      transition: background .15s;
-    }
+    .edit-save-btn { width: 100%; margin-top: 8px; margin-bottom: 16px; padding: 16px; border-radius: var(--radius); background: var(--azul); color: #fff; font-size: 1rem; font-weight: 700; border: none; cursor: pointer; }
     .edit-save-btn:active { background: var(--azul-dark); }
   </style>
 </head>
@@ -129,7 +69,6 @@
 
 <div id="toast-container"></div>
 
-<!-- Modal confirmar nuevo pedido -->
 <div id="confirm-modal" class="modal-overlay hidden">
   <div class="modal-sheet">
     <div class="modal-header">
@@ -144,7 +83,6 @@
   </div>
 </div>
 
-<!-- Modal detalle pedido -->
 <div id="detalle-modal" class="detalle-overlay hidden">
   <div class="detalle-sheet">
     <div class="detalle-header">
@@ -158,7 +96,6 @@
   </div>
 </div>
 
-<!-- Modal edición pedido -->
 <div id="edit-modal" class="edit-overlay hidden">
   <div class="edit-sheet">
     <div class="edit-header">
@@ -185,7 +122,6 @@
 
   <main class="app-content">
 
-    <!-- ══ INICIO ══════════════════════════════════ -->
     <section class="screen" id="screen-inicio">
       <div class="section-header">
         <div><div class="section-title">Nuevo pedido</div><div class="section-subtitle">Campos obligatorios marcados con *</div></div>
@@ -231,7 +167,6 @@
             </div>
           </div>
         </div>
-
         <div class="toggle-group">
           <span class="toggle-label">¿Pedido con 2 anteojos?</span>
           <label class="toggle-switch">
@@ -239,17 +174,14 @@
             <span class="toggle-slider"></span>
           </label>
         </div>
-
         <div class="form-section">
           <div class="form-section-title" id="bloque1-title">Anteojo</div>
           <div id="bloque1-fields"></div>
         </div>
-
         <div class="second-glass-block hidden" id="bloque-anteojo2">
           <div class="second-glass-title">Anteojo B</div>
           <div id="bloque2-fields"></div>
         </div>
-
         <div style="display:flex;gap:10px;margin-bottom:32px">
           <button type="button" class="btn btn-secondary" style="flex:1" onclick="App.resetForm()">Limpiar</button>
           <button type="submit" class="btn btn-primary" style="flex:2" id="btn-guardar">
@@ -260,7 +192,6 @@
       </form>
     </section>
 
-    <!-- ══ SEGUIMIENTO ════════════════════════════ -->
     <section class="screen" id="screen-seguimiento">
       <div class="section-header">
         <div><div class="section-title">Seguimiento</div><div class="section-subtitle">Estado actual de pedidos</div></div>
@@ -278,7 +209,6 @@
       <div id="seg-content-retirar" class="seg-panel hidden"></div>
     </section>
 
-    <!-- ══ PEDIDOS ════════════════════════════════ -->
     <section class="screen" id="screen-pedidos">
       <div class="section-header">
         <div><div class="section-title">Pedidos</div><div class="section-subtitle" id="pedidos-subtitle">Cargando...</div></div>
@@ -308,7 +238,8 @@
       </div>
       <div class="estado-tabs">
         <button class="estado-tab active" data-estado="todos" onclick="App.switchEstadoTab('todos')">Todos</button>
-        <button class="estado-tab" data-estado="Pedido a laboratorio" onclick="App.switchEstadoTab('Pedido a laboratorio')">⚠️ Pendiente</button>
+        <button class="estado-tab" data-estado="Cristales pedidos a lab" onclick="App.switchEstadoTab('Cristales pedidos a lab')">🔬 Cristales</button>
+        <button class="estado-tab" data-estado="Armazón enviado p/calibrado" onclick="App.switchEstadoTab('Armazón enviado p/calibrado')">🕶️ Armazón</button>
         <button class="estado-tab" data-estado="En laboratorio" onclick="App.switchEstadoTab('En laboratorio')">🏭 En lab.</button>
         <button class="estado-tab" data-estado="Pendiente de retirar" onclick="App.switchEstadoTab('Pendiente de retirar')">📍 Retirar</button>
         <button class="estado-tab" data-estado="Retirado" onclick="App.switchEstadoTab('Retirado')">✅ Retirado</button>
@@ -317,7 +248,6 @@
       <div id="pedidos-list-container" style="display:none"></div>
     </section>
 
-    <!-- ══ PANEL ══════════════════════════════════ -->
     <section class="screen" id="screen-panel">
       <div class="section-header">
         <div><div class="section-title">Panel</div><div class="section-subtitle">Resumen general</div></div>
@@ -328,7 +258,6 @@
       <div id="panel-kpis"></div>
     </section>
 
-    <!-- ══ CONFIGURACIÓN ══════════════════════════ -->
     <section class="screen" id="screen-config">
       <div class="section-header">
         <div><div class="section-title">Configuración</div><div class="section-subtitle">Laboratorios y tratamientos</div></div>
