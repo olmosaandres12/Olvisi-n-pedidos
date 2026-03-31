@@ -6,12 +6,122 @@
 const App = (() => {
 
   let _pedidosCache   = [];
-  let _configCache    = { laboratorios: [], tratamientos: {} };
+  let _configCache    = { laboratorios: [], tratamientos: {}, marcas: [], materiales: [] };
   let _currentScreen  = 'inicio';
   let _estadoTab      = 'todos';
   let _segTab         = 'lab';
   let _pendingGuardar = null;
   let _detalleId      = null;
+
+  // ── Teclado numérico custom ───────────────────────
+  let _numpadTarget   = null;   // input al que está asociado el teclado
+  let _numpadValue    = '';     // valor en construcción
+
+  function initNumpad() {
+    const overlay = document.getElementById('numpad-overlay');
+    if (!overlay) return;
+
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) closeNumpad();
+    });
+
+    document.getElementById('numpad-close')?.addEventListener('click', closeNumpad);
+    document.getElementById('numpad-ok')?.addEventListener('click', confirmNumpad);
+    document.getElementById('numpad-del')?.addEventListener('click', () => {
+      _numpadValue = _numpadValue.slice(0, -1);
+      updateNumpadDisplay();
+    });
+    document.getElementById('numpad-clear')?.addEventListener('click', () => {
+      _numpadValue = '';
+      updateNumpadDisplay();
+    });
+
+    // Teclas numéricas y especiales
+    overlay.querySelectorAll('.numpad-key[data-val]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const val = btn.dataset.val;
+        // Reglas de entrada
+        if (val === '+' || val === '-') {
+          // Solo al inicio
+          if (_numpadValue.length > 0) return;
+          _numpadValue = val;
+        } else if (val === '.') {
+          // Solo un punto decimal
+          if (_numpadValue.includes('.')) return;
+          // Si está vacío o solo tiene signo, agregar 0 antes
+          if (_numpadValue === '' || _numpadValue === '+' || _numpadValue === '-') {
+            _numpadValue += '0';
+          }
+          _numpadValue += '.';
+        } else {
+          // Máx 6 caracteres totales (ej: -12.50)
+          if (_numpadValue.replace(/[+\-]/g,'').length >= 5) return;
+          _numpadValue += val;
+        }
+        updateNumpadDisplay();
+      });
+    });
+  }
+
+  function openNumpad(inputEl, label) {
+    _numpadTarget = inputEl;
+    _numpadValue  = inputEl.value || '';
+    document.getElementById('numpad-label').textContent = label || 'Valor';
+    updateNumpadDisplay();
+    document.getElementById('numpad-overlay').classList.remove('hidden');
+    // Pequeño vibrado táctil si disponible
+    if (navigator.vibrate) navigator.vibrate(10);
+  }
+
+  function updateNumpadDisplay() {
+    const disp = document.getElementById('numpad-display');
+    if (!disp) return;
+    disp.textContent = _numpadValue || '—';
+    disp.classList.toggle('numpad-display-empty', !_numpadValue);
+  }
+
+  function confirmNumpad() {
+    if (_numpadTarget) {
+      _numpadTarget.value = _numpadValue;
+      // Disparar evento change/input para que otros listeners se enteren
+      _numpadTarget.dispatchEvent(new Event('input', { bubbles: true }));
+      _numpadTarget.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    closeNumpad();
+  }
+
+  function closeNumpad() {
+    document.getElementById('numpad-overlay').classList.add('hidden');
+    _numpadTarget = null;
+    _numpadValue  = '';
+  }
+
+  // Adjunta el listener de numpad a todos los grad-input de un contenedor
+  function attachNumpadListeners(container) {
+    const labelMap = {
+      'esf': 'Esfera',
+      'cil': 'Cilindro',
+      'add': 'Adición',
+      'eje': 'Eje',
+    };
+    container.querySelectorAll('.grad-input').forEach(inp => {
+      // Detectar tipo por id: g-L-esf-D-1
+      const parts = inp.id.split('-');
+      // partes: g, dc(L/C), tipo(esf/cil/eje/add), ojo(D/I), num
+      const tipo = parts[2] || '';
+      const ojo  = parts[3] === 'D' ? 'OD' : 'OI';
+      const label = `${labelMap[tipo] || tipo} — ${ojo}`;
+
+      // Solo esf, cil, add usan numpad con +/-
+      // eje usa teclado numérico nativo (sin +/-)
+      if (tipo === 'eje') return; // el eje queda con inputmode="numeric"
+
+      inp.setAttribute('readonly', true);
+      inp.style.cursor = 'pointer';
+      inp.addEventListener('click', () => openNumpad(inp, label));
+      inp.addEventListener('focus', () => openNumpad(inp, label));
+    });
+  }
 
   // ── Push Notifications ────────────────────────────
   const VAPID_PUBLIC = 'BNHBkj7wiOQKz06CN3-AdpB1n0RXBKUuKvneiQ_zkUt9Q_yOUifGe_NeXL3eePKDXdmSNkTyBNnqWHed3VeY5LQ';
@@ -21,35 +131,24 @@ const App = (() => {
     try {
       const reg = await navigator.serviceWorker.register('/sw.js');
       await navigator.serviceWorker.ready;
-
       const perm = await Notification.requestPermission();
       if (perm !== 'granted') return;
-
       const existing = await reg.pushManager.getSubscription();
-      if (existing) {
-        await guardarSuscripcion(existing);
-        return;
-      }
-
+      if (existing) { await guardarSuscripcion(existing); return; }
       const sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC),
       });
-
       await guardarSuscripcion(sub);
       toast('🔔 Notificaciones activadas', 'success');
-    } catch (e) {
-      console.warn('Push init error:', e);
-    }
+    } catch (e) { console.warn('Push init error:', e); }
   }
 
   async function guardarSuscripcion(sub) {
     const { data: { user } } = await window.supabaseClient.auth.getUser();
     if (!user) return;
-    const subJson = sub.toJSON();
     await window.supabaseClient.from('push_subscriptions').upsert({
-      user_id: user.id,
-      subscription: subJson,
+      user_id: user.id, subscription: sub.toJSON(),
     }, { onConflict: 'user_id' });
   }
 
@@ -57,15 +156,10 @@ const App = (() => {
     try {
       await fetch(`${SUPABASE_URL}/functions/v1/push-notify`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-        },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
         body: JSON.stringify({ title, body, soloAdmin }),
       });
-    } catch (e) {
-      console.warn('Push send error:', e);
-    }
+    } catch (e) { console.warn('Push send error:', e); }
   }
 
   function urlBase64ToUint8Array(base64String) {
@@ -127,6 +221,9 @@ const App = (() => {
       if (e.target === document.getElementById('edit-modal')) cerrarEdicion();
     });
 
+    // Inicializar teclado numérico custom
+    initNumpad();
+
     await loadConfig();
     buildBloqueFields(1);
     buildBloqueFields(2);
@@ -135,9 +232,7 @@ const App = (() => {
     overlay.classList.add('fade-out');
     setTimeout(() => overlay.remove(), 400);
 
-    // Iniciar push notifications en segundo plano
     setTimeout(() => initPush(), 2000);
-
     showScreen('inicio');
   }
 
@@ -148,6 +243,8 @@ const App = (() => {
         .from('configuracion').select('*').eq('activo', true).order('orden');
       if (error) throw error;
       _configCache.laboratorios = data.filter(r => r.tipo === 'laboratorio').map(r => r.valor);
+      _configCache.marcas       = data.filter(r => r.tipo === 'marca').map(r => ({ id: r.id, valor: r.valor }));
+      _configCache.materiales   = data.filter(r => r.tipo === 'material').map(r => ({ id: r.id, valor: r.valor }));
       _configCache.tratamientos = {};
       data.filter(r => r.tipo === 'tratamiento').forEach(r => {
         if (!_configCache.tratamientos[r.categoria]) _configCache.tratamientos[r.categoria] = [];
@@ -156,6 +253,8 @@ const App = (() => {
     } catch (e) {
       console.warn('Config fallback:', e);
       _configCache.laboratorios = ['Sol','Bichara','Cristian','Vitolen'];
+      _configCache.marcas       = [];
+      _configCache.materiales   = [];
     }
     const filtroLab = document.getElementById('filtro-lab');
     if (filtroLab) {
@@ -168,7 +267,20 @@ const App = (() => {
   function buildBloqueFields(num) {
     const container = document.getElementById(`bloque${num}-fields`);
     if (!container) return;
-    const labs = _configCache.laboratorios.map(l => `<option value="${esc(l)}">${esc(l)}</option>`).join('');
+
+    const labs = _configCache.laboratorios.map(l =>
+      `<option value="${esc(l)}">${esc(l)}</option>`).join('');
+
+    const marcaOpts = [
+      '<option value="">— Sin especificar —</option>',
+      ..._configCache.marcas.map(m => `<option value="${esc(m.valor)}">${esc(m.valor)}</option>`)
+    ].join('');
+
+    const materialOpts = [
+      '<option value="">— Sin especificar —</option>',
+      ..._configCache.materiales.map(m => `<option value="${esc(m.valor)}">${esc(m.valor)}</option>`)
+    ].join('');
+
     container.innerHTML = `
       <div class="form-row">
         <div class="form-group">
@@ -229,7 +341,7 @@ const App = (() => {
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Marca</label>
-          <input type="text" id="f-marca${num}" class="form-control" placeholder="Ej: Ray-Ban">
+          <select id="f-marca${num}" class="form-control">${marcaOpts}</select>
         </div>
         <div class="form-group">
           <label class="form-label">Código / Ref</label>
@@ -239,7 +351,7 @@ const App = (() => {
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Material</label>
-          <input type="text" id="f-material${num}" class="form-control" placeholder="Metal, Acetato...">
+          <select id="f-material${num}" class="form-control">${materialOpts}</select>
         </div>
         <div class="form-group">
           <label class="form-label">Color</label>
@@ -247,12 +359,18 @@ const App = (() => {
         </div>
       </div>
     `;
+
+    // Adjuntar listeners del teclado numérico a los inputs de graduación recién creados
+    attachNumpadListeners(container);
   }
 
   function gradTablaHTML(num, dc) {
-    const inpGrad = (id) => `<input type="text" class="form-control grad-input" id="${id}" placeholder="—" inputmode="text" autocomplete="off" autocorrect="off" spellcheck="false">`;
+    // esf y cil: readonly, se abren con numpad → sin inputmode especial
+    // eje: numpad nativo (solo números)
+    // add: readonly, se abre con numpad
+    const inpGrad = (id) => `<input type="text" class="form-control grad-input" id="${id}" placeholder="—" autocomplete="off" autocorrect="off" spellcheck="false" inputmode="none">`;
     const inpEje  = (id) => `<input type="text" class="form-control grad-input" id="${id}" placeholder="°" inputmode="numeric" autocomplete="off">`;
-    const inpAdd  = (id) => `<input type="text" class="form-control grad-input" id="${id}" placeholder="—" inputmode="text" autocomplete="off" autocorrect="off" spellcheck="false">`;
+    const inpAdd  = (id) => `<input type="text" class="form-control grad-input" id="${id}" placeholder="—" autocomplete="off" autocorrect="off" spellcheck="false" inputmode="none">`;
     return `
       <div class="grad-grid">
         <div class="grad-header"></div>
@@ -310,27 +428,20 @@ const App = (() => {
         p.estado === 'En laboratorio'
       );
       const retirar = todos.filter(p => p.estado === 'Pendiente de retirar');
-      document.getElementById('seg-count-lab').textContent    = enLab.length;
+      document.getElementById('seg-count-lab').textContent     = enLab.length;
       document.getElementById('seg-count-retirar').textContent = retirar.length;
       renderSegPanel('seg-content-lab',     enLab.sort(sortPorEstado));
       renderSegPanel('seg-content-retirar', retirar.sort(sortPorEstado));
       updateBadge();
 
-      // Verificar críticos y demorados — solo admin
       const criticos  = todos.filter(p => p._est.valor === 'critico');
       const demorados = todos.filter(p => p._est.valor === 'demorado');
       if (criticos.length > 0) {
-        enviarNotificacion(
-          '🔴 Pedidos críticos — OLVISIÓN',
-          `${criticos.length} pedido${criticos.length>1?'s':''} superó el tiempo límite`,
-          true  // soloAdmin
-        );
+        enviarNotificacion('🔴 Pedidos críticos — OLVISIÓN',
+          `${criticos.length} pedido${criticos.length>1?'s':''} superó el tiempo límite`, true);
       } else if (demorados.length > 0) {
-        enviarNotificacion(
-          '⚠️ Pedidos demorados — OLVISIÓN',
-          `${demorados.length} pedido${demorados.length>1?'s':''} está demorado en laboratorio`,
-          true  // soloAdmin
-        );
+        enviarNotificacion('⚠️ Pedidos demorados — OLVISIÓN',
+          `${demorados.length} pedido${demorados.length>1?'s':''} está demorado en laboratorio`, true);
       }
     } catch (e) { toast('Error: ' + e.message, 'error'); }
   }
@@ -357,7 +468,7 @@ const App = (() => {
   function switchSegTab(tab) {
     _segTab = tab;
     document.querySelectorAll('.seg-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
-    document.getElementById('seg-content-lab').classList.toggle('hidden',    tab !== 'lab');
+    document.getElementById('seg-content-lab').classList.toggle('hidden',     tab !== 'lab');
     document.getElementById('seg-content-retirar').classList.toggle('hidden', tab !== 'retirar');
   }
 
@@ -451,7 +562,6 @@ const App = (() => {
     const ESTADOS  = ['Cristales pedidos a lab','Armazón enviado p/calibrado','En laboratorio','Pendiente de retirar','Retirado'];
     const opts = ESTADOS.map(e => `<option value="${e}"${e===p.estado?' selected':''}>${e}</option>`).join('');
 
-    // Avatar del usuario que cargó el pedido
     const avatarColor = (nombre) => {
       const n = (nombre || '').toLowerCase();
       if (n.includes('andr')) return '#034291';
@@ -504,8 +614,6 @@ const App = (() => {
         try {
           await Pedidos.actualizarEstado(id, est);
           toast(`Estado: ${est}`, 'success');
-
-          // Notificar cambio de estado — a todos
           if (est === 'Retirado') {
             const p = _pedidosCache.find(x => x.id === id);
             if (p) enviarNotificacion('✅ Pedido retirado — OLVISIÓN', `#${p.orden} de ${p.cliente} fue retirado`, false);
@@ -513,7 +621,6 @@ const App = (() => {
             const p = _pedidosCache.find(x => x.id === id);
             if (p) enviarNotificacion('🔄 Estado actualizado — OLVISIÓN', `#${p.orden} de ${p.cliente}: ${est}`, false);
           }
-
           _pedidosCache = await Pedidos.getTodosPedidos();
           if (_currentScreen === 'pedidos')     renderPedidosList();
           if (_currentScreen === 'seguimiento') loadSeguimiento();
@@ -750,6 +857,8 @@ const App = (() => {
   async function loadConfigScreen() {
     await loadConfig();
     renderConfigLabs();
+    renderConfigMarcas();
+    renderConfigMateriales();
     loadConfigTratamientos();
   }
 
@@ -763,6 +872,30 @@ const App = (() => {
             <button class="btn btn-danger btn-sm" onclick="App.deleteLab('${esc(lab)}')">Eliminar</button>
           </div>`).join('')
       : '<p style="color:var(--gris-texto);font-size:.85rem;padding:8px 0">Sin laboratorios</p>';
+  }
+
+  function renderConfigMarcas() {
+    const el = document.getElementById('config-marcas-list');
+    if (!el) return;
+    el.innerHTML = _configCache.marcas.length
+      ? _configCache.marcas.map(m => `
+          <div class="config-item">
+            <span>${esc(m.valor)}</span>
+            <button class="btn btn-danger btn-sm" onclick="App.deleteMarca(${m.id})">Eliminar</button>
+          </div>`).join('')
+      : '<p style="color:var(--gris-texto);font-size:.85rem;padding:8px 0">Sin marcas</p>';
+  }
+
+  function renderConfigMateriales() {
+    const el = document.getElementById('config-materiales-list');
+    if (!el) return;
+    el.innerHTML = _configCache.materiales.length
+      ? _configCache.materiales.map(m => `
+          <div class="config-item">
+            <span>${esc(m.valor)}</span>
+            <button class="btn btn-danger btn-sm" onclick="App.deleteMaterial(${m.id})">Eliminar</button>
+          </div>`).join('')
+      : '<p style="color:var(--gris-texto);font-size:.85rem;padding:8px 0">Sin materiales</p>';
   }
 
   async function loadConfigTratamientos() {
@@ -799,6 +932,52 @@ const App = (() => {
       await loadConfig(); renderConfigLabs();
       buildBloqueFields(1); buildBloqueFields(2);
       toast('Laboratorio eliminado', 'success');
+    } catch (e) { toast('Error: ' + e.message, 'error'); }
+  }
+
+  async function addMarca() {
+    const input = document.getElementById('new-marca-input');
+    const valor = input.value.trim();
+    if (!valor) return;
+    try {
+      await window.supabaseClient.from('configuracion').insert({ tipo:'marca', categoria:'armazon', valor, orden:99 });
+      input.value = '';
+      await loadConfig(); renderConfigMarcas();
+      buildBloqueFields(1); buildBloqueFields(2);
+      toast('Marca agregada', 'success');
+    } catch (e) { toast('Error: ' + e.message, 'error'); }
+  }
+
+  async function deleteMarca(id) {
+    if (!confirm('¿Eliminar esta marca?')) return;
+    try {
+      await window.supabaseClient.from('configuracion').delete().eq('id', id);
+      await loadConfig(); renderConfigMarcas();
+      buildBloqueFields(1); buildBloqueFields(2);
+      toast('Marca eliminada', 'success');
+    } catch (e) { toast('Error: ' + e.message, 'error'); }
+  }
+
+  async function addMaterial() {
+    const input = document.getElementById('new-material-input');
+    const valor = input.value.trim();
+    if (!valor) return;
+    try {
+      await window.supabaseClient.from('configuracion').insert({ tipo:'material', categoria:'armazon', valor, orden:99 });
+      input.value = '';
+      await loadConfig(); renderConfigMateriales();
+      buildBloqueFields(1); buildBloqueFields(2);
+      toast('Material agregado', 'success');
+    } catch (e) { toast('Error: ' + e.message, 'error'); }
+  }
+
+  async function deleteMaterial(id) {
+    if (!confirm('¿Eliminar este material?')) return;
+    try {
+      await window.supabaseClient.from('configuracion').delete().eq('id', id);
+      await loadConfig(); renderConfigMateriales();
+      buildBloqueFields(1); buildBloqueFields(2);
+      toast('Material eliminado', 'success');
     } catch (e) { toast('Error: ' + e.message, 'error'); }
   }
 
@@ -904,11 +1083,14 @@ const App = (() => {
     if (data.doble) {
       html += `<div style="margin:10px 0 4px;font-size:.78rem;font-weight:700;color:var(--azul)">ANTEOJO A</div>`;
       html += rf('Lab', data.ant1.laboratorio) + rf('Lente', data.ant1.tipo_lente) + rf('Tratamiento', data.ant1.tratamiento) + rf('Graduación', data.ant1.graduacion);
+      html += rf('Marca', data.ant1.marca) + rf('Material', data.ant1.material);
       html += `<div style="margin:10px 0 4px;font-size:.78rem;font-weight:700;color:var(--azul)">ANTEOJO B</div>`;
       html += rf('Lab', data.ant2.laboratorio) + rf('Lente', data.ant2.tipo_lente) + rf('Tratamiento', data.ant2.tratamiento) + rf('Graduación', data.ant2.graduacion);
+      html += rf('Marca', data.ant2.marca) + rf('Material', data.ant2.material);
     } else {
       html += rf('Laboratorio', data.ant1.laboratorio) + rf('Lente', data.ant1.tipo_lente)
-            + rf('Tratamiento', data.ant1.tratamiento) + rf('Graduación', data.ant1.graduacion);
+            + rf('Tratamiento', data.ant1.tratamiento) + rf('Graduación', data.ant1.graduacion)
+            + rf('Marca', data.ant1.marca) + rf('Material', data.ant1.material);
     }
 
     document.getElementById('modal-body-content').innerHTML = html;
@@ -948,13 +1130,9 @@ const App = (() => {
 
       await Pedidos.crearPedido(rows);
 
-      // Notificar pedido nuevo — solo admin
       const sufStr = data.doble ? ` (${data.base.orden}-A y -B)` : ` #${data.base.orden}`;
-      enviarNotificacion(
-        '📋 Nuevo pedido — OLVISIÓN',
-        `${nombre} cargó un pedido${sufStr} para ${data.base.cliente}`,
-        true  // soloAdmin
-      );
+      enviarNotificacion('📋 Nuevo pedido — OLVISIÓN',
+        `${nombre} cargó un pedido${sufStr} para ${data.base.cliente}`, true);
 
       closeModal();
       toast('Pedido guardado ✓', 'success');
@@ -983,29 +1161,24 @@ const App = (() => {
     _pendingGuardar = null;
   }
 
-  // ── Activar notificaciones manualmente ───────────
+  // ── Notificaciones manuales ───────────────────────
   async function activarNotificaciones() {
     const btn    = document.getElementById('btn-activar-notif');
     const status = document.getElementById('notif-status');
-
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
       if (status) status.textContent = '⚠️ Tu navegador no soporta notificaciones push';
       return;
     }
-
     try {
       if (btn) { btn.disabled = true; btn.textContent = 'Activando...'; }
-
       const reg  = await navigator.serviceWorker.register('/sw.js');
       await navigator.serviceWorker.ready;
       const perm = await Notification.requestPermission();
-
       if (perm !== 'granted') {
         if (status) status.textContent = '❌ Permiso denegado. Activalo desde Ajustes → OLVISIÓN → Notificaciones.';
         if (btn) { btn.textContent = '🔔 Activar notificaciones push'; btn.disabled = false; }
         return;
       }
-
       let sub = await reg.pushManager.getSubscription();
       if (!sub) {
         sub = await reg.pushManager.subscribe({
@@ -1013,7 +1186,6 @@ const App = (() => {
           applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC),
         });
       }
-
       await guardarSuscripcion(sub);
       if (btn) { btn.textContent = '✅ Notificaciones activadas'; btn.style.background = 'var(--verde)'; }
       if (status) status.textContent = 'Vas a recibir alertas de pedidos nuevos, retirados y críticos.';
@@ -1021,7 +1193,6 @@ const App = (() => {
     } catch (e) {
       if (btn) { btn.textContent = '🔔 Activar notificaciones push'; btn.disabled = false; }
       if (status) status.textContent = `Error: ${e.message}`;
-      console.error('Push error:', e);
     }
   }
 
@@ -1051,7 +1222,10 @@ const App = (() => {
     switchEstadoTab, switchSegTab, limpiarFiltros,
     onLenteChange, setDistancia,
     loadConfigScreen, loadConfigTratamientos,
-    addLab, deleteLab, addTratamiento, deleteTratamiento,
+    addLab, deleteLab,
+    addMarca, deleteMarca,
+    addMaterial, deleteMaterial,
+    addTratamiento, deleteTratamiento,
     guardarEdicion, activarNotificaciones,
   };
 })();
