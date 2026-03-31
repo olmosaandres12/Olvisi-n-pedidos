@@ -7,14 +7,16 @@ const Panel = (() => {
 
   // ── Renderizar panel completo ─────────────────────
   async function render() {
-    const el = document.getElementById('panel-content');
-    if (!el) return;
+    const kpiEl = document.getElementById('panel-kpis');
+    if (!kpiEl) return;
+
+    kpiEl.innerHTML = '<div style="padding:24px;text-align:center;color:#888;font-size:13px">Cargando panel...</div>';
 
     try {
       const todos = await Pedidos.getTodosPedidos();
-      renderDashboard(el, todos);
+      renderDashboard(null, todos);
     } catch (e) {
-      el.innerHTML = `<p style="color:var(--rojo);padding:16px">Error cargando panel: ${e.message}</p>`;
+      kpiEl.innerHTML = `<p style="color:var(--rojo);padding:16px">Error cargando panel: ${e.message}</p>`;
     }
   }
 
