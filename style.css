@@ -678,3 +678,158 @@ select.form-control {
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--gris-borde); border-radius: 4px; }
+
+/* ═══════════════════════════════════════════════════
+   LOGO HEADER BUTTON
+   ═══════════════════════════════════════════════════ */
+.app-header-logo-btn {
+  background: none; border: none; cursor: pointer;
+  padding: 4px; border-radius: 8px;
+  display: flex; align-items: center;
+  transition: opacity var(--transition);
+}
+.app-header-logo-btn:hover { opacity: .8; }
+.app-header-logo-img { height: 36px; width: auto; object-fit: contain; }
+.app-header-logo-text {
+  font-size: 1.1rem; font-weight: 700; color: var(--blanco); letter-spacing: -0.3px;
+}
+.app-header-logo-text span { color: var(--amarillo); }
+
+/* ═══════════════════════════════════════════════════
+   SEGUIMIENTO TABS
+   ═══════════════════════════════════════════════════ */
+.seg-tabs {
+  display: flex; gap: 8px; margin-bottom: 16px;
+}
+.seg-tab {
+  flex: 1; padding: 12px 10px;
+  border-radius: var(--radius); border: 1.5px solid var(--gris-borde);
+  background: var(--blanco); font-size: .875rem; font-weight: 600;
+  color: var(--gris-texto); cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  transition: all var(--transition);
+}
+.seg-tab.active {
+  background: var(--azul); color: var(--blanco); border-color: var(--azul);
+}
+.seg-tab-count {
+  background: rgba(255,255,255,.25); color: inherit;
+  font-size: .72rem; font-weight: 700;
+  padding: 2px 7px; border-radius: 10px;
+}
+.seg-tab:not(.active) .seg-tab-count {
+  background: var(--azul-light); color: var(--azul);
+}
+.seg-panel { min-height: 80px; }
+
+/* ═══════════════════════════════════════════════════
+   ESTADO TABS (pedidos)
+   ═══════════════════════════════════════════════════ */
+.estado-tabs {
+  display: flex; gap: 6px; margin-bottom: 14px;
+  overflow-x: auto; padding-bottom: 2px;
+  scrollbar-width: none;
+}
+.estado-tabs::-webkit-scrollbar { display: none; }
+.estado-tab {
+  padding: 8px 14px; border-radius: 20px;
+  border: 1.5px solid var(--gris-borde);
+  background: var(--blanco); font-size: .8rem; font-weight: 600;
+  color: var(--gris-texto); cursor: pointer; white-space: nowrap;
+  transition: all var(--transition);
+}
+.estado-tab.active {
+  background: var(--azul); color: var(--blanco); border-color: var(--azul);
+}
+
+/* ═══════════════════════════════════════════════════
+   FILTROS BAR
+   ═══════════════════════════════════════════════════ */
+.filtros-bar { margin-bottom: 12px; }
+.filtros-row {
+  display: flex; gap: 8px; flex-wrap: wrap;
+}
+.filtro-select {
+  flex: 1; min-width: 120px; padding: 10px 12px;
+  font-size: .85rem;
+}
+
+/* ═══════════════════════════════════════════════════
+   MES GRUPO
+   ═══════════════════════════════════════════════════ */
+.mes-grupo { margin-bottom: 20px; }
+.mes-label {
+  font-size: .78rem; font-weight: 700;
+  color: var(--gris-texto); text-transform: uppercase;
+  letter-spacing: .08em; margin-bottom: 10px;
+  display: flex; align-items: center; gap: 8px;
+}
+.mes-label::after { content: ''; flex: 1; height: 1px; background: var(--gris-borde); }
+
+/* ═══════════════════════════════════════════════════
+   DISTANCIA TABS + TABLA GRADUACIÓN
+   ═══════════════════════════════════════════════════ */
+.distancia-tabs {
+  display: flex; border-radius: var(--radius-sm);
+  border: 1.5px solid var(--gris-borde); overflow: hidden;
+  margin-bottom: 12px;
+}
+.dist-tab {
+  flex: 1; padding: 10px 8px;
+  font-size: .875rem; font-weight: 600;
+  color: var(--gris-texto); background: var(--blanco);
+  border: none; cursor: pointer; border-right: 1px solid var(--gris-borde);
+  transition: all var(--transition);
+}
+.dist-tab:last-child { border-right: none; }
+.dist-tab.active { background: var(--azul); color: var(--blanco); }
+
+.grad-tabla {
+  background: var(--gris-bg);
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--gris-borde);
+  padding: 12px;
+  margin-bottom: 12px;
+}
+.grad-tabla-title {
+  font-size: .78rem; font-weight: 700;
+  color: var(--azul); text-transform: uppercase;
+  letter-spacing: .06em; margin-bottom: 10px;
+}
+.grad-grid {
+  display: grid;
+  grid-template-columns: 28px repeat(4, 1fr);
+  gap: 5px; align-items: center;
+}
+.grad-header {
+  font-size: .7rem; font-weight: 700;
+  color: var(--gris-texto); text-align: center;
+  text-transform: uppercase; letter-spacing: .06em;
+  padding: 3px 0;
+}
+.grad-ojo {
+  font-size: .875rem; font-weight: 700;
+  color: var(--azul); text-align: center;
+  padding: 3px 0;
+}
+.grad-input {
+  padding: 8px 6px !important;
+  font-size: .85rem !important;
+  text-align: center;
+  background: var(--blanco) !important;
+}
+
+/* ═══════════════════════════════════════════════════
+   CONFIG LIST
+   ═══════════════════════════════════════════════════ */
+.config-list {
+  display: flex; flex-direction: column; gap: 6px;
+  max-height: 300px; overflow-y: auto;
+}
+.config-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 12px;
+  background: var(--gris-bg); border-radius: var(--radius-sm);
+  border: 1px solid var(--gris-borde);
+  font-size: .875rem;
+}
