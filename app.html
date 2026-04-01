@@ -190,13 +190,23 @@
       cursor:default; pointer-events:none;
     }
 
-    /* Inputs de graduación */
-    .grad-input[readonly] { cursor:pointer; background:var(--blanco) !important; }
-    .grad-input[readonly]:focus {
-      border-color:var(--azul);
-      box-shadow:0 0 0 3px rgba(3,66,145,.15);
-      outline:none;
+    /* Inputs de graduación — editables con teclado nativo */
+    .grad-input {
+      text-align: center;
+      font-family: var(--font-mono);
+      font-size: .85rem;
+      font-weight: 600;
+      padding: 6px 4px;
     }
+    .grad-input:focus {
+      border-color: var(--azul);
+      box-shadow: 0 0 0 3px rgba(3,66,145,.15);
+      outline: none;
+    }
+    .grad-esf { color: #185FA5; }
+    .grad-cil { color: #D85A30; }
+    .grad-eje { color: var(--gris-dark); }
+    .grad-add { color: #00695C; }
   </style>
 </head>
 <body>
