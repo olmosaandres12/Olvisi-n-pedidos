@@ -1202,3 +1202,312 @@ select.form-control {
   display: flex; flex-direction: column; gap: 6px;
   max-height: 260px; overflow-y: auto;
 }
+/* ============================================================
+   NUMPAD ÓPTICO v2 — agregar al final de style.css
+   ============================================================ */
+
+/* Variables del numpad */
+:root {
+  --np-plus-color:   #185FA5;
+  --np-minus-color:  #D85A30;
+  --np-amber-bg:     #FAEEDA;
+  --np-amber-txt:    #633806;
+  --np-red-bg:       #FCEBEB;
+  --np-red-txt:      #A32D2D;
+  --np-blue-bg:      #E6F1FB;
+  --np-blue-txt:     #034291;
+  --np-orange-bg:    #FAECE7;
+  --np-orange-txt:   #D85A30;
+}
+
+/* Overlay de fondo */
+#numpad-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 999;
+  align-items: flex-end;
+  justify-content: center;
+  /* Transición de entrada */
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+#numpad-overlay.np-visible {
+  opacity: 1;
+}
+
+/* Sheet principal */
+#numpad-sheet {
+  background: #fff;
+  width: 100%;
+  max-width: 420px;
+  border-radius: 20px 20px 0 0;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  overflow: hidden;
+  /* Transición de subida */
+  transform: translateY(100%);
+  transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+}
+#numpad-overlay.np-visible #numpad-sheet {
+  transform: translateY(0);
+}
+
+/* Handle (barra de arrastrar) */
+.np-handle-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 10px 0 6px;
+}
+.np-handle {
+  width: 36px;
+  height: 4px;
+  background: #D1D5DB;
+  border-radius: 2px;
+}
+
+/* Header: label + cerrar */
+.np-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 16px 10px;
+}
+.np-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #6B7280;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.np-close {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #F3F4F6;
+  border: none;
+  color: #6B7280;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.1s;
+}
+.np-close:active { background: #E5E7EB; }
+
+/* Display del valor */
+.np-display-wrap {
+  margin: 0 14px 12px;
+  background: #F9FAFB;
+  border-radius: 12px;
+  border: 1.5px solid #E5E7EB;
+  padding: 10px 16px 12px;
+  min-height: 68px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-end;
+  position: relative;
+  transition: border-color 0.15s, background 0.15s;
+}
+.np-display-hint {
+  font-size: 10px;
+  color: #9CA3AF;
+  letter-spacing: 0.03em;
+  align-self: flex-start;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+}
+#numpad-display {
+  font-size: 38px;
+  font-weight: 500;
+  color: #111827;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+}
+.np-placeholder {
+  color: #D1D5DB;
+  font-weight: 400;
+}
+.np-sign {
+  font-weight: 600;
+  margin-right: 1px;
+}
+.np-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 30px;
+  background: #034291;
+  border-radius: 1px;
+  margin-left: 3px;
+  animation: np-blink 1s step-end infinite;
+}
+@keyframes np-blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+
+/* Animación shake (entrada inválida) */
+.np-shake {
+  animation: np-shake-anim 0.35s ease;
+}
+@keyframes np-shake-anim {
+  0%, 100% { transform: translateX(0); }
+  20%       { transform: translateX(-7px); }
+  40%       { transform: translateX(7px); }
+  60%       { transform: translateX(-4px); }
+  80%       { transform: translateX(4px); }
+}
+
+/* Flash de confirmación */
+.np-confirmed {
+  background: #E6F1FB !important;
+  border-color: #B5D4F4 !important;
+}
+.np-confirmed::after {
+  content: '✓ Confirmado';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  font-weight: 600;
+  color: #034291;
+  background: #E6F1FB;
+  border-radius: 10px;
+}
+
+/* Botones de paso ±0.25 */
+.np-quick-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 0 14px 10px;
+}
+.np-step {
+  height: 46px;
+  border-radius: 10px;
+  border: 1.5px solid transparent;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  transition: transform 0.08s, opacity 0.1s;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+.np-step:active { transform: scale(0.94); opacity: 0.85; }
+
+.np-step-minus {
+  background: var(--np-orange-bg);
+  border-color: #F5C4B3;
+  color: var(--np-minus-color);
+}
+.np-step-plus {
+  background: var(--np-blue-bg);
+  border-color: #B5D4F4;
+  color: var(--np-plus-color);
+}
+
+/* Grid de dígitos */
+.np-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 7px;
+  padding: 0 14px 10px;
+}
+
+/* Botón base */
+.np-btn {
+  height: 54px;
+  border-radius: 11px;
+  border: 1.5px solid #E5E7EB;
+  background: #F3F4F6;
+  font-size: 22px;
+  font-weight: 400;
+  color: #111827;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.07s, background 0.08s;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+.np-btn:active {
+  transform: scale(0.91);
+  background: #E5E7EB;
+}
+
+/* Variantes */
+.np-sign {
+  background: var(--np-blue-bg);
+  border-color: #B5D4F4;
+  color: var(--np-blue-txt);
+  font-size: 20px;
+  font-weight: 600;
+}
+.np-dot {
+  font-size: 26px;
+  font-weight: 700;
+  color: #374151;
+}
+.np-bksp {
+  background: var(--np-amber-bg);
+  border-color: #FAC775;
+  color: var(--np-amber-txt);
+  font-size: 19px;
+}
+.np-clr {
+  background: var(--np-red-bg);
+  border-color: #F7C1C1;
+  color: var(--np-red-txt);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+/* 0 ocupa 2 columnas */
+.np-zero {
+  grid-column: span 2;
+}
+
+/* Botón Confirmar */
+#numpad-ok {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: calc(100% - 28px);
+  margin: 4px 14px 14px;
+  height: 54px;
+  border-radius: 13px;
+  background: #034291;
+  border: none;
+  color: #fff;
+  font-size: 17px;
+  font-weight: 600;
+  cursor: pointer;
+  letter-spacing: 0.01em;
+  transition: opacity 0.12s, transform 0.08s, background 0.15s;
+  touch-action: manipulation;
+}
+#numpad-ok:active:not(.np-btn-disabled) {
+  transform: scale(0.98);
+  opacity: 0.88;
+}
+#numpad-ok.np-btn-disabled {
+  background: #E5E7EB;
+  color: #9CA3AF;
+  cursor: default;
+  pointer-events: none;
+}
