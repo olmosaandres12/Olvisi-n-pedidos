@@ -226,8 +226,12 @@ const App = (() => {
       const label = `${labelMap[tipo] || tipo} — ${ojo}`;
       inp.setAttribute('readonly', true);
       inp.style.cursor = 'pointer';
-      inp.addEventListener('click',  () => openNumpad(inp, label));
-      inp.addEventListener('focus',  () => openNumpad(inp, label));
+      // pointerdown funciona tanto en touch (móvil) como en click (desktop/Mac)
+      // con inputs readonly, 'click' y 'focus' no disparan en Safari/desktop
+      inp.addEventListener('pointerdown', (e) => {
+        e.preventDefault(); // evita que intente ganar foco nativo
+        openNumpad(inp, label);
+      });
     });
   }
 
