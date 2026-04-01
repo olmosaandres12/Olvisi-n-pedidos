@@ -217,22 +217,27 @@ const App = (() => {
   }
 
   function attachNumpadListeners(container) {
-    // Formateo automático al salir del campo:
-    // Esf/Cil/Add: agrega signo si falta, normaliza decimales → "+1.25", "-0.50"
-    // Eje: solo números enteros, limpia caracteres no numéricos
     container.querySelectorAll('.grad-esf, .grad-cil, .grad-add').forEach(inp => {
-      inp.addEventListener('blur', () => formatGradInput(inp));
-      inp.addEventListener('focus', () => {
-        // Seleccionar todo al enfocar para facilitar reemplazo rápido
-        setTimeout(() => inp.select(), 0);
+      // Reemplazar coma por punto mientras escribe (teclados iOS usan coma)
+      inp.addEventListener('input', () => {
+        const pos = inp.selectionStart;
+        const antes = inp.value;
+        const despues = antes.replace(',', '.');
+        if (antes !== despues) {
+          inp.value = despues;
+          inp.setSelectionRange(pos, pos);
+        }
       });
+      // Formatear al salir
+      inp.addEventListener('blur', () => formatGradInput(inp));
+      // Seleccionar todo al enfocar
+      inp.addEventListener('focus', () => setTimeout(() => inp.select(), 0));
     });
     container.querySelectorAll('.grad-eje').forEach(inp => {
       inp.addEventListener('blur', () => {
         const v = inp.value.replace(/[^0-9]/g, '');
-        if (v === '' || v === '0') { inp.value = ''; return; }
-        const n = Math.min(180, Math.max(0, parseInt(v)));
-        inp.value = String(n);
+        if (!v || v === '0') { inp.value = ''; return; }
+        inp.value = String(Math.min(180, Math.max(0, parseInt(v))));
       });
       inp.addEventListener('focus', () => setTimeout(() => inp.select(), 0));
     });
@@ -241,26 +246,22 @@ const App = (() => {
   function formatGradInput(inp) {
     let v = inp.value.trim().replace(',', '.');
     if (!v) return;
-    // Detectar signo
+    // Extraer signo si lo escribieron
     let sign = '';
     if (v.startsWith('+') || v.startsWith('-')) {
       sign = v[0];
       v = v.slice(1);
     }
-    // Quedarse solo con dígitos y punto
+    // Solo dígitos y punto
     v = v.replace(/[^0-9.]/g, '');
     if (!v) { inp.value = ''; return; }
-    // Parsear como número
     const n = parseFloat(v);
-    if (isNaN(n)) { inp.value = ''; return; }
-    // Redondear al múltiplo de 0.25 más cercano
-    const redondeado = Math.round(n * 4) / 4;
-    // Si no tenía signo, inferir: Esf/Add positivo por defecto, Cil negativo
-    if (!sign) {
-      sign = inp.classList.contains('grad-cil') ? '-' : '+';
-    }
-    // Formatear con 2 decimales
-    inp.value = sign + redondeado.toFixed(2);
+    if (isNaN(n) || n === 0) { inp.value = ''; return; }
+    // Redondear al 0.25 más cercano
+    const r = Math.round(n * 4) / 4;
+    // Signo por defecto: Cil → negativo, resto → positivo
+    if (!sign) sign = inp.classList.contains('grad-cil') ? '-' : '+';
+    inp.value = sign + r.toFixed(2);
   }
 
   // ── Push Notifications ────────────────────────────
@@ -504,17 +505,19 @@ const App = (() => {
     // Inputs normales editables — teclado nativo en todos los dispositivos.
     // pattern óptico: acepta +1.25, -0.50, 1.00, etc.
     // Eje: solo números enteros 0-180.
+    // inputmode="decimal" en iOS muestra teclado numérico con punto decimal y signo -
+    // El handler 'input' reemplaza coma por punto automáticamente
     const inpEsf = (id) => `<input type="text" class="form-control grad-input grad-esf" id="${id}"
-      placeholder="+0.00" inputmode="decimal" autocomplete="off" autocorrect="off"
+      placeholder="ej: -1.25" inputmode="decimal" autocomplete="off" autocorrect="off"
       autocapitalize="off" spellcheck="false">`;
     const inpCil = (id) => `<input type="text" class="form-control grad-input grad-cil" id="${id}"
-      placeholder="-0.00" inputmode="decimal" autocomplete="off" autocorrect="off"
+      placeholder="ej: -0.50" inputmode="decimal" autocomplete="off" autocorrect="off"
       autocapitalize="off" spellcheck="false">`;
     const inpEje = (id) => `<input type="text" class="form-control grad-input grad-eje" id="${id}"
-      placeholder="0" inputmode="numeric" autocomplete="off" autocorrect="off"
+      placeholder="°" inputmode="numeric" autocomplete="off" autocorrect="off"
       autocapitalize="off" spellcheck="false">`;
     const inpAdd = (id) => `<input type="text" class="form-control grad-input grad-add" id="${id}"
-      placeholder="+0.00" inputmode="decimal" autocomplete="off" autocorrect="off"
+      placeholder="ej: +2.00" inputmode="decimal" autocomplete="off" autocorrect="off"
       autocapitalize="off" spellcheck="false">`;
     return `
       <div class="grad-grid">
