@@ -6,88 +6,197 @@
   <title>OLVISIÓN — Pedidos</title>
   <link rel="stylesheet" href="style.css">
   <style>
-    .detalle-overlay { position:fixed;inset:0;z-index:7000;background:rgba(2,41,102,.5);backdrop-filter:blur(4px);display:flex;align-items:flex-end;justify-content:center;animation:fadeIn .2s ease; }
-    .detalle-overlay.hidden { display:none; }
-    .detalle-sheet { background:var(--blanco);border-radius:var(--radius-lg) var(--radius-lg) 0 0;width:100%;max-width:520px;max-height:92dvh;overflow-y:auto;animation:slideSheet .3s ease;padding-bottom:env(safe-area-inset-bottom); }
-    .detalle-header { position:sticky;top:0;z-index:10;background:var(--blanco);display:flex;align-items:center;justify-content:space-between;padding:16px 20px 12px;border-bottom:1px solid var(--gris-borde); }
-    .detalle-orden { font-size:1.1rem;font-weight:800;color:var(--azul);font-family:var(--font-mono); }
-    .detalle-actions { display:flex;gap:8px;align-items:center; }
-    .btn-editar { padding:8px 16px;border-radius:20px;background:var(--azul-light);color:var(--azul);font-size:.82rem;font-weight:700;border:none;cursor:pointer; }
-    .btn-cerrar-detalle { width:30px;height:30px;border-radius:50%;background:var(--gris-bg);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--gris-texto); }
-    .detalle-body { padding:16px 20px; }
-    .detalle-seccion { margin-bottom:16px;background:var(--gris-bg);border-radius:var(--radius);padding:14px; }
-    .detalle-seccion-title { font-size:10px;font-weight:700;color:var(--gris-texto);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px; }
-    .detalle-row { display:flex;justify-content:space-between;align-items:flex-start;padding:5px 0;border-bottom:1px solid var(--gris-borde);gap:12px; }
-    .detalle-row:last-child { border-bottom:none;padding-bottom:0; }
-    .detalle-label { font-size:12px;color:var(--gris-texto);flex-shrink:0; }
-    .detalle-valor { font-size:13px;font-weight:600;color:var(--gris-dark);text-align:right;flex:1; }
-    .detalle-grad { font-family:var(--font-mono);font-size:12px;background:var(--blanco);border-radius:6px;padding:8px 10px;margin-top:6px;color:var(--gris-dark);border:1px solid var(--gris-borde);line-height:1.8; }
-    .edit-overlay { position:fixed;inset:0;z-index:8000;background:rgba(2,41,102,.5);backdrop-filter:blur(4px);display:flex;align-items:flex-end;justify-content:center;animation:fadeIn .2s ease; }
-    .edit-overlay.hidden { display:none; }
-    .edit-sheet { background:var(--blanco);border-radius:var(--radius-lg) var(--radius-lg) 0 0;width:100%;max-width:520px;max-height:94dvh;overflow-y:auto;animation:slideSheet .3s ease;padding-bottom:env(safe-area-inset-bottom); }
-    .edit-header { position:sticky;top:0;z-index:10;background:var(--azul);display:flex;align-items:center;justify-content:space-between;padding:16px 20px; }
-    .edit-header-title { font-size:1rem;font-weight:700;color:#fff; }
-    .btn-cerrar-edit { width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.2);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff; }
-    .edit-body { padding:16px 20px; }
-    .edit-save-btn { width:100%;margin-top:8px;margin-bottom:16px;padding:16px;border-radius:var(--radius);background:var(--azul);color:#fff;font-size:1rem;font-weight:700;border:none;cursor:pointer; }
-    .edit-save-btn:active { background:var(--azul-dark); }
-    .export-overlay { position:fixed;inset:0;z-index:9000;background:rgba(2,41,102,.5);backdrop-filter:blur(4px);display:flex;align-items:flex-end;justify-content:center;animation:fadeIn .2s ease; }
-    .export-overlay.hidden { display:none; }
-    .export-sheet { background:var(--blanco);border-radius:var(--radius-lg) var(--radius-lg) 0 0;width:100%;max-width:520px;animation:slideSheet .3s ease;padding-bottom:env(safe-area-inset-bottom); }
-    .export-header { background:var(--azul);display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-radius:var(--radius-lg) var(--radius-lg) 0 0; }
-    .export-header-title { font-size:1rem;font-weight:700;color:#fff; }
-    .btn-cerrar-export { width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.2);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff; }
-    .export-body { padding:24px 20px; }
-    .export-desc { font-size:13px;color:var(--gris-texto);margin-bottom:20px;line-height:1.5; }
-    .export-label { font-size:11px;font-weight:700;color:var(--gris-texto);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px; }
-    #btn-generar-pdf { width:100%;margin-top:16px;padding:16px;border-radius:var(--radius);background:var(--azul);color:#fff;font-size:1rem;font-weight:700;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px; }
-    #btn-generar-pdf:active { background:var(--azul-dark); }
-    #btn-generar-pdf:disabled { opacity:.6;cursor:not-allowed; }
-    .btn-export-pdf { display:inline-flex;align-items:center;gap:6px;padding:10px 18px;border-radius:20px;background:var(--azul);color:#fff;font-size:.85rem;font-weight:700;border:none;cursor:pointer;transition:background .15s;box-shadow:0 2px 8px rgba(3,66,145,.3); }
-    .btn-export-pdf:active { background:var(--azul-dark); }
+    .detalle-overlay{position:fixed;inset:0;z-index:7000;background:rgba(2,41,102,.5);backdrop-filter:blur(4px);display:flex;align-items:flex-end;justify-content:center;animation:fadeIn .2s ease;}
+    .detalle-overlay.hidden{display:none;}
+    .detalle-sheet{background:var(--blanco);border-radius:var(--radius-lg) var(--radius-lg) 0 0;width:100%;max-width:520px;max-height:92dvh;overflow-y:auto;animation:slideSheet .3s ease;padding-bottom:env(safe-area-inset-bottom);}
+    .detalle-header{position:sticky;top:0;z-index:10;background:var(--blanco);display:flex;align-items:center;justify-content:space-between;padding:16px 20px 12px;border-bottom:1px solid var(--gris-borde);}
+    .detalle-orden{font-size:1.1rem;font-weight:800;color:var(--azul);font-family:var(--font-mono);}
+    .detalle-actions{display:flex;gap:8px;align-items:center;}
+    .btn-editar{padding:8px 16px;border-radius:20px;background:var(--azul-light);color:var(--azul);font-size:.82rem;font-weight:700;border:none;cursor:pointer;}
+    .btn-cerrar-detalle{width:30px;height:30px;border-radius:50%;background:var(--gris-bg);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--gris-texto);}
+    .detalle-body{padding:16px 20px;}
+    .detalle-seccion{margin-bottom:16px;background:var(--gris-bg);border-radius:var(--radius);padding:14px;}
+    .detalle-seccion-title{font-size:10px;font-weight:700;color:var(--gris-texto);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;}
+    .detalle-row{display:flex;justify-content:space-between;align-items:flex-start;padding:5px 0;border-bottom:1px solid var(--gris-borde);gap:12px;}
+    .detalle-row:last-child{border-bottom:none;padding-bottom:0;}
+    .detalle-label{font-size:12px;color:var(--gris-texto);flex-shrink:0;}
+    .detalle-valor{font-size:13px;font-weight:600;color:var(--gris-dark);text-align:right;flex:1;}
+    .detalle-grad{font-family:var(--font-mono);font-size:12px;background:var(--blanco);border-radius:6px;padding:8px 10px;margin-top:6px;color:var(--gris-dark);border:1px solid var(--gris-borde);line-height:1.8;}
+    .edit-overlay{position:fixed;inset:0;z-index:8000;background:rgba(2,41,102,.5);backdrop-filter:blur(4px);display:flex;align-items:flex-end;justify-content:center;animation:fadeIn .2s ease;}
+    .edit-overlay.hidden{display:none;}
+    .edit-sheet{background:var(--blanco);border-radius:var(--radius-lg) var(--radius-lg) 0 0;width:100%;max-width:520px;max-height:94dvh;overflow-y:auto;animation:slideSheet .3s ease;padding-bottom:env(safe-area-inset-bottom);}
+    .edit-header{position:sticky;top:0;z-index:10;background:var(--azul);display:flex;align-items:center;justify-content:space-between;padding:16px 20px;}
+    .edit-header-title{font-size:1rem;font-weight:700;color:#fff;}
+    .btn-cerrar-edit{width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.2);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff;}
+    .edit-body{padding:16px 20px;}
+    .edit-save-btn{width:100%;margin-top:8px;margin-bottom:16px;padding:16px;border-radius:var(--radius);background:var(--azul);color:#fff;font-size:1rem;font-weight:700;border:none;cursor:pointer;}
+    .edit-save-btn:active{background:var(--azul-dark);}
+    .export-overlay{position:fixed;inset:0;z-index:9000;background:rgba(2,41,102,.5);backdrop-filter:blur(4px);display:flex;align-items:flex-end;justify-content:center;animation:fadeIn .2s ease;}
+    .export-overlay.hidden{display:none;}
+    .export-sheet{background:var(--blanco);border-radius:var(--radius-lg) var(--radius-lg) 0 0;width:100%;max-width:520px;animation:slideSheet .3s ease;padding-bottom:env(safe-area-inset-bottom);}
+    .export-header{background:var(--azul);display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-radius:var(--radius-lg) var(--radius-lg) 0 0;}
+    .export-header-title{font-size:1rem;font-weight:700;color:#fff;}
+    .btn-cerrar-export{width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.2);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff;}
+    .export-body{padding:24px 20px;}
+    .export-desc{font-size:13px;color:var(--gris-texto);margin-bottom:20px;line-height:1.5;}
+    .export-label{font-size:11px;font-weight:700;color:var(--gris-texto);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;}
+    #btn-generar-pdf{width:100%;margin-top:16px;padding:16px;border-radius:var(--radius);background:var(--azul);color:#fff;font-size:1rem;font-weight:700;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;}
+    #btn-generar-pdf:active{background:var(--azul-dark);}
+    #btn-generar-pdf:disabled{opacity:.6;cursor:not-allowed;}
+    .btn-export-pdf{display:inline-flex;align-items:center;gap:6px;padding:10px 18px;border-radius:20px;background:var(--azul);color:#fff;font-size:.85rem;font-weight:700;border:none;cursor:pointer;transition:background .15s;box-shadow:0 2px 8px rgba(3,66,145,.3);}
+    .btn-export-pdf:active{background:var(--azul-dark);}
 
-    /* ── Teclado numérico custom ── */
+    /* ══ NUMPAD ÓPTICO v2 ══════════════════════════════ */
+
+    /* Overlay de fondo */
     #numpad-overlay {
-      position:fixed;inset:0;z-index:9500;
-      background:rgba(2,41,102,.55);
-      backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
-      display:flex;align-items:flex-end;justify-content:center;
-      animation:fadeIn .18s ease;
+      position: fixed; inset: 0; z-index: 9500;
+      background: rgba(2,41,102,.52);
+      backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+      display: flex; align-items: flex-end; justify-content: center;
+      opacity: 0;
+      transition: opacity .25s ease;
+      pointer-events: none;
     }
-    #numpad-overlay.hidden { display:none !important; }
-    .numpad-sheet {
-      background:var(--blanco);
-      border-radius:24px 24px 0 0;
-      width:100%;max-width:520px;
-      padding:0 0 max(16px, env(safe-area-inset-bottom)) 0;
-      box-shadow:0 -8px 40px rgba(3,66,145,.18);
-      animation:slideSheet .25s cubic-bezier(.34,1.2,.64,1);
-      user-select:none;-webkit-user-select:none;
+    #numpad-overlay.hidden { display: none !important; }
+    #numpad-overlay.np-visible { opacity: 1; pointer-events: all; }
+
+    /* Sheet con animación slide-up */
+    #numpad-sheet {
+      background: var(--blanco);
+      border-radius: 22px 22px 0 0;
+      width: 100%; max-width: 520px;
+      padding-bottom: max(12px, env(safe-area-inset-bottom));
+      box-shadow: 0 -6px 32px rgba(3,66,145,.16);
+      transform: translateY(100%);
+      transition: transform .28s cubic-bezier(.32,.72,0,1);
+      user-select: none; -webkit-user-select: none;
     }
-    .numpad-handle { width:40px;height:4px;background:var(--gris-borde);border-radius:2px;margin:10px auto 0; }
-    .numpad-header { display:flex;align-items:center;justify-content:space-between;padding:10px 20px 6px; }
-    .numpad-label-text { font-size:.9rem;font-weight:700;color:var(--azul);letter-spacing:-.2px; }
-    .numpad-close-btn { width:30px;height:30px;border-radius:50%;background:var(--gris-bg);display:flex;align-items:center;justify-content:center;font-size:1rem;color:var(--gris-texto);border:none;cursor:pointer; }
-    .numpad-display-wrap { margin:0 20px 8px;background:var(--gris-bg);border:2px solid var(--gris-borde);border-radius:var(--radius);padding:10px 18px;text-align:center;transition:border-color .2s; }
-    #numpad-display { font-size:1.6rem;font-weight:700;font-family:var(--font-mono);color:var(--gris-dark);letter-spacing:.04em;line-height:1;min-height:1.8rem;display:block; }
-    #numpad-display.numpad-display-empty { color:var(--gris-borde); }
-    .numpad-grid { display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:0 8px 6px; }
-    .numpad-key { border:none;cursor:pointer;border-radius:12px;font-family:var(--font);font-size:1.25rem;font-weight:600;line-height:1;height:44px;display:flex;align-items:center;justify-content:center;transition:transform .1s ease,background .1s ease;-webkit-tap-highlight-color:transparent; }
-    .numpad-key:active { transform:scale(.92); }
-    .numpad-key-num { background:#F0F4FF;color:#1a2e5a;box-shadow:none; }
-    .numpad-key-num:active { background:#dce6fa; }
-    .numpad-key-dot { background:#F0F4FF;color:#1a2e5a;font-size:1.4rem;font-weight:700;box-shadow:none; }
-    .numpad-key-dot:active { background:#dce6fa; }
-    .numpad-key-sign { background:var(--azul-light);color:var(--azul);font-size:1.4rem;box-shadow:none; }
-    .numpad-key-sign:active { background:#c0d8f8; }
-    .numpad-key-del { background:#FEF3C7;color:#92400E;font-size:.85rem;box-shadow:none; }
-    .numpad-key-del:active { background:#fde68a; }
-    .numpad-key-clear { background:#FEE2E2;color:#DC2626;font-size:.75rem;font-weight:700;box-shadow:none; }
-    .numpad-key-clear:active { background:#fecaca; }
-    .numpad-ok-btn { margin:4px 8px 0;width:calc(100% - 16px);padding:13px;border:none;border-radius:var(--radius);background:var(--azul);color:var(--blanco);font-family:var(--font);font-size:1rem;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(3,66,145,.3);transition:background .2s,transform .1s;-webkit-tap-highlight-color:transparent; }
-    .numpad-ok-btn:active { transform:scale(.98);background:var(--azul-dark); }
-    .grad-input[readonly] { cursor:pointer;background:var(--blanco) !important; }
-    .grad-input[readonly]:focus { border-color:var(--azul);box-shadow:0 0 0 3px rgba(3,66,145,.15);outline:none; }
+    #numpad-overlay.np-visible #numpad-sheet { transform: translateY(0); }
+
+    /* Handle */
+    .np-handle-wrap { display:flex; justify-content:center; padding:10px 0 6px; }
+    .np-handle { width:38px; height:4px; background:var(--gris-borde); border-radius:2px; }
+
+    /* Header */
+    .np-header { display:flex; align-items:center; justify-content:space-between; padding:2px 18px 10px; }
+    .np-label {
+      font-size:11px; font-weight:700; color:var(--gris-texto);
+      text-transform:uppercase; letter-spacing:.07em;
+    }
+    .np-close {
+      width:28px; height:28px; border-radius:50%;
+      background:var(--gris-bg); border:none;
+      color:var(--gris-texto); font-size:13px;
+      cursor:pointer; display:flex; align-items:center; justify-content:center;
+      transition:background .1s;
+    }
+    .np-close:active { background:var(--gris-borde); }
+
+    /* Display */
+    .np-display-wrap {
+      margin: 0 16px 12px;
+      background: var(--gris-bg);
+      border-radius: 12px;
+      border: 1.5px solid var(--gris-borde);
+      padding: 10px 16px 12px;
+      min-height: 68px;
+      display: flex; flex-direction: column;
+      justify-content: center; align-items: flex-end;
+      position: relative;
+      transition: border-color .15s, background .15s;
+    }
+    .np-display-hint {
+      font-size:10px; color:var(--gris-texto);
+      letter-spacing:.03em; align-self:flex-start;
+      margin-bottom:4px; text-transform:uppercase; opacity:.7;
+    }
+    #numpad-display {
+      font-size:36px; font-weight:600; font-family:var(--font-mono);
+      color:var(--gris-dark); letter-spacing:-.01em; line-height:1;
+      display:flex; align-items:center; min-height:40px;
+    }
+    .np-placeholder { color:var(--gris-borde); font-weight:400; }
+    .np-sign-display { font-weight:700; margin-right:1px; }
+    .np-cursor {
+      display:inline-block; width:2px; height:28px;
+      background:var(--azul); border-radius:1px; margin-left:3px;
+      animation: np-blink 1s step-end infinite;
+    }
+    @keyframes np-blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+    /* Error shake */
+    .np-shake { animation: np-shake-k .35s ease; }
+    @keyframes np-shake-k {
+      0%,100%{transform:translateX(0)}
+      20%{transform:translateX(-7px)} 40%{transform:translateX(7px)}
+      60%{transform:translateX(-4px)} 80%{transform:translateX(4px)}
+    }
+
+    /* Flash confirmación */
+    .np-confirmed { background:#E6F1FB !important; border-color:#B5D4F4 !important; }
+    .np-confirmed::after {
+      content:'✓ Confirmado'; position:absolute; inset:0;
+      display:flex; align-items:center; justify-content:center;
+      font-size:17px; font-weight:700; color:var(--azul);
+      background:#E6F1FB; border-radius:10px; font-family:var(--font);
+    }
+
+    /* Pasos ±0.25 */
+    .np-quick-row { display:grid; grid-template-columns:1fr 1fr; gap:7px; padding:0 14px 10px; }
+    .np-step {
+      height:46px; border-radius:11px; border:1.5px solid transparent;
+      font-size:15px; font-weight:700; cursor:pointer;
+      display:flex; align-items:center; justify-content:center;
+      transition:transform .08s, opacity .1s;
+      -webkit-tap-highlight-color:transparent; touch-action:manipulation;
+    }
+    .np-step:active { transform:scale(.94); opacity:.85; }
+    .np-step-minus { background:#FAECE7; border-color:#F5C4B3; color:#D85A30; }
+    .np-step-plus  { background:#E6F1FB; border-color:#B5D4F4; color:#185FA5; }
+
+    /* Grid de teclas */
+    .np-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; padding:0 14px 10px; }
+    .np-btn {
+      height:52px; border-radius:11px; border:1.5px solid #E5E7EB;
+      background:var(--gris-bg); font-size:21px; font-weight:500;
+      font-family:var(--font); color:var(--gris-dark); cursor:pointer;
+      display:flex; align-items:center; justify-content:center;
+      transition:transform .07s, background .08s;
+      -webkit-tap-highlight-color:transparent; touch-action:manipulation;
+    }
+    .np-btn:active { transform:scale(.91); background:var(--gris-borde); }
+
+    .np-sign-btn { background:#E6F1FB; border-color:#B5D4F4; color:#034291; font-size:19px; font-weight:700; }
+    .np-dot-btn  { font-size:24px; font-weight:700; color:var(--gris-dark); }
+    .np-bksp-btn { background:#FAEEDA; border-color:#FAC775; color:#633806; font-size:18px; }
+    .np-clr-btn  { background:#FCEBEB; border-color:#F7C1C1; color:#A32D2D; font-size:11px; font-weight:800; letter-spacing:.05em; }
+    .np-zero-btn { grid-column:span 2; }
+
+    /* Confirmar */
+    #numpad-ok {
+      display:flex; align-items:center; justify-content:center; gap:8px;
+      width:calc(100% - 28px); margin:2px 14px 12px;
+      height:52px; border-radius:13px;
+      background:var(--azul); border:none; color:#fff;
+      font-size:16px; font-weight:700; font-family:var(--font);
+      cursor:pointer; letter-spacing:.01em;
+      transition:opacity .12s, transform .08s, background .15s;
+      -webkit-tap-highlight-color:transparent; touch-action:manipulation;
+    }
+    #numpad-ok:active:not(.np-btn-disabled) { transform:scale(.98); opacity:.88; }
+    #numpad-ok.np-btn-disabled {
+      background:var(--gris-borde); color:var(--gris-texto);
+      cursor:default; pointer-events:none;
+    }
+
+    /* Inputs de graduación */
+    .grad-input[readonly] { cursor:pointer; background:var(--blanco) !important; }
+    .grad-input[readonly]:focus {
+      border-color:var(--azul);
+      box-shadow:0 0 0 3px rgba(3,66,145,.15);
+      outline:none;
+    }
   </style>
 </head>
 <body>
@@ -159,46 +268,57 @@
   </div>
 </div>
 
-<!-- ── Teclado numérico custom ── -->
-<div id="numpad-overlay" class="hidden" role="dialog" aria-modal="true" aria-label="Teclado numérico">
-  <div class="numpad-sheet">
-    <div class="numpad-handle"></div>
-    <div class="numpad-header">
-      <span class="numpad-label-text" id="numpad-label">Valor</span>
-      <button class="numpad-close-btn" id="numpad-close" aria-label="Cerrar teclado">✕</button>
+<!-- ══ NUMPAD ÓPTICO v2 ══════════════════════════════════ -->
+<div id="numpad-overlay" class="hidden" role="dialog" aria-modal="true" aria-label="Teclado numérico óptico">
+  <div id="numpad-sheet">
+
+    <div class="np-handle-wrap"><div class="np-handle"></div></div>
+
+    <div class="np-header">
+      <span class="np-label" id="numpad-label">Valor</span>
+      <button class="np-close" id="numpad-close" aria-label="Cerrar">✕</button>
     </div>
-    <div class="numpad-display-wrap">
-      <span id="numpad-display" class="numpad-display-empty">—</span>
+
+    <div class="np-display-wrap">
+      <div class="np-display-hint">Múltiplos de 0.25</div>
+      <div id="numpad-display">
+        <span class="np-placeholder">0.00</span><span class="np-cursor"></span>
+      </div>
     </div>
-    <div class="numpad-grid">
-      <!-- Fila 1: signos -->
-      <button class="numpad-key numpad-key-sign" data-val="+" aria-label="Más">+</button>
-      <button class="numpad-key numpad-key-sign" data-val="-" aria-label="Menos">−</button>
-      <button class="numpad-key numpad-key-del"  id="numpad-del" aria-label="Borrar">⌫</button>
-      <!-- Fila 2: 1 2 3 -->
-      <button class="numpad-key numpad-key-num"  data-val="1">1</button>
-      <button class="numpad-key numpad-key-num"  data-val="2">2</button>
-      <button class="numpad-key numpad-key-num"  data-val="3">3</button>
-      <!-- Fila 3: 4 5 6 -->
-      <button class="numpad-key numpad-key-num"  data-val="4">4</button>
-      <button class="numpad-key numpad-key-num"  data-val="5">5</button>
-      <button class="numpad-key numpad-key-num"  data-val="6">6</button>
-      <!-- Fila 4: 7 8 9 -->
-      <button class="numpad-key numpad-key-num"  data-val="7">7</button>
-      <button class="numpad-key numpad-key-num"  data-val="8">8</button>
-      <button class="numpad-key numpad-key-num"  data-val="9">9</button>
-      <!-- Fila 5: . 0 CLR -->
-      <button class="numpad-key numpad-key-dot"  data-val=".">.</button>
-      <button class="numpad-key numpad-key-num"  data-val="0">0</button>
-      <button class="numpad-key numpad-key-clear" id="numpad-clear" aria-label="Limpiar">CLR</button>
+
+    <div class="np-quick-row">
+      <button class="np-step np-step-minus" id="numpad-step-minus" aria-label="Restar 0.25">− 0.25</button>
+      <button class="np-step np-step-plus"  id="numpad-step-plus"  aria-label="Sumar 0.25">+ 0.25</button>
     </div>
-    <button class="numpad-ok-btn" id="numpad-ok">✓ &nbsp;Confirmar</button>
+
+    <div class="np-grid">
+      <button class="np-btn np-sign-btn" id="numpad-sign"  aria-label="Cambiar signo">±</button>
+      <button class="np-btn np-dot-btn"  id="numpad-dot"   aria-label="Punto decimal">.</button>
+      <button class="np-btn np-bksp-btn" id="numpad-del"   aria-label="Borrar último">⌫</button>
+
+      <button class="np-btn numpad-key" data-val="1">1</button>
+      <button class="np-btn numpad-key" data-val="2">2</button>
+      <button class="np-btn numpad-key" data-val="3">3</button>
+
+      <button class="np-btn numpad-key" data-val="4">4</button>
+      <button class="np-btn numpad-key" data-val="5">5</button>
+      <button class="np-btn numpad-key" data-val="6">6</button>
+
+      <button class="np-btn numpad-key" data-val="7">7</button>
+      <button class="np-btn numpad-key" data-val="8">8</button>
+      <button class="np-btn numpad-key" data-val="9">9</button>
+
+      <button class="np-btn np-zero-btn numpad-key" data-val="0">0</button>
+      <button class="np-btn np-clr-btn"  id="numpad-clear" aria-label="Borrar todo">CLR</button>
+    </div>
+
+    <button id="numpad-ok" class="np-btn-disabled" aria-label="Confirmar valor">✓ &nbsp;Confirmar</button>
+
   </div>
 </div>
+<!-- ══════════════════════════════════════════════════════ -->
 
-<!-- ════════════════════════════════════════════════
-     APP LAYOUT
-     ════════════════════════════════════════════════ -->
+<!-- APP LAYOUT -->
 <div class="app-layout" id="app-layout" style="display:none">
 
   <header class="app-header">
@@ -215,7 +335,7 @@
 
   <main class="app-content">
 
-    <!-- ── INICIO — Nuevo pedido ── -->
+    <!-- INICIO — Nuevo pedido -->
     <section class="screen" id="screen-inicio">
       <div class="section-header">
         <div>
@@ -224,7 +344,6 @@
         </div>
       </div>
       <form id="form-nuevo-pedido" novalidate>
-
         <div class="form-section">
           <div class="form-section-title">Cliente</div>
           <div class="form-group">
@@ -291,11 +410,10 @@
             Guardar pedido
           </button>
         </div>
-
       </form>
     </section>
 
-    <!-- ── SEGUIMIENTO ── -->
+    <!-- SEGUIMIENTO -->
     <section class="screen" id="screen-seguimiento">
       <div class="section-header">
         <div>
@@ -321,7 +439,7 @@
       <div id="seg-content-retirar" class="seg-panel hidden"></div>
     </section>
 
-    <!-- ── PEDIDOS ── -->
+    <!-- PEDIDOS -->
     <section class="screen" id="screen-pedidos">
       <div class="section-header">
         <div>
@@ -367,7 +485,7 @@
       <div id="pedidos-list-container" style="display:none"></div>
     </section>
 
-    <!-- ── PANEL ADMIN ── -->
+    <!-- PANEL ADMIN -->
     <section class="screen" id="screen-panel">
       <div class="section-header">
         <div>
@@ -381,7 +499,7 @@
       <div id="panel-kpis"></div>
     </section>
 
-    <!-- ── CONFIGURACIÓN ── -->
+    <!-- CONFIGURACIÓN -->
     <section class="screen" id="screen-config">
       <div class="section-header">
         <div>
@@ -390,7 +508,6 @@
         </div>
       </div>
 
-      <!-- Laboratorios -->
       <div class="form-section">
         <div class="form-section-title">Laboratorios</div>
         <div id="config-labs-list" class="config-list"></div>
@@ -400,11 +517,9 @@
         </div>
       </div>
 
-      <!-- Marcas de armazón -->
       <div class="form-section">
         <div class="form-section-title">Marcas de armazón</div>
-        <div id="config-marcas-list" class="config-list"
-             style="display:flex;flex-direction:column;gap:6px;max-height:260px;overflow-y:auto">
+        <div id="config-marcas-list" class="config-list" style="display:flex;flex-direction:column;gap:6px;max-height:260px;overflow-y:auto">
           <p style="color:var(--gris-texto);font-size:.85rem;padding:8px 0">Cargando...</p>
         </div>
         <div style="display:flex;gap:8px;margin-top:12px">
@@ -413,11 +528,9 @@
         </div>
       </div>
 
-      <!-- Materiales de armazón -->
       <div class="form-section">
         <div class="form-section-title">Materiales de armazón</div>
-        <div id="config-materiales-list" class="config-list"
-             style="display:flex;flex-direction:column;gap:6px;max-height:260px;overflow-y:auto">
+        <div id="config-materiales-list" class="config-list" style="display:flex;flex-direction:column;gap:6px;max-height:260px;overflow-y:auto">
           <p style="color:var(--gris-texto);font-size:.85rem;padding:8px 0">Cargando...</p>
         </div>
         <div style="display:flex;gap:8px;margin-top:12px">
@@ -426,7 +539,6 @@
         </div>
       </div>
 
-      <!-- Tratamientos -->
       <div class="form-section">
         <div class="form-section-title">Tratamientos</div>
         <div class="form-group">
@@ -446,7 +558,6 @@
         </div>
       </div>
 
-      <!-- Notificaciones -->
       <div class="form-section">
         <div class="form-section-title">Notificaciones</div>
         <p style="font-size:.85rem;color:var(--gris-texto);margin-bottom:16px;line-height:1.5">
@@ -457,12 +568,11 @@
         </button>
         <p id="notif-status" style="font-size:.8rem;color:var(--gris-texto);text-align:center;margin-top:10px;line-height:1.4"></p>
       </div>
-
     </section>
 
   </main>
 
-  <!-- ── Bottom nav ── -->
+  <!-- Bottom nav -->
   <nav class="bottom-nav">
     <button class="nav-item active" id="nav-inicio" onclick="App.showScreen('inicio')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
