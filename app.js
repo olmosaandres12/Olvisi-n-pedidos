@@ -224,13 +224,29 @@ const App = (() => {
       const ojo   = parts[3] === 'D' ? 'OD' : 'OI';
       if (tipo === 'eje') return;
       const label = `${labelMap[tipo] || tipo} — ${ojo}`;
-      inp.setAttribute('readonly', true);
+
+      // SIN readonly — readonly bloquea todos los eventos en Safari iOS.
+      // inputmode="none" suprime el teclado nativo en móvil.
+      inp.removeAttribute('readonly');
+      inp.setAttribute('inputmode', 'none');
       inp.style.cursor = 'pointer';
-      // pointerdown funciona tanto en touch (móvil) como en click (desktop/Mac)
-      // con inputs readonly, 'click' y 'focus' no disparan en Safari/desktop
-      inp.addEventListener('pointerdown', (e) => {
-        e.preventDefault(); // evita que intente ganar foco nativo
+      inp.style.caretColor = 'transparent';
+
+      // touchstart para iOS (antes de que Safari muestre teclado)
+      inp.addEventListener('touchstart', (e) => {
+        e.preventDefault();
         openNumpad(inp, label);
+      }, { passive: false });
+
+      // mousedown para desktop/Mac
+      inp.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        openNumpad(inp, label);
+      });
+
+      // Bloquear escritura directa — solo permitir Tab y Escape
+      inp.addEventListener('keydown', (e) => {
+        if (!['Tab', 'Escape'].includes(e.key)) e.preventDefault();
       });
     });
   }
