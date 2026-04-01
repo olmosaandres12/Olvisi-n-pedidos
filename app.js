@@ -217,38 +217,50 @@ const App = (() => {
   }
 
   function attachNumpadListeners(container) {
-    const labelMap = { esf: 'Esfera', cil: 'Cilindro', add: 'Adición' };
-    container.querySelectorAll('.grad-input').forEach(inp => {
-      const parts = inp.id.split('-');
-      const tipo  = parts[2] || '';
-      const ojo   = parts[3] === 'D' ? 'OD' : 'OI';
-      if (tipo === 'eje') return;
-      const label = `${labelMap[tipo] || tipo} — ${ojo}`;
-
-      // SIN readonly — readonly bloquea todos los eventos en Safari iOS.
-      // inputmode="none" suprime el teclado nativo en móvil.
-      inp.removeAttribute('readonly');
-      inp.setAttribute('inputmode', 'none');
-      inp.style.cursor = 'pointer';
-      inp.style.caretColor = 'transparent';
-
-      // touchstart para iOS (antes de que Safari muestre teclado)
-      inp.addEventListener('touchstart', (e) => {
-        e.preventDefault();
-        openNumpad(inp, label);
-      }, { passive: false });
-
-      // mousedown para desktop/Mac
-      inp.addEventListener('mousedown', (e) => {
-        e.preventDefault();
-        openNumpad(inp, label);
-      });
-
-      // Bloquear escritura directa — solo permitir Tab y Escape
-      inp.addEventListener('keydown', (e) => {
-        if (!['Tab', 'Escape'].includes(e.key)) e.preventDefault();
+    // Formateo automático al salir del campo:
+    // Esf/Cil/Add: agrega signo si falta, normaliza decimales → "+1.25", "-0.50"
+    // Eje: solo números enteros, limpia caracteres no numéricos
+    container.querySelectorAll('.grad-esf, .grad-cil, .grad-add').forEach(inp => {
+      inp.addEventListener('blur', () => formatGradInput(inp));
+      inp.addEventListener('focus', () => {
+        // Seleccionar todo al enfocar para facilitar reemplazo rápido
+        setTimeout(() => inp.select(), 0);
       });
     });
+    container.querySelectorAll('.grad-eje').forEach(inp => {
+      inp.addEventListener('blur', () => {
+        const v = inp.value.replace(/[^0-9]/g, '');
+        if (v === '' || v === '0') { inp.value = ''; return; }
+        const n = Math.min(180, Math.max(0, parseInt(v)));
+        inp.value = String(n);
+      });
+      inp.addEventListener('focus', () => setTimeout(() => inp.select(), 0));
+    });
+  }
+
+  function formatGradInput(inp) {
+    let v = inp.value.trim().replace(',', '.');
+    if (!v) return;
+    // Detectar signo
+    let sign = '';
+    if (v.startsWith('+') || v.startsWith('-')) {
+      sign = v[0];
+      v = v.slice(1);
+    }
+    // Quedarse solo con dígitos y punto
+    v = v.replace(/[^0-9.]/g, '');
+    if (!v) { inp.value = ''; return; }
+    // Parsear como número
+    const n = parseFloat(v);
+    if (isNaN(n)) { inp.value = ''; return; }
+    // Redondear al múltiplo de 0.25 más cercano
+    const redondeado = Math.round(n * 4) / 4;
+    // Si no tenía signo, inferir: Esf/Add positivo por defecto, Cil negativo
+    if (!sign) {
+      sign = inp.classList.contains('grad-cil') ? '-' : '+';
+    }
+    // Formatear con 2 decimales
+    inp.value = sign + redondeado.toFixed(2);
   }
 
   // ── Push Notifications ────────────────────────────
@@ -489,9 +501,21 @@ const App = (() => {
   }
 
   function gradTablaHTML(num, dc) {
-    const inpGrad = (id) => `<input type="text" class="form-control grad-input" id="${id}" placeholder="—" autocomplete="off" autocorrect="off" spellcheck="false" inputmode="none">`;
-    const inpEje  = (id) => `<input type="text" class="form-control grad-input" id="${id}" placeholder="°" inputmode="numeric" autocomplete="off">`;
-    const inpAdd  = (id) => `<input type="text" class="form-control grad-input" id="${id}" placeholder="—" autocomplete="off" autocorrect="off" spellcheck="false" inputmode="none">`;
+    // Inputs normales editables — teclado nativo en todos los dispositivos.
+    // pattern óptico: acepta +1.25, -0.50, 1.00, etc.
+    // Eje: solo números enteros 0-180.
+    const inpEsf = (id) => `<input type="text" class="form-control grad-input grad-esf" id="${id}"
+      placeholder="+0.00" inputmode="decimal" autocomplete="off" autocorrect="off"
+      autocapitalize="off" spellcheck="false">`;
+    const inpCil = (id) => `<input type="text" class="form-control grad-input grad-cil" id="${id}"
+      placeholder="-0.00" inputmode="decimal" autocomplete="off" autocorrect="off"
+      autocapitalize="off" spellcheck="false">`;
+    const inpEje = (id) => `<input type="text" class="form-control grad-input grad-eje" id="${id}"
+      placeholder="0" inputmode="numeric" autocomplete="off" autocorrect="off"
+      autocapitalize="off" spellcheck="false">`;
+    const inpAdd = (id) => `<input type="text" class="form-control grad-input grad-add" id="${id}"
+      placeholder="+0.00" inputmode="decimal" autocomplete="off" autocorrect="off"
+      autocapitalize="off" spellcheck="false">`;
     return `
       <div class="grad-grid">
         <div class="grad-header"></div>
@@ -500,9 +524,9 @@ const App = (() => {
         <div class="grad-header">Eje</div>
         <div class="grad-header">Ad.</div>
         <div class="grad-ojo">D</div>
-        ${inpGrad(`g-${dc}-esf-D-${num}`)}${inpGrad(`g-${dc}-cil-D-${num}`)}${inpEje(`g-${dc}-eje-D-${num}`)}${inpAdd(`g-${dc}-add-D-${num}`)}
+        ${inpEsf(`g-${dc}-esf-D-${num}`)}${inpCil(`g-${dc}-cil-D-${num}`)}${inpEje(`g-${dc}-eje-D-${num}`)}${inpAdd(`g-${dc}-add-D-${num}`)}
         <div class="grad-ojo">I</div>
-        ${inpGrad(`g-${dc}-esf-I-${num}`)}${inpGrad(`g-${dc}-cil-I-${num}`)}${inpEje(`g-${dc}-eje-I-${num}`)}${inpAdd(`g-${dc}-add-I-${num}`)}
+        ${inpEsf(`g-${dc}-esf-I-${num}`)}${inpCil(`g-${dc}-cil-I-${num}`)}${inpEje(`g-${dc}-eje-I-${num}`)}${inpAdd(`g-${dc}-add-I-${num}`)}
       </div>
     `;
   }
