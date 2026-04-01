@@ -14,10 +14,10 @@ const App = (() => {
   let _detalleId      = null;
 
   // ── Teclado numérico óptico v2 ────────────────────
-  let _numpadTarget        = null;
-  let _numpadSign          = '+';
-  let _numpadRaw           = '';
-  let _numpadRepeatTimer   = null;
+  let _numpadTarget         = null;
+  let _numpadSign           = '+';
+  let _numpadRaw            = '';
+  let _numpadRepeatTimer    = null;
   let _numpadRepeatInterval = null;
 
   function initNumpad() {
@@ -82,7 +82,7 @@ const App = (() => {
     overlay.querySelectorAll('.numpad-key[data-val]').forEach(btn => {
       btn.addEventListener('click', () => {
         const val = btn.dataset.val;
-        if (_numpadRaw.length >= 6) return; // max "99.99"
+        if (_numpadRaw.length >= 6) return;
         const parts = _numpadRaw.split('.');
         if (parts.length === 2 && parts[1].length >= 2) {
           _numpadShake();
@@ -156,6 +156,7 @@ const App = (() => {
     _numpadRaw    = '';
     _numpadSign   = '+';
 
+    // Pre-cargar valor existente
     const existing = (inputEl.value || '').trim();
     if (existing) {
       if (existing.startsWith('-')) {
@@ -173,8 +174,15 @@ const App = (() => {
     _numpadRenderDisplay();
 
     const overlay = document.getElementById('numpad-overlay');
+
+    // ── FIX CRÍTICO ───────────────────────────────────
+    // El overlay arranca con class="hidden" que tiene display:none !important
+    // en el CSS. Eso pisaba el display:flex inline que poníamos antes.
+    // Solución: sacar .hidden primero, luego forzar display y animar.
+    overlay.classList.remove('hidden');
     overlay.style.display = 'flex';
     requestAnimationFrame(() => requestAnimationFrame(() => overlay.classList.add('np-visible')));
+    // ─────────────────────────────────────────────────
 
     if (navigator.vibrate) navigator.vibrate(8);
   }
@@ -202,7 +210,11 @@ const App = (() => {
   function closeNumpad() {
     const overlay = document.getElementById('numpad-overlay');
     overlay.classList.remove('np-visible');
-    setTimeout(() => { overlay.style.display = 'none'; }, 280);
+    // ── FIX: restaurar .hidden después de que termina la animación de salida
+    setTimeout(() => {
+      overlay.classList.add('hidden');
+      overlay.style.display = '';
+    }, 280);
     _numpadTarget = null;
     _numpadRaw    = '';
     _numpadSign   = '+';
@@ -210,34 +222,32 @@ const App = (() => {
   }
 
   // ── CONECTAR NUMPAD A INPUTS DE GRADUACIÓN ────────
-  // ESF, CIL y ADD abren el numpad custom (con signo y 2 decimales).
-  // EJE usa teclado nativo numérico (solo enteros, sin signo).
+  // ESF, CIL y ADD → numpad custom (con signo +/- y máx 2 decimales).
+  // EJE → teclado nativo numérico (solo enteros, sin signo).
   function attachNumpadListeners(container) {
-    // ESF / CIL / ADD → numpad custom
     container.querySelectorAll('.grad-esf, .grad-cil, .grad-add').forEach(inp => {
-      // Bloquear teclado nativo: readonly en móvil, pero permitir focus
       inp.setAttribute('readonly', 'readonly');
 
-      // Etiqueta legible para el header del numpad
       const label = inp.classList.contains('grad-esf') ? 'Esfera'
                   : inp.classList.contains('grad-cil') ? 'Cilindro'
                   : 'Adición';
 
-      // Click/tap abre el numpad
+      // mousedown: desktop — preventDefault evita focus y teclado nativo
       inp.addEventListener('mousedown', (e) => {
-        e.preventDefault(); // evita que el teclado nativo aparezca en desktop
+        e.preventDefault();
         openNumpad(inp, label);
       });
+      // touchend: móvil — preventDefault evita eventos mouse sintéticos
       inp.addEventListener('touchend', (e) => {
         e.preventDefault();
         openNumpad(inp, label);
       });
 
-      // Cuando el numpad confirma un valor, formatear el input
+      // Formatear cuando el numpad confirma un valor
       inp.addEventListener('change', () => formatGradInput(inp));
     });
 
-    // EJE → teclado nativo numérico (sin cambios)
+    // EJE → teclado nativo (sin cambios)
     container.querySelectorAll('.grad-eje').forEach(inp => {
       inp.addEventListener('blur', () => {
         const v = inp.value.replace(/[^0-9]/g, '');
@@ -887,17 +897,17 @@ const App = (() => {
     try {
       const nuevoEstado = document.getElementById('e-estado')?.value;
       const campos = {
-        cliente: document.getElementById('e-cliente')?.value.trim(),
-        orden: document.getElementById('e-orden')?.value.trim(),
-        urgente: document.getElementById('e-urgente')?.value,
-        tipo: document.getElementById('e-tipo')?.value,
+        cliente:     document.getElementById('e-cliente')?.value.trim(),
+        orden:       document.getElementById('e-orden')?.value.trim(),
+        urgente:     document.getElementById('e-urgente')?.value,
+        tipo:        document.getElementById('e-tipo')?.value,
         laboratorio: document.getElementById('e-lab')?.value,
-        tipo_lente: document.getElementById('e-lente')?.value,
+        tipo_lente:  document.getElementById('e-lente')?.value,
         tratamiento: document.getElementById('e-tratamiento')?.value.trim() || null,
-        graduacion: document.getElementById('e-graduacion')?.value.trim() || null,
-        dos_etapas: document.getElementById('e-etapas')?.value,
-        armazon: document.getElementById('e-armazon')?.value.trim() || null,
-        estado: nuevoEstado,
+        graduacion:  document.getElementById('e-graduacion')?.value.trim() || null,
+        dos_etapas:  document.getElementById('e-etapas')?.value,
+        armazon:     document.getElementById('e-armazon')?.value.trim() || null,
+        estado:      nuevoEstado,
       };
       if (nuevoEstado === 'Retirado') campos.fecha_retiro = new Date().toISOString();
       await Pedidos.actualizarPedido(id, campos);
@@ -1036,7 +1046,7 @@ const App = (() => {
     try {
       await window.supabaseClient.from('configuracion').delete().eq('id', id);
       await loadConfig(); renderConfigMateriales(); buildBloqueFields(1); buildBloqueFields(2);
-      toast('Material eliminado', 'success');
+      toast('Material eliminada', 'success');
     } catch (e) { toast('Error: ' + e.message, 'error'); }
   }
 
