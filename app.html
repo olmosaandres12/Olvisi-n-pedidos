@@ -48,7 +48,6 @@
 
     /* ══ NUMPAD ÓPTICO v2 ══════════════════════════════ */
 
-    /* Overlay de fondo */
     #numpad-overlay {
       position: fixed; inset: 0; z-index: 9500;
       background: rgba(2,41,102,.52);
@@ -61,7 +60,6 @@
     #numpad-overlay.hidden { display: none !important; }
     #numpad-overlay.np-visible { opacity: 1; pointer-events: all; }
 
-    /* Sheet con animación slide-up */
     #numpad-sheet {
       background: var(--blanco);
       border-radius: 22px 22px 0 0;
@@ -74,11 +72,9 @@
     }
     #numpad-overlay.np-visible #numpad-sheet { transform: translateY(0); }
 
-    /* Handle */
     .np-handle-wrap { display:flex; justify-content:center; padding:10px 0 6px; }
     .np-handle { width:38px; height:4px; background:var(--gris-borde); border-radius:2px; }
 
-    /* Header */
     .np-header { display:flex; align-items:center; justify-content:space-between; padding:2px 18px 10px; }
     .np-label {
       font-size:11px; font-weight:700; color:var(--gris-texto);
@@ -93,14 +89,13 @@
     }
     .np-close:active { background:var(--gris-borde); }
 
-    /* Display */
     .np-display-wrap {
-      margin: 0 16px 12px;
+      margin: 0 16px 10px;
       background: var(--gris-bg);
       border-radius: 12px;
       border: 1.5px solid var(--gris-borde);
       padding: 10px 16px 12px;
-      min-height: 68px;
+      min-height: 64px;
       display: flex; flex-direction: column;
       justify-content: center; align-items: flex-end;
       position: relative;
@@ -125,7 +120,6 @@
     }
     @keyframes np-blink { 0%,100%{opacity:1} 50%{opacity:0} }
 
-    /* Error shake */
     .np-shake { animation: np-shake-k .35s ease; }
     @keyframes np-shake-k {
       0%,100%{transform:translateX(0)}
@@ -133,7 +127,6 @@
       60%{transform:translateX(-4px)} 80%{transform:translateX(4px)}
     }
 
-    /* Flash confirmación */
     .np-confirmed { background:#E6F1FB !important; border-color:#B5D4F4 !important; }
     .np-confirmed::after {
       content:'✓ Confirmado'; position:absolute; inset:0;
@@ -142,10 +135,11 @@
       background:#E6F1FB; border-radius:10px; font-family:var(--font);
     }
 
-    /* Pasos ±0.25 */
-    .np-quick-row { display:grid; grid-template-columns:1fr 1fr; gap:7px; padding:0 14px 10px; }
+    /* ── Botones ±0.25 ── */
+    .np-quick-row { display:grid; grid-template-columns:1fr 1fr; gap:7px; padding:0 14px 8px; }
     .np-step {
-      height:46px; border-radius:11px; border:1.5px solid transparent;
+      height: 54px; /* ← más alto */
+      border-radius:11px; border:1.5px solid transparent;
       font-size:15px; font-weight:700; cursor:pointer;
       display:flex; align-items:center; justify-content:center;
       transition:transform .08s, opacity .1s;
@@ -155,10 +149,16 @@
     .np-step-minus { background:#FAECE7; border-color:#F5C4B3; color:#D85A30; }
     .np-step-plus  { background:#E6F1FB; border-color:#B5D4F4; color:#185FA5; }
 
-    /* Grid de teclas */
-    .np-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; padding:0 14px 10px; }
+    /* ── Grid de teclas — más compacto y lleno ── */
+    .np-grid {
+      display:grid;
+      grid-template-columns:repeat(3,1fr);
+      gap: 4px;           /* ← reducido de 6px */
+      padding: 0 10px 6px; /* ← reducido de 0 14px 10px */
+    }
     .np-btn {
-      height:52px; border-radius:11px; border:1.5px solid #E5E7EB;
+      height: 68px; /* ← aumentado de 52px */
+      border-radius:11px; border:1.5px solid #E5E7EB;
       background:var(--gris-bg); font-size:21px; font-weight:500;
       font-family:var(--font); color:var(--gris-dark); cursor:pointer;
       display:flex; align-items:center; justify-content:center;
@@ -173,10 +173,9 @@
     .np-clr-btn  { background:#FCEBEB; border-color:#F7C1C1; color:#A32D2D; font-size:11px; font-weight:800; letter-spacing:.05em; }
     .np-zero-btn { grid-column:span 2; }
 
-    /* Confirmar */
     #numpad-ok {
       display:flex; align-items:center; justify-content:center; gap:8px;
-      width:calc(100% - 28px); margin:2px 14px 12px;
+      width:calc(100% - 20px); margin:4px 10px 10px;
       height:52px; border-radius:13px;
       background:var(--azul); border:none; color:#fff;
       font-size:16px; font-weight:700; font-family:var(--font);
@@ -190,7 +189,6 @@
       cursor:default; pointer-events:none;
     }
 
-    /* Inputs de graduación — editables con teclado nativo */
     .grad-input {
       text-align: center;
       font-family: var(--font-mono);
