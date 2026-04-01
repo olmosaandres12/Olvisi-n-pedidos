@@ -14,10 +14,9 @@ const App = (() => {
   let _detalleId      = null;
 
   // ── Teclado numérico óptico v2 ────────────────────
-  // Variables de estado del numpad
-  let _numpadTarget        = null;   // <input readonly> asociado
-  let _numpadSign          = '+';    // '+' | '-'
-  let _numpadRaw           = '';     // dígitos sin signo, ej: "1.50"
+  let _numpadTarget        = null;
+  let _numpadSign          = '+';
+  let _numpadRaw           = '';
   let _numpadRepeatTimer   = null;
   let _numpadRepeatInterval = null;
 
@@ -25,12 +24,10 @@ const App = (() => {
     const overlay = document.getElementById('numpad-overlay');
     if (!overlay) return;
 
-    // Cerrar al tocar el fondo oscuro
     overlay.addEventListener('click', (e) => {
       if (e.target === overlay) closeNumpad();
     });
 
-    // Swipe down para cerrar
     const sheet = document.getElementById('numpad-sheet');
     if (sheet) {
       let _swipeStartY = 0;
@@ -45,7 +42,6 @@ const App = (() => {
     document.getElementById('numpad-close')?.addEventListener('click', closeNumpad);
     document.getElementById('numpad-ok')?.addEventListener('click', confirmNumpad);
 
-    // Pasos ±0.25 con repetición al mantener presionado
     const btnMinus = document.getElementById('numpad-step-minus');
     const btnPlus  = document.getElementById('numpad-step-plus');
     if (btnMinus) {
@@ -59,13 +55,11 @@ const App = (() => {
       btnPlus.addEventListener('pointerleave', _numpadStopRepeat);
     }
 
-    // Cambiar signo ±
     document.getElementById('numpad-sign')?.addEventListener('click', () => {
       _numpadSign = _numpadSign === '+' ? '-' : '+';
       _numpadRenderDisplay();
     });
 
-    // Punto decimal
     document.getElementById('numpad-dot')?.addEventListener('click', () => {
       if (_numpadRaw.includes('.')) { _numpadShake(); return; }
       if (!_numpadRaw) _numpadRaw = '0';
@@ -73,26 +67,27 @@ const App = (() => {
       _numpadRenderDisplay();
     });
 
-    // Borrar último carácter
     document.getElementById('numpad-del')?.addEventListener('click', () => {
       _numpadRaw = _numpadRaw.slice(0, -1);
       _numpadRenderDisplay();
     });
 
-    // Borrar todo
     document.getElementById('numpad-clear')?.addEventListener('click', () => {
       _numpadRaw  = '';
       _numpadSign = '+';
       _numpadRenderDisplay();
     });
 
-    // Dígitos 0-9
+    // Dígitos 0-9 — máximo 2 decimales
     overlay.querySelectorAll('.numpad-key[data-val]').forEach(btn => {
       btn.addEventListener('click', () => {
         const val = btn.dataset.val;
-        if (_numpadRaw.length >= 5) return;
+        if (_numpadRaw.length >= 6) return; // max "99.99"
         const parts = _numpadRaw.split('.');
-        if (parts.length === 2 && parts[1].length >= 2) return;
+        if (parts.length === 2 && parts[1].length >= 2) {
+          _numpadShake();
+          return;
+        }
         _numpadRaw += val;
         _numpadRenderDisplay();
       });
@@ -161,7 +156,6 @@ const App = (() => {
     _numpadRaw    = '';
     _numpadSign   = '+';
 
-    // Pre-cargar valor existente
     const existing = (inputEl.value || '').trim();
     if (existing) {
       if (existing.startsWith('-')) {
@@ -193,7 +187,6 @@ const App = (() => {
     _numpadTarget.dispatchEvent(new Event('input',  { bubbles: true }));
     _numpadTarget.dispatchEvent(new Event('change', { bubbles: true }));
 
-    // Flash de confirmación antes de cerrar
     const disp = document.getElementById('numpad-display');
     if (disp) {
       disp.classList.add('np-confirmed');
@@ -216,23 +209,35 @@ const App = (() => {
     _numpadStopRepeat();
   }
 
+  // ── CONECTAR NUMPAD A INPUTS DE GRADUACIÓN ────────
+  // ESF, CIL y ADD abren el numpad custom (con signo y 2 decimales).
+  // EJE usa teclado nativo numérico (solo enteros, sin signo).
   function attachNumpadListeners(container) {
+    // ESF / CIL / ADD → numpad custom
     container.querySelectorAll('.grad-esf, .grad-cil, .grad-add').forEach(inp => {
-      // Reemplazar coma por punto mientras escribe (teclados iOS usan coma)
-      inp.addEventListener('input', () => {
-        const pos = inp.selectionStart;
-        const antes = inp.value;
-        const despues = antes.replace(',', '.');
-        if (antes !== despues) {
-          inp.value = despues;
-          inp.setSelectionRange(pos, pos);
-        }
+      // Bloquear teclado nativo: readonly en móvil, pero permitir focus
+      inp.setAttribute('readonly', 'readonly');
+
+      // Etiqueta legible para el header del numpad
+      const label = inp.classList.contains('grad-esf') ? 'Esfera'
+                  : inp.classList.contains('grad-cil') ? 'Cilindro'
+                  : 'Adición';
+
+      // Click/tap abre el numpad
+      inp.addEventListener('mousedown', (e) => {
+        e.preventDefault(); // evita que el teclado nativo aparezca en desktop
+        openNumpad(inp, label);
       });
-      // Formatear al salir
-      inp.addEventListener('blur', () => formatGradInput(inp));
-      // Seleccionar todo al enfocar
-      inp.addEventListener('focus', () => setTimeout(() => inp.select(), 0));
+      inp.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        openNumpad(inp, label);
+      });
+
+      // Cuando el numpad confirma un valor, formatear el input
+      inp.addEventListener('change', () => formatGradInput(inp));
     });
+
+    // EJE → teclado nativo numérico (sin cambios)
     container.querySelectorAll('.grad-eje').forEach(inp => {
       inp.addEventListener('blur', () => {
         const v = inp.value.replace(/[^0-9]/g, '');
@@ -246,20 +251,16 @@ const App = (() => {
   function formatGradInput(inp) {
     let v = inp.value.trim().replace(',', '.');
     if (!v) return;
-    // Extraer signo si lo escribieron
     let sign = '';
     if (v.startsWith('+') || v.startsWith('-')) {
       sign = v[0];
       v = v.slice(1);
     }
-    // Solo dígitos y punto
     v = v.replace(/[^0-9.]/g, '');
     if (!v) { inp.value = ''; return; }
     const n = parseFloat(v);
     if (isNaN(n) || n === 0) { inp.value = ''; return; }
-    // Redondear al 0.25 más cercano
     const r = Math.round(n * 4) / 4;
-    // Signo por defecto: Cil → negativo, resto → positivo
     if (!sign) sign = inp.classList.contains('grad-cil') ? '-' : '+';
     inp.value = sign + r.toFixed(2);
   }
@@ -501,24 +502,18 @@ const App = (() => {
     attachNumpadListeners(container);
   }
 
+  // ── TABLA DE GRADUACIÓN ───────────────────────────
+  // ESF, CIL, ADD: readonly — se editan SOLO con el numpad custom.
+  // EJE: inputmode="numeric" — teclado nativo (solo enteros, sin signo).
   function gradTablaHTML(num, dc) {
-    // Inputs normales editables — teclado nativo en todos los dispositivos.
-    // pattern óptico: acepta +1.25, -0.50, 1.00, etc.
-    // Eje: solo números enteros 0-180.
-    // inputmode="decimal" en iOS muestra teclado numérico con punto decimal y signo -
-    // El handler 'input' reemplaza coma por punto automáticamente
     const inpEsf = (id) => `<input type="text" class="form-control grad-input grad-esf" id="${id}"
-      placeholder="ej: -1.25" inputmode="decimal" autocomplete="off" autocorrect="off"
-      autocapitalize="off" spellcheck="false">`;
+      placeholder="ej: -1.25" readonly autocomplete="off">`;
     const inpCil = (id) => `<input type="text" class="form-control grad-input grad-cil" id="${id}"
-      placeholder="ej: -0.50" inputmode="decimal" autocomplete="off" autocorrect="off"
-      autocapitalize="off" spellcheck="false">`;
+      placeholder="ej: -0.50" readonly autocomplete="off">`;
     const inpEje = (id) => `<input type="text" class="form-control grad-input grad-eje" id="${id}"
-      placeholder="°" inputmode="numeric" autocomplete="off" autocorrect="off"
-      autocapitalize="off" spellcheck="false">`;
+      placeholder="°" inputmode="numeric" autocomplete="off">`;
     const inpAdd = (id) => `<input type="text" class="form-control grad-input grad-add" id="${id}"
-      placeholder="ej: +2.00" inputmode="decimal" autocomplete="off" autocorrect="off"
-      autocapitalize="off" spellcheck="false">`;
+      placeholder="ej: +2.00" readonly autocomplete="off">`;
     return `
       <div class="grad-grid">
         <div class="grad-header"></div>
