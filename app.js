@@ -13,113 +13,221 @@ const App = (() => {
   let _pendingGuardar = null;
   let _detalleId      = null;
 
-  // ── Teclado numérico custom ───────────────────────
-  let _numpadTarget   = null;   // input al que está asociado el teclado
-  let _numpadValue    = '';     // valor en construcción
+  // ── Teclado numérico óptico v2 ────────────────────
+  // Variables de estado del numpad
+  let _numpadTarget        = null;   // <input readonly> asociado
+  let _numpadSign          = '+';    // '+' | '-'
+  let _numpadRaw           = '';     // dígitos sin signo, ej: "1.50"
+  let _numpadRepeatTimer   = null;
+  let _numpadRepeatInterval = null;
 
   function initNumpad() {
     const overlay = document.getElementById('numpad-overlay');
     if (!overlay) return;
 
+    // Cerrar al tocar el fondo oscuro
     overlay.addEventListener('click', (e) => {
       if (e.target === overlay) closeNumpad();
     });
 
+    // Swipe down para cerrar
+    const sheet = document.getElementById('numpad-sheet');
+    if (sheet) {
+      let _swipeStartY = 0;
+      sheet.addEventListener('touchstart', (e) => {
+        _swipeStartY = e.touches[0].clientY;
+      }, { passive: true });
+      sheet.addEventListener('touchend', (e) => {
+        if (e.changedTouches[0].clientY - _swipeStartY > 72) closeNumpad();
+      }, { passive: true });
+    }
+
     document.getElementById('numpad-close')?.addEventListener('click', closeNumpad);
     document.getElementById('numpad-ok')?.addEventListener('click', confirmNumpad);
-    document.getElementById('numpad-del')?.addEventListener('click', () => {
-      _numpadValue = _numpadValue.slice(0, -1);
-      updateNumpadDisplay();
-    });
-    document.getElementById('numpad-clear')?.addEventListener('click', () => {
-      _numpadValue = '';
-      updateNumpadDisplay();
+
+    // Pasos ±0.25 con repetición al mantener presionado
+    const btnMinus = document.getElementById('numpad-step-minus');
+    const btnPlus  = document.getElementById('numpad-step-plus');
+    if (btnMinus) {
+      btnMinus.addEventListener('pointerdown', () => _numpadStartRepeat(-0.25));
+      btnMinus.addEventListener('pointerup',   _numpadStopRepeat);
+      btnMinus.addEventListener('pointerleave', _numpadStopRepeat);
+    }
+    if (btnPlus) {
+      btnPlus.addEventListener('pointerdown', () => _numpadStartRepeat(+0.25));
+      btnPlus.addEventListener('pointerup',   _numpadStopRepeat);
+      btnPlus.addEventListener('pointerleave', _numpadStopRepeat);
+    }
+
+    // Cambiar signo ±
+    document.getElementById('numpad-sign')?.addEventListener('click', () => {
+      _numpadSign = _numpadSign === '+' ? '-' : '+';
+      _numpadRenderDisplay();
     });
 
-    // Teclas numéricas y especiales
+    // Punto decimal
+    document.getElementById('numpad-dot')?.addEventListener('click', () => {
+      if (_numpadRaw.includes('.')) { _numpadShake(); return; }
+      if (!_numpadRaw) _numpadRaw = '0';
+      _numpadRaw += '.';
+      _numpadRenderDisplay();
+    });
+
+    // Borrar último carácter
+    document.getElementById('numpad-del')?.addEventListener('click', () => {
+      _numpadRaw = _numpadRaw.slice(0, -1);
+      _numpadRenderDisplay();
+    });
+
+    // Borrar todo
+    document.getElementById('numpad-clear')?.addEventListener('click', () => {
+      _numpadRaw  = '';
+      _numpadSign = '+';
+      _numpadRenderDisplay();
+    });
+
+    // Dígitos 0-9
     overlay.querySelectorAll('.numpad-key[data-val]').forEach(btn => {
       btn.addEventListener('click', () => {
         const val = btn.dataset.val;
-        // Reglas de entrada
-        if (val === '+' || val === '-') {
-          // Solo al inicio
-          if (_numpadValue.length > 0) return;
-          _numpadValue = val;
-        } else if (val === '.') {
-          // Solo un punto decimal
-          if (_numpadValue.includes('.')) return;
-          // Si está vacío o solo tiene signo, agregar 0 antes
-          if (_numpadValue === '' || _numpadValue === '+' || _numpadValue === '-') {
-            _numpadValue += '0';
-          }
-          _numpadValue += '.';
-        } else {
-          // Máx 6 caracteres totales (ej: -12.50)
-          if (_numpadValue.replace(/[+\-]/g,'').length >= 5) return;
-          _numpadValue += val;
-        }
-        updateNumpadDisplay();
+        if (_numpadRaw.length >= 5) return;
+        const parts = _numpadRaw.split('.');
+        if (parts.length === 2 && parts[1].length >= 2) return;
+        _numpadRaw += val;
+        _numpadRenderDisplay();
       });
     });
   }
 
-  function openNumpad(inputEl, label) {
-    _numpadTarget = inputEl;
-    _numpadValue  = inputEl.value || '';
-    document.getElementById('numpad-label').textContent = label || 'Valor';
-    updateNumpadDisplay();
-    document.getElementById('numpad-overlay').classList.remove('hidden');
-    // Pequeño vibrado táctil si disponible
-    if (navigator.vibrate) navigator.vibrate(10);
+  function _numpadStepBy(delta) {
+    const current = _numpadRaw === ''
+      ? 0
+      : parseFloat((_numpadSign === '-' ? '-' : '') + _numpadRaw);
+    const next = Math.round((current + delta) * 100) / 100;
+    if (next === 0) {
+      _numpadRaw  = '0.00';
+      _numpadSign = '+';
+    } else if (next < 0) {
+      _numpadSign = '-';
+      _numpadRaw  = Math.abs(next).toFixed(2);
+    } else {
+      _numpadSign = '+';
+      _numpadRaw  = next.toFixed(2);
+    }
+    _numpadRenderDisplay();
   }
 
-  function updateNumpadDisplay() {
+  function _numpadStartRepeat(delta) {
+    _numpadStepBy(delta);
+    _numpadRepeatTimer = setTimeout(() => {
+      _numpadRepeatInterval = setInterval(() => _numpadStepBy(delta), 80);
+    }, 350);
+  }
+
+  function _numpadStopRepeat() {
+    clearTimeout(_numpadRepeatTimer);
+    clearInterval(_numpadRepeatInterval);
+    _numpadRepeatTimer    = null;
+    _numpadRepeatInterval = null;
+  }
+
+  function _numpadRenderDisplay() {
+    const disp  = document.getElementById('numpad-display');
+    const okBtn = document.getElementById('numpad-ok');
+    if (!disp) return;
+
+    if (!_numpadRaw) {
+      disp.innerHTML = '<span class="np-placeholder">0.00</span><span class="np-cursor"></span>';
+      okBtn?.classList.add('np-btn-disabled');
+    } else {
+      const color   = _numpadSign === '-' ? 'var(--np-minus-color)' : 'var(--np-plus-color)';
+      const sigChar = _numpadSign === '-' ? '−' : '+';
+      disp.innerHTML = `<span class="np-sign" style="color:${color}">${sigChar}</span>${_numpadRaw}<span class="np-cursor"></span>`;
+      okBtn?.classList.remove('np-btn-disabled');
+    }
+  }
+
+  function _numpadShake() {
     const disp = document.getElementById('numpad-display');
     if (!disp) return;
-    disp.textContent = _numpadValue || '—';
-    disp.classList.toggle('numpad-display-empty', !_numpadValue);
+    disp.classList.remove('np-shake');
+    void disp.offsetWidth;
+    disp.classList.add('np-shake');
+    setTimeout(() => disp.classList.remove('np-shake'), 380);
+  }
+
+  function openNumpad(inputEl, label) {
+    _numpadTarget = inputEl;
+    _numpadRaw    = '';
+    _numpadSign   = '+';
+
+    // Pre-cargar valor existente
+    const existing = (inputEl.value || '').trim();
+    if (existing) {
+      if (existing.startsWith('-')) {
+        _numpadSign = '-';
+        _numpadRaw  = existing.slice(1).replace(/^\+/, '');
+      } else {
+        _numpadSign = '+';
+        _numpadRaw  = existing.replace(/^\+/, '');
+      }
+    }
+
+    const labelEl = document.getElementById('numpad-label');
+    if (labelEl) labelEl.textContent = label || 'Valor';
+
+    _numpadRenderDisplay();
+
+    const overlay = document.getElementById('numpad-overlay');
+    overlay.style.display = 'flex';
+    requestAnimationFrame(() => requestAnimationFrame(() => overlay.classList.add('np-visible')));
+
+    if (navigator.vibrate) navigator.vibrate(8);
   }
 
   function confirmNumpad() {
-    if (_numpadTarget) {
-      _numpadTarget.value = _numpadValue;
-      // Disparar evento change/input para que otros listeners se enteren
-      _numpadTarget.dispatchEvent(new Event('input', { bubbles: true }));
-      _numpadTarget.dispatchEvent(new Event('change', { bubbles: true }));
+    if (!_numpadTarget || !_numpadRaw) return;
+
+    const valor = (_numpadSign === '-' ? '-' : '+') + _numpadRaw;
+    _numpadTarget.value = valor;
+    _numpadTarget.dispatchEvent(new Event('input',  { bubbles: true }));
+    _numpadTarget.dispatchEvent(new Event('change', { bubbles: true }));
+
+    // Flash de confirmación antes de cerrar
+    const disp = document.getElementById('numpad-display');
+    if (disp) {
+      disp.classList.add('np-confirmed');
+      setTimeout(() => {
+        disp.classList.remove('np-confirmed');
+        closeNumpad();
+      }, 500);
+    } else {
+      closeNumpad();
     }
-    closeNumpad();
   }
 
   function closeNumpad() {
-    document.getElementById('numpad-overlay').classList.add('hidden');
+    const overlay = document.getElementById('numpad-overlay');
+    overlay.classList.remove('np-visible');
+    setTimeout(() => { overlay.style.display = 'none'; }, 280);
     _numpadTarget = null;
-    _numpadValue  = '';
+    _numpadRaw    = '';
+    _numpadSign   = '+';
+    _numpadStopRepeat();
   }
 
-  // Adjunta el listener de numpad a todos los grad-input de un contenedor
   function attachNumpadListeners(container) {
-    const labelMap = {
-      'esf': 'Esfera',
-      'cil': 'Cilindro',
-      'add': 'Adición',
-      'eje': 'Eje',
-    };
+    const labelMap = { esf: 'Esfera', cil: 'Cilindro', add: 'Adición' };
     container.querySelectorAll('.grad-input').forEach(inp => {
-      // Detectar tipo por id: g-L-esf-D-1
       const parts = inp.id.split('-');
-      // partes: g, dc(L/C), tipo(esf/cil/eje/add), ojo(D/I), num
-      const tipo = parts[2] || '';
-      const ojo  = parts[3] === 'D' ? 'OD' : 'OI';
+      const tipo  = parts[2] || '';
+      const ojo   = parts[3] === 'D' ? 'OD' : 'OI';
+      if (tipo === 'eje') return;
       const label = `${labelMap[tipo] || tipo} — ${ojo}`;
-
-      // Solo esf, cil, add usan numpad con +/-
-      // eje usa teclado numérico nativo (sin +/-)
-      if (tipo === 'eje') return; // el eje queda con inputmode="numeric"
-
       inp.setAttribute('readonly', true);
       inp.style.cursor = 'pointer';
-      inp.addEventListener('click', () => openNumpad(inp, label));
-      inp.addEventListener('focus', () => openNumpad(inp, label));
+      inp.addEventListener('click',  () => openNumpad(inp, label));
+      inp.addEventListener('focus',  () => openNumpad(inp, label));
     });
   }
 
@@ -221,7 +329,6 @@ const App = (() => {
       if (e.target === document.getElementById('edit-modal')) cerrarEdicion();
     });
 
-    // Inicializar teclado numérico custom
     initNumpad();
 
     await loadConfig();
@@ -270,12 +377,10 @@ const App = (() => {
 
     const labs = _configCache.laboratorios.map(l =>
       `<option value="${esc(l)}">${esc(l)}</option>`).join('');
-
     const marcaOpts = [
       '<option value="">— Sin especificar —</option>',
       ..._configCache.marcas.map(m => `<option value="${esc(m.valor)}">${esc(m.valor)}</option>`)
     ].join('');
-
     const materialOpts = [
       '<option value="">— Sin especificar —</option>',
       ..._configCache.materiales.map(m => `<option value="${esc(m.valor)}">${esc(m.valor)}</option>`)
@@ -360,14 +465,10 @@ const App = (() => {
       </div>
     `;
 
-    // Adjuntar listeners del teclado numérico a los inputs de graduación recién creados
     attachNumpadListeners(container);
   }
 
   function gradTablaHTML(num, dc) {
-    // esf y cil: readonly, se abren con numpad → sin inputmode especial
-    // eje: numpad nativo (solo números)
-    // add: readonly, se abre con numpad
     const inpGrad = (id) => `<input type="text" class="form-control grad-input" id="${id}" placeholder="—" autocomplete="off" autocorrect="off" spellcheck="false" inputmode="none">`;
     const inpEje  = (id) => `<input type="text" class="form-control grad-input" id="${id}" placeholder="°" inputmode="numeric" autocomplete="off">`;
     const inpAdd  = (id) => `<input type="text" class="form-control grad-input" id="${id}" placeholder="—" autocomplete="off" autocorrect="off" spellcheck="false" inputmode="none">`;
@@ -433,7 +534,6 @@ const App = (() => {
       renderSegPanel('seg-content-lab',     enLab.sort(sortPorEstado));
       renderSegPanel('seg-content-retirar', retirar.sort(sortPorEstado));
       updateBadge();
-
       const criticos  = todos.filter(p => p._est.valor === 'critico');
       const demorados = todos.filter(p => p._est.valor === 'demorado');
       if (criticos.length > 0) {
@@ -507,12 +607,10 @@ const App = (() => {
     const container = document.getElementById('pedidos-list-container');
     const sub       = document.getElementById('pedidos-subtitle');
     if (!container) return;
-
     const q      = (document.getElementById('search-input')?.value || '').toLowerCase().trim();
     const fLab   = document.getElementById('filtro-lab')?.value   || '';
     const fLente = document.getElementById('filtro-lente')?.value || '';
     const fFecha = document.getElementById('filtro-fecha')?.value || '';
-
     const filtered = _pedidosCache.filter(p => {
       if (_estadoTab !== 'todos' && p.estado !== _estadoTab) return false;
       if (q      && !p.cliente?.toLowerCase().includes(q) && !p.orden?.toLowerCase().includes(q)) return false;
@@ -521,16 +619,13 @@ const App = (() => {
       if (fFecha && (p.fecha_carga || '').slice(0,10) !== fFecha) return false;
       return true;
     });
-
     sub.textContent = `${filtered.length} pedido${filtered.length !== 1 ? 's' : ''}`;
-
     if (!filtered.length) {
       container.innerHTML = `<div class="empty-state">
         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         <h3>Sin resultados</h3><p>Probá cambiando los filtros</p></div>`;
       return;
     }
-
     const grupos = {};
     filtered.forEach(p => {
       const d     = new Date(p.fecha_carga);
@@ -539,7 +634,6 @@ const App = (() => {
       if (!grupos[clave]) grupos[clave] = { label, items: [] };
       grupos[clave].items.push(p);
     });
-
     container.innerHTML = Object.keys(grupos).sort((a,b) => b.localeCompare(a)).map(k => {
       const g = grupos[k];
       const label = g.label.charAt(0).toUpperCase() + g.label.slice(1);
@@ -548,12 +642,10 @@ const App = (() => {
         <div class="pedidos-list">${g.items.map(renderCard).join('')}</div>
       </div>`;
     }).join('');
-
     attachSelects(container);
     attachCardTaps(container);
   }
 
-  // ── RENDER CARD ───────────────────────────────────
   function renderCard(p) {
     const sufijo   = p.sufijo ? `-${p.sufijo}` : '';
     const estClase = p._est.valor === 'critico' ? 'critico' : p._est.valor === 'demorado' ? 'demorado' : '';
@@ -561,7 +653,6 @@ const App = (() => {
     const scls     = Pedidos.claseEstado(p.estado);
     const ESTADOS  = ['Cristales pedidos a lab','Armazón enviado p/calibrado','En laboratorio','Pendiente de retirar','Retirado'];
     const opts = ESTADOS.map(e => `<option value="${e}"${e===p.estado?' selected':''}>${e}</option>`).join('');
-
     const avatarColor = (nombre) => {
       const n = (nombre || '').toLowerCase();
       if (n.includes('andr')) return '#034291';
@@ -569,10 +660,8 @@ const App = (() => {
       if (n.includes('vale')) return '#00695C';
       return '#888';
     };
-    const avatarInitial = (nombre) => (nombre || '?').charAt(0).toUpperCase();
     const color = avatarColor(p.cargado_por);
-    const ini   = avatarInitial(p.cargado_por);
-
+    const ini   = (p.cargado_por || '?').charAt(0).toUpperCase();
     return `<div class="pedido-card ${estClase}" data-id="${p.id}">
       <div class="pedido-card-tap" data-id="${p.id}">
         <div class="pedido-card-header">
@@ -614,12 +703,11 @@ const App = (() => {
         try {
           await Pedidos.actualizarEstado(id, est);
           toast(`Estado: ${est}`, 'success');
-          if (est === 'Retirado') {
-            const p = _pedidosCache.find(x => x.id === id);
-            if (p) enviarNotificacion('✅ Pedido retirado — OLVISIÓN', `#${p.orden} de ${p.cliente} fue retirado`, false);
-          } else {
-            const p = _pedidosCache.find(x => x.id === id);
-            if (p) enviarNotificacion('🔄 Estado actualizado — OLVISIÓN', `#${p.orden} de ${p.cliente}: ${est}`, false);
+          const p = _pedidosCache.find(x => x.id === id);
+          if (est === 'Retirado' && p) {
+            enviarNotificacion('✅ Pedido retirado — OLVISIÓN', `#${p.orden} de ${p.cliente} fue retirado`, false);
+          } else if (p) {
+            enviarNotificacion('🔄 Estado actualizado — OLVISIÓN', `#${p.orden} de ${p.cliente}: ${est}`, false);
           }
           _pedidosCache = await Pedidos.getTodosPedidos();
           if (_currentScreen === 'pedidos')     renderPedidosList();
@@ -636,10 +724,7 @@ const App = (() => {
 
   function attachCardTaps(container) {
     container.querySelectorAll('.pedido-card-tap').forEach(tap => {
-      tap.addEventListener('click', () => {
-        const id = parseInt(tap.dataset.id);
-        abrirDetalle(id);
-      });
+      tap.addEventListener('click', () => abrirDetalle(parseInt(tap.dataset.id)));
     });
   }
 
@@ -650,7 +735,6 @@ const App = (() => {
     const body  = document.getElementById('detalle-body');
     modal.classList.remove('hidden');
     body.innerHTML = '<div style="padding:32px;text-align:center;color:#888">Cargando...</div>';
-
     try {
       const p = await Pedidos.getPedidoById(id);
       const sufijo = p.sufijo ? `-${p.sufijo}` : '';
@@ -658,7 +742,6 @@ const App = (() => {
       const fechaCarga  = p.fecha_carga  ? new Date(p.fecha_carga).toLocaleDateString('es-AR')  : '—';
       const fechaRetiro = p.fecha_retiro ? new Date(p.fecha_retiro).toLocaleDateString('es-AR') : '—';
       document.getElementById('btn-abrir-edicion').style.display = Auth.isAdmin() ? '' : 'none';
-
       body.innerHTML = `
         <div class="detalle-seccion">
           <div class="detalle-seccion-title">Cliente</div>
@@ -708,92 +791,48 @@ const App = (() => {
   async function abrirEdicion() {
     if (!_detalleId) return;
     cerrarDetalle();
-
     const editModal = document.getElementById('edit-modal');
     const editBody  = document.getElementById('edit-body');
     editModal.classList.remove('hidden');
     editBody.innerHTML = '<div style="padding:32px;text-align:center;color:#888">Cargando...</div>';
-
     try {
       const p    = await Pedidos.getPedidoById(_detalleId);
-      const labs = _configCache.laboratorios.map(l =>
-        `<option value="${esc(l)}"${l===p.laboratorio?' selected':''}>${esc(l)}</option>`).join('');
-      const lentes = ['Monofocal','Bifocal','Ocupacional','Progresivo','Teñido'].map(l =>
-        `<option value="${l}"${l===p.tipo_lente?' selected':''}>${l}</option>`).join('');
-      const tipos = ['Cristales','Armazón + Cristales','Armazón'].map(t =>
-        `<option value="${t}"${t===p.tipo?' selected':''}>${t}</option>`).join('');
-      const urgentes = ['Si','No'].map(u =>
-        `<option value="${u}"${u===p.urgente?' selected':''}>${u==='Si'?'Sí':'No'}</option>`).join('');
-      const etapas = ['No','Si'].map(u =>
-        `<option value="${u}"${u===p.dos_etapas?' selected':''}>${u==='Si'?'Sí':'No'}</option>`).join('');
+      const labs = _configCache.laboratorios.map(l => `<option value="${esc(l)}"${l===p.laboratorio?' selected':''}>${esc(l)}</option>`).join('');
+      const lentes = ['Monofocal','Bifocal','Ocupacional','Progresivo','Teñido'].map(l => `<option value="${l}"${l===p.tipo_lente?' selected':''}>${l}</option>`).join('');
+      const tipos = ['Cristales','Armazón + Cristales','Armazón'].map(t => `<option value="${t}"${t===p.tipo?' selected':''}>${t}</option>`).join('');
+      const urgentes = ['Si','No'].map(u => `<option value="${u}"${u===p.urgente?' selected':''}>${u==='Si'?'Sí':'No'}</option>`).join('');
+      const etapas = ['No','Si'].map(u => `<option value="${u}"${u===p.dos_etapas?' selected':''}>${u==='Si'?'Sí':'No'}</option>`).join('');
       const ESTADOS = ['Cristales pedidos a lab','Armazón enviado p/calibrado','En laboratorio','Pendiente de retirar','Retirado'];
-      const estados = ESTADOS.map(e =>
-        `<option value="${e}"${e===p.estado?' selected':''}>${e}</option>`).join('');
-
+      const estados = ESTADOS.map(e => `<option value="${e}"${e===p.estado?' selected':''}>${e}</option>`).join('');
       editBody.innerHTML = `
         <div class="form-section">
           <div class="form-section-title">Cliente</div>
-          <div class="form-group">
-            <label class="form-label">Nombre</label>
-            <input type="text" id="e-cliente" class="form-control" value="${esc(p.cliente || '')}">
-          </div>
+          <div class="form-group"><label class="form-label">Nombre</label><input type="text" id="e-cliente" class="form-control" value="${esc(p.cliente || '')}"></div>
           <div class="form-row">
-            <div class="form-group">
-              <label class="form-label">Nº de orden</label>
-              <input type="text" id="e-orden" class="form-control" value="${esc(p.orden || '')}">
-            </div>
-            <div class="form-group">
-              <label class="form-label">Urgente</label>
-              <select id="e-urgente" class="form-control">${urgentes}</select>
-            </div>
+            <div class="form-group"><label class="form-label">Nº de orden</label><input type="text" id="e-orden" class="form-control" value="${esc(p.orden || '')}"></div>
+            <div class="form-group"><label class="form-label">Urgente</label><select id="e-urgente" class="form-control">${urgentes}</select></div>
           </div>
-          <div class="form-group">
-            <label class="form-label">Tipo de pedido</label>
-            <select id="e-tipo" class="form-control">${tipos}</select>
-          </div>
+          <div class="form-group"><label class="form-label">Tipo de pedido</label><select id="e-tipo" class="form-control">${tipos}</select></div>
         </div>
         <div class="form-section">
           <div class="form-section-title">Lente</div>
           <div class="form-row">
-            <div class="form-group">
-              <label class="form-label">Laboratorio</label>
-              <select id="e-lab" class="form-control"><option value="">—</option>${labs}</select>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Tipo de lente</label>
-              <select id="e-lente" class="form-control"><option value="">—</option>${lentes}</select>
-            </div>
+            <div class="form-group"><label class="form-label">Laboratorio</label><select id="e-lab" class="form-control"><option value="">—</option>${labs}</select></div>
+            <div class="form-group"><label class="form-label">Tipo de lente</label><select id="e-lente" class="form-control"><option value="">—</option>${lentes}</select></div>
           </div>
-          <div class="form-group">
-            <label class="form-label">Tratamiento</label>
-            <input type="text" id="e-tratamiento" class="form-control" value="${esc(p.tratamiento || '')}">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Graduación</label>
-            <textarea id="e-graduacion" class="form-control" rows="3" style="resize:vertical;font-family:var(--font-mono);font-size:.85rem">${esc(p.graduacion || '')}</textarea>
-          </div>
-          <div class="form-group">
-            <label class="form-label">2 etapas</label>
-            <select id="e-etapas" class="form-control">${etapas}</select>
-          </div>
+          <div class="form-group"><label class="form-label">Tratamiento</label><input type="text" id="e-tratamiento" class="form-control" value="${esc(p.tratamiento || '')}"></div>
+          <div class="form-group"><label class="form-label">Graduación</label><textarea id="e-graduacion" class="form-control" rows="3" style="resize:vertical;font-family:var(--font-mono);font-size:.85rem">${esc(p.graduacion || '')}</textarea></div>
+          <div class="form-group"><label class="form-label">2 etapas</label><select id="e-etapas" class="form-control">${etapas}</select></div>
         </div>
         <div class="form-section">
           <div class="form-section-title">Armazón</div>
-          <div class="form-group">
-            <label class="form-label">Detalle</label>
-            <input type="text" id="e-armazon" class="form-control" value="${esc(p.armazon || '')}">
-          </div>
+          <div class="form-group"><label class="form-label">Detalle</label><input type="text" id="e-armazon" class="form-control" value="${esc(p.armazon || '')}"></div>
         </div>
         <div class="form-section">
           <div class="form-section-title">Estado</div>
-          <div class="form-group">
-            <label class="form-label">Estado actual</label>
-            <select id="e-estado" class="form-control">${estados}</select>
-          </div>
+          <div class="form-group"><label class="form-label">Estado actual</label><select id="e-estado" class="form-control">${estados}</select></div>
         </div>
-        <button class="edit-save-btn" onclick="App.guardarEdicion(${p.id})">
-          Guardar cambios
-        </button>
+        <button class="edit-save-btn" onclick="App.guardarEdicion(${p.id})">Guardar cambios</button>
       `;
     } catch (e) {
       editBody.innerHTML = `<p style="padding:16px;color:var(--rojo)">Error: ${e.message}</p>`;
@@ -806,17 +845,17 @@ const App = (() => {
     try {
       const nuevoEstado = document.getElementById('e-estado')?.value;
       const campos = {
-        cliente:     document.getElementById('e-cliente')?.value.trim(),
-        orden:       document.getElementById('e-orden')?.value.trim(),
-        urgente:     document.getElementById('e-urgente')?.value,
-        tipo:        document.getElementById('e-tipo')?.value,
+        cliente: document.getElementById('e-cliente')?.value.trim(),
+        orden: document.getElementById('e-orden')?.value.trim(),
+        urgente: document.getElementById('e-urgente')?.value,
+        tipo: document.getElementById('e-tipo')?.value,
         laboratorio: document.getElementById('e-lab')?.value,
-        tipo_lente:  document.getElementById('e-lente')?.value,
+        tipo_lente: document.getElementById('e-lente')?.value,
         tratamiento: document.getElementById('e-tratamiento')?.value.trim() || null,
-        graduacion:  document.getElementById('e-graduacion')?.value.trim() || null,
-        dos_etapas:  document.getElementById('e-etapas')?.value,
-        armazon:     document.getElementById('e-armazon')?.value.trim() || null,
-        estado:      nuevoEstado,
+        graduacion: document.getElementById('e-graduacion')?.value.trim() || null,
+        dos_etapas: document.getElementById('e-etapas')?.value,
+        armazon: document.getElementById('e-armazon')?.value.trim() || null,
+        estado: nuevoEstado,
       };
       if (nuevoEstado === 'Retirado') campos.fecha_retiro = new Date().toISOString();
       await Pedidos.actualizarPedido(id, campos);
@@ -866,11 +905,7 @@ const App = (() => {
     const el = document.getElementById('config-labs-list');
     if (!el) return;
     el.innerHTML = _configCache.laboratorios.length
-      ? _configCache.laboratorios.map(lab => `
-          <div class="config-item">
-            <span>${esc(lab)}</span>
-            <button class="btn btn-danger btn-sm" onclick="App.deleteLab('${esc(lab)}')">Eliminar</button>
-          </div>`).join('')
+      ? _configCache.laboratorios.map(lab => `<div class="config-item"><span>${esc(lab)}</span><button class="btn btn-danger btn-sm" onclick="App.deleteLab('${esc(lab)}')">Eliminar</button></div>`).join('')
       : '<p style="color:var(--gris-texto);font-size:.85rem;padding:8px 0">Sin laboratorios</p>';
   }
 
@@ -878,11 +913,7 @@ const App = (() => {
     const el = document.getElementById('config-marcas-list');
     if (!el) return;
     el.innerHTML = _configCache.marcas.length
-      ? _configCache.marcas.map(m => `
-          <div class="config-item">
-            <span>${esc(m.valor)}</span>
-            <button class="btn btn-danger btn-sm" onclick="App.deleteMarca(${m.id})">Eliminar</button>
-          </div>`).join('')
+      ? _configCache.marcas.map(m => `<div class="config-item"><span>${esc(m.valor)}</span><button class="btn btn-danger btn-sm" onclick="App.deleteMarca(${m.id})">Eliminar</button></div>`).join('')
       : '<p style="color:var(--gris-texto);font-size:.85rem;padding:8px 0">Sin marcas</p>';
   }
 
@@ -890,11 +921,7 @@ const App = (() => {
     const el = document.getElementById('config-materiales-list');
     if (!el) return;
     el.innerHTML = _configCache.materiales.length
-      ? _configCache.materiales.map(m => `
-          <div class="config-item">
-            <span>${esc(m.valor)}</span>
-            <button class="btn btn-danger btn-sm" onclick="App.deleteMaterial(${m.id})">Eliminar</button>
-          </div>`).join('')
+      ? _configCache.materiales.map(m => `<div class="config-item"><span>${esc(m.valor)}</span><button class="btn btn-danger btn-sm" onclick="App.deleteMaterial(${m.id})">Eliminar</button></div>`).join('')
       : '<p style="color:var(--gris-texto);font-size:.85rem;padding:8px 0">Sin materiales</p>';
   }
 
@@ -904,11 +931,7 @@ const App = (() => {
     if (!el || !lente) return;
     const lista = _configCache.tratamientos[lente] || [];
     el.innerHTML = lista.length
-      ? lista.map(t => `
-          <div class="config-item">
-            <span>${esc(t.valor)}</span>
-            <button class="btn btn-danger btn-sm" onclick="App.deleteTratamiento(${t.id})">Eliminar</button>
-          </div>`).join('')
+      ? lista.map(t => `<div class="config-item"><span>${esc(t.valor)}</span><button class="btn btn-danger btn-sm" onclick="App.deleteTratamiento(${t.id})">Eliminar</button></div>`).join('')
       : '<p style="color:var(--gris-texto);font-size:.85rem;padding:8px 0">Sin tratamientos</p>';
   }
 
@@ -919,8 +942,7 @@ const App = (() => {
     try {
       await window.supabaseClient.from('configuracion').insert({ tipo:'laboratorio', valor, orden:99 });
       input.value = '';
-      await loadConfig(); renderConfigLabs();
-      buildBloqueFields(1); buildBloqueFields(2);
+      await loadConfig(); renderConfigLabs(); buildBloqueFields(1); buildBloqueFields(2);
       toast('Laboratorio agregado', 'success');
     } catch (e) { toast('Error: ' + e.message, 'error'); }
   }
@@ -929,8 +951,7 @@ const App = (() => {
     if (!confirm(`¿Eliminar laboratorio "${valor}"?`)) return;
     try {
       await window.supabaseClient.from('configuracion').delete().eq('tipo','laboratorio').eq('valor',valor);
-      await loadConfig(); renderConfigLabs();
-      buildBloqueFields(1); buildBloqueFields(2);
+      await loadConfig(); renderConfigLabs(); buildBloqueFields(1); buildBloqueFields(2);
       toast('Laboratorio eliminado', 'success');
     } catch (e) { toast('Error: ' + e.message, 'error'); }
   }
@@ -942,8 +963,7 @@ const App = (() => {
     try {
       await window.supabaseClient.from('configuracion').insert({ tipo:'marca', categoria:'armazon', valor, orden:99 });
       input.value = '';
-      await loadConfig(); renderConfigMarcas();
-      buildBloqueFields(1); buildBloqueFields(2);
+      await loadConfig(); renderConfigMarcas(); buildBloqueFields(1); buildBloqueFields(2);
       toast('Marca agregada', 'success');
     } catch (e) { toast('Error: ' + e.message, 'error'); }
   }
@@ -952,8 +972,7 @@ const App = (() => {
     if (!confirm('¿Eliminar esta marca?')) return;
     try {
       await window.supabaseClient.from('configuracion').delete().eq('id', id);
-      await loadConfig(); renderConfigMarcas();
-      buildBloqueFields(1); buildBloqueFields(2);
+      await loadConfig(); renderConfigMarcas(); buildBloqueFields(1); buildBloqueFields(2);
       toast('Marca eliminada', 'success');
     } catch (e) { toast('Error: ' + e.message, 'error'); }
   }
@@ -965,8 +984,7 @@ const App = (() => {
     try {
       await window.supabaseClient.from('configuracion').insert({ tipo:'material', categoria:'armazon', valor, orden:99 });
       input.value = '';
-      await loadConfig(); renderConfigMateriales();
-      buildBloqueFields(1); buildBloqueFields(2);
+      await loadConfig(); renderConfigMateriales(); buildBloqueFields(1); buildBloqueFields(2);
       toast('Material agregado', 'success');
     } catch (e) { toast('Error: ' + e.message, 'error'); }
   }
@@ -975,8 +993,7 @@ const App = (() => {
     if (!confirm('¿Eliminar este material?')) return;
     try {
       await window.supabaseClient.from('configuracion').delete().eq('id', id);
-      await loadConfig(); renderConfigMateriales();
-      buildBloqueFields(1); buildBloqueFields(2);
+      await loadConfig(); renderConfigMateriales(); buildBloqueFields(1); buildBloqueFields(2);
       toast('Material eliminado', 'success');
     } catch (e) { toast('Error: ' + e.message, 'error'); }
   }
@@ -1075,24 +1092,19 @@ const App = (() => {
     e.preventDefault();
     const data = getFormData();
     if (!validateForm(data)) { toast('Completá los campos obligatorios', 'warn'); return; }
-
     const rf = (label, val) => val ? `<div class="modal-row"><span class="modal-label">${label}</span><span class="modal-value">${esc(String(val))}</span></div>` : '';
     let html = rf('Cliente', data.base.cliente) + rf('Orden', data.doble ? `${data.base.orden}-A / -B` : data.base.orden)
              + rf('Tipo', data.base.tipo) + rf('Urgente', data.base.urgente) + rf('Fecha', data.base.fecha_carga);
-
     if (data.doble) {
       html += `<div style="margin:10px 0 4px;font-size:.78rem;font-weight:700;color:var(--azul)">ANTEOJO A</div>`;
-      html += rf('Lab', data.ant1.laboratorio) + rf('Lente', data.ant1.tipo_lente) + rf('Tratamiento', data.ant1.tratamiento) + rf('Graduación', data.ant1.graduacion);
-      html += rf('Marca', data.ant1.marca) + rf('Material', data.ant1.material);
+      html += rf('Lab', data.ant1.laboratorio) + rf('Lente', data.ant1.tipo_lente) + rf('Tratamiento', data.ant1.tratamiento) + rf('Graduación', data.ant1.graduacion) + rf('Marca', data.ant1.marca) + rf('Material', data.ant1.material);
       html += `<div style="margin:10px 0 4px;font-size:.78rem;font-weight:700;color:var(--azul)">ANTEOJO B</div>`;
-      html += rf('Lab', data.ant2.laboratorio) + rf('Lente', data.ant2.tipo_lente) + rf('Tratamiento', data.ant2.tratamiento) + rf('Graduación', data.ant2.graduacion);
-      html += rf('Marca', data.ant2.marca) + rf('Material', data.ant2.material);
+      html += rf('Lab', data.ant2.laboratorio) + rf('Lente', data.ant2.tipo_lente) + rf('Tratamiento', data.ant2.tratamiento) + rf('Graduación', data.ant2.graduacion) + rf('Marca', data.ant2.marca) + rf('Material', data.ant2.material);
     } else {
       html += rf('Laboratorio', data.ant1.laboratorio) + rf('Lente', data.ant1.tipo_lente)
             + rf('Tratamiento', data.ant1.tratamiento) + rf('Graduación', data.ant1.graduacion)
             + rf('Marca', data.ant1.marca) + rf('Material', data.ant1.material);
     }
-
     document.getElementById('modal-body-content').innerHTML = html;
     _pendingGuardar = data;
     document.getElementById('confirm-modal').classList.remove('hidden');
@@ -1103,7 +1115,6 @@ const App = (() => {
     const data = _pendingGuardar;
     const btn  = document.getElementById('modal-confirm-btn');
     btn.classList.add('btn-loading'); btn.disabled = true;
-
     try {
       const nombre   = Auth.getNombre();
       const fechaISO = new Date(data.base.fecha_carga + 'T12:00:00').toISOString();
@@ -1123,17 +1134,12 @@ const App = (() => {
         fecha_carga:  fechaISO,
         fecha_pedido: fechaISO,
       });
-
       const rows = data.doble
         ? [buildRow(data.ant1, 'A'), buildRow(data.ant2, 'B')]
         : [buildRow(data.ant1, null)];
-
       await Pedidos.crearPedido(rows);
-
       const sufStr = data.doble ? ` (${data.base.orden}-A y -B)` : ` #${data.base.orden}`;
-      enviarNotificacion('📋 Nuevo pedido — OLVISIÓN',
-        `${nombre} cargó un pedido${sufStr} para ${data.base.cliente}`, true);
-
+      enviarNotificacion('📋 Nuevo pedido — OLVISIÓN', `${nombre} cargó un pedido${sufStr} para ${data.base.cliente}`, true);
       closeModal();
       toast('Pedido guardado ✓', 'success');
       resetForm();
