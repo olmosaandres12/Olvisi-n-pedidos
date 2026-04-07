@@ -1511,3 +1511,108 @@ select.form-control {
   cursor: default;
   pointer-events: none;
 }
+/* ═══════════════════════════════════════════════════
+   DESKTOP LAYOUT — Sidebar + contenido expandido
+   Agregar al FINAL de style.css
+   ═══════════════════════════════════════════════════ */
+
+@media (min-width: 768px) {
+  :root { --sidebar-w: 200px; }
+
+  /* El nav pasa a ser sidebar izquierdo fijo */
+  .bottom-nav {
+    top: calc(56px + env(safe-area-inset-top, 0px));
+    left: 0;
+    bottom: 0;
+    right: auto;
+    width: var(--sidebar-w);
+    height: auto;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    border-top: none;
+    border-right: 1.5px solid var(--gris-borde);
+    padding: 12px 0 24px;
+    box-shadow: 2px 0 12px rgba(3,66,145,.06);
+    overflow-y: auto;
+  }
+
+  /* Ítems del nav en modo vertical */
+  .nav-item {
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 12px;
+    padding: 14px 20px;
+    font-size: .875rem;
+    font-weight: 500;
+    border-radius: 0;
+    text-align: left;
+  }
+  .nav-item svg { width: 20px; height: 20px; flex-shrink: 0; }
+
+  /* Indicador activo: línea a la izquierda en vez de arriba */
+  .nav-item.active::after {
+    top: 0; bottom: 0;
+    left: 0; right: auto;
+    width: 3px; height: auto;
+    border-radius: 0 3px 3px 0;
+  }
+
+  /* Badge de críticos en sidebar */
+  .nav-badge {
+    position: static;
+    margin-left: auto;
+  }
+
+  /* Contenido: empuja a la derecha del sidebar */
+  .app-content {
+    margin-left: var(--sidebar-w);
+    margin-bottom: 0;
+    max-width: none;
+    padding: 28px 40px;
+  }
+
+  /* Toast sobre el sidebar */
+  #toast-container {
+    left: calc(var(--sidebar-w) + 50%);
+    transform: translateX(-50%);
+    bottom: 24px;
+  }
+
+  /* Modales centradas en pantalla en lugar de sheet desde abajo */
+  .modal-overlay,
+  .detalle-overlay,
+  .edit-overlay,
+  .export-overlay {
+    align-items: center;
+    padding: 24px;
+  }
+  .modal-sheet,
+  .detalle-sheet,
+  .edit-sheet,
+  .export-sheet {
+    border-radius: var(--radius-lg);
+    max-height: 88dvh;
+  }
+
+  /* Formulario nuevo pedido más ancho */
+  #screen-inicio .form-row { grid-template-columns: 1fr 1fr; }
+
+  /* Cards de pedidos en 2 columnas en pantallas grandes */
+  .pedidos-list {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+
+  /* KPI grid aprovecha más espacio */
+  .kpi-grid { grid-template-columns: repeat(4, 1fr); }
+  .dash-kpi-grid { grid-template-columns: repeat(4, 1fr); }
+  .dash-periodo-grid { grid-template-columns: repeat(4, 1fr); }
+}
+
+@media (min-width: 1100px) {
+  :root { --sidebar-w: 220px; }
+  .app-content { padding: 32px 56px; }
+  .pedidos-list { grid-template-columns: repeat(3, 1fr); }
+}
