@@ -222,8 +222,6 @@ const App = (() => {
   }
 
   // ── CONECTAR NUMPAD A INPUTS DE GRADUACIÓN ────────
-  // ESF, CIL y ADD → numpad custom (con signo +/- y máx 2 decimales).
-  // EJE → teclado nativo numérico (solo enteros, sin signo).
   function attachNumpadListeners(container) {
     container.querySelectorAll('.grad-esf, .grad-cil, .grad-add').forEach(inp => {
       inp.setAttribute('readonly', 'readonly');
@@ -232,22 +230,18 @@ const App = (() => {
                   : inp.classList.contains('grad-cil') ? 'Cilindro'
                   : 'Adición';
 
-      // mousedown: desktop — preventDefault evita focus y teclado nativo
       inp.addEventListener('mousedown', (e) => {
         e.preventDefault();
         openNumpad(inp, label);
       });
-      // touchend: móvil — preventDefault evita eventos mouse sintéticos
       inp.addEventListener('touchend', (e) => {
         e.preventDefault();
         openNumpad(inp, label);
       });
 
-      // Formatear cuando el numpad confirma un valor
       inp.addEventListener('change', () => formatGradInput(inp));
     });
 
-    // EJE → teclado nativo (sin cambios)
     container.querySelectorAll('.grad-eje').forEach(inp => {
       inp.addEventListener('blur', () => {
         const v = inp.value.replace(/[^0-9]/g, '');
@@ -329,7 +323,7 @@ const App = (() => {
     document.getElementById('app-layout').style.display = 'flex';
     document.getElementById('header-user').textContent  = Auth.getNombre();
 
-    document.getElementById('logo-home-btn').addEventListener('click', () => showScreen('inicio'));
+    document.getElementById('logo-home-btn').addEventListener('click', () => showScreen('pedidos'));
     document.getElementById('btn-logout').addEventListener('click',    () => Auth.logout());
 
     if (Auth.isAdmin()) {
@@ -384,7 +378,9 @@ const App = (() => {
     setTimeout(() => overlay.remove(), 400);
 
     setTimeout(() => initPush(), 2000);
-    showScreen('inicio');
+
+    // ── Pantalla inicial: pedidos ─────────────────
+    showScreen('pedidos');
   }
 
   // ── CONFIG ────────────────────────────────────────
@@ -513,8 +509,6 @@ const App = (() => {
   }
 
   // ── TABLA DE GRADUACIÓN ───────────────────────────
-  // ESF, CIL, ADD: readonly — se editan SOLO con el numpad custom.
-  // EJE: inputmode="numeric" — teclado nativo (solo enteros, sin signo).
   function gradTablaHTML(num, dc) {
     const inpEsf = (id) => `<input type="text" class="form-control grad-input grad-esf" id="${id}"
       placeholder="ej: -1.25" readonly autocomplete="off">`;
@@ -568,6 +562,10 @@ const App = (() => {
     if (name === 'seguimiento') loadSeguimiento();
     if (name === 'panel')       refreshPanel();
     if (name === 'config')      loadConfigScreen();
+
+    // ── FAB: ocultar en la pantalla de carga, mostrar en el resto ──
+    const fab = document.getElementById('fab-nuevo-pedido');
+    if (fab) fab.style.display = (name === 'inicio') ? 'none' : 'flex';
   }
 
   // ── SEGUIMIENTO ───────────────────────────────────
@@ -1195,6 +1193,8 @@ const App = (() => {
       closeModal();
       toast('Pedido guardado ✓', 'success');
       resetForm();
+      // ── Después de guardar, volver a la lista de pedidos ──
+      showScreen('pedidos');
     } catch (err) {
       closeModal();
       toast(err.message, 'error');
