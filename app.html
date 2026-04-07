@@ -49,8 +49,6 @@
     /* ══════════════════════════════════════════════════
        NUMPAD ÓPTICO — Rediseño premium
     ══════════════════════════════════════════════════ */
-
-    /* Overlay de fondo */
     #numpad-overlay {
       position: fixed; inset: 0; z-index: 9500;
       background: rgba(2, 28, 72, 0.60);
@@ -62,8 +60,6 @@
     }
     #numpad-overlay.hidden { display: none !important; }
     #numpad-overlay.np-visible { opacity: 1; pointer-events: all; }
-
-    /* Sheet */
     #numpad-sheet {
       background: #FAFBFD;
       border-radius: 28px 28px 0 0;
@@ -75,247 +71,101 @@
       user-select: none; -webkit-user-select: none;
     }
     #numpad-overlay.np-visible #numpad-sheet { transform: translateY(0); }
-
-    /* Handle */
     .np-handle-wrap { display: flex; justify-content: center; padding: 12px 0 8px; }
-    .np-handle {
-      width: 36px; height: 4px;
-      background: #D1D5DB; border-radius: 2px;
-    }
-
-    /* Header */
-    .np-header {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 0 20px 12px;
-    }
-    .np-label {
-      font-size: 11px; font-weight: 700;
-      color: #9CA3AF;
-      text-transform: uppercase; letter-spacing: .1em;
-    }
-    .np-close {
-      width: 30px; height: 30px; border-radius: 50%;
-      background: #F3F4F6; border: none;
-      color: #9CA3AF; font-size: 13px;
-      cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
-      transition: background .15s, color .15s;
-    }
+    .np-handle { width: 36px; height: 4px; background: #D1D5DB; border-radius: 2px; }
+    .np-header { display: flex; align-items: center; justify-content: space-between; padding: 0 20px 12px; }
+    .np-label { font-size: 11px; font-weight: 700; color: #9CA3AF; text-transform: uppercase; letter-spacing: .1em; }
+    .np-close { width: 30px; height: 30px; border-radius: 50%; background: #F3F4F6; border: none; color: #9CA3AF; font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background .15s, color .15s; }
     .np-close:hover { background: #E5E7EB; color: #374151; }
     .np-close:active { background: #D1D5DB; transform: scale(.92); }
-
-    /* ── Display ── */
-    .np-display-wrap {
-      margin: 0 20px 16px;
-      background: #fff;
-      border-radius: 18px;
-      border: 1.5px solid #E5E7EB;
-      padding: 14px 20px 16px;
-      min-height: 72px;
-      display: flex; flex-direction: column;
-      justify-content: center; align-items: flex-end;
-      position: relative;
-      box-shadow: 0 2px 12px rgba(3, 66, 145, .06);
-      transition: border-color .2s, box-shadow .2s;
-    }
-    .np-display-hint {
-      font-size: 10px; color: #CBD5E1;
-      letter-spacing: .06em; align-self: flex-start;
-      margin-bottom: 6px; text-transform: uppercase; font-weight: 600;
-    }
-    #numpad-display {
-      font-size: 40px; font-weight: 300;
-      font-family: var(--font-mono);
-      color: #1E293B;
-      letter-spacing: -.02em; line-height: 1;
-      display: flex; align-items: center; min-height: 44px;
-    }
+    .np-display-wrap { margin: 0 20px 16px; background: #fff; border-radius: 18px; border: 1.5px solid #E5E7EB; padding: 14px 20px 16px; min-height: 72px; display: flex; flex-direction: column; justify-content: center; align-items: flex-end; position: relative; box-shadow: 0 2px 12px rgba(3, 66, 145, .06); transition: border-color .2s, box-shadow .2s; }
+    .np-display-hint { font-size: 10px; color: #CBD5E1; letter-spacing: .06em; align-self: flex-start; margin-bottom: 6px; text-transform: uppercase; font-weight: 600; }
+    #numpad-display { font-size: 40px; font-weight: 300; font-family: var(--font-mono); color: #1E293B; letter-spacing: -.02em; line-height: 1; display: flex; align-items: center; min-height: 44px; }
     .np-placeholder { color: #E2E8F0; font-weight: 300; }
     .np-sign { font-weight: 600; margin-right: 2px; }
-    .np-cursor {
-      display: inline-block; width: 2px; height: 32px;
-      background: var(--azul); border-radius: 2px; margin-left: 4px;
-      animation: np-blink 1s step-end infinite;
-    }
+    .np-cursor { display: inline-block; width: 2px; height: 32px; background: var(--azul); border-radius: 2px; margin-left: 4px; animation: np-blink 1s step-end infinite; }
     @keyframes np-blink { 0%,100%{opacity:1} 50%{opacity:0} }
-
     .np-shake { animation: np-shake-k .35s ease; }
-    @keyframes np-shake-k {
-      0%,100%{transform:translateX(0)}
-      20%{transform:translateX(-8px)} 40%{transform:translateX(8px)}
-      60%{transform:translateX(-4px)} 80%{transform:translateX(4px)}
-    }
-
+    @keyframes np-shake-k { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-8px)} 40%{transform:translateX(8px)} 60%{transform:translateX(-4px)} 80%{transform:translateX(4px)} }
     .np-confirmed { background: #EFF6FF !important; border-color: #BFDBFE !important; box-shadow: 0 2px 16px rgba(3,66,145,.12) !important; }
-    .np-confirmed::after {
-      content: '✓  Listo'; position: absolute; inset: 0;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 18px; font-weight: 700; color: var(--azul);
-      background: #EFF6FF; border-radius: 16px;
-      font-family: var(--font); letter-spacing: .02em;
-    }
-
-    /* ── Botones ±0.25 — acción principal, muy prominentes ── */
-    .np-quick-row {
-      display: grid; grid-template-columns: 1fr 1fr;
-      gap: 10px; padding: 0 20px 14px;
-    }
-    .np-step {
-      height: 60px;
-      border-radius: 16px;
-      border: none;
-      font-size: 16px; font-weight: 700;
-      cursor: pointer;
-      display: flex; align-items: center; justify-content: center; gap: 4px;
-      transition: transform .12s cubic-bezier(.34,1.56,.64,1), box-shadow .15s, opacity .1s;
-      -webkit-tap-highlight-color: transparent;
-      touch-action: manipulation;
-      letter-spacing: .01em;
-    }
+    .np-confirmed::after { content: '✓  Listo'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 700; color: var(--azul); background: #EFF6FF; border-radius: 16px; font-family: var(--font); letter-spacing: .02em; }
+    .np-quick-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 20px 14px; }
+    .np-step { height: 60px; border-radius: 16px; border: none; font-size: 16px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px; transition: transform .12s cubic-bezier(.34,1.56,.64,1), box-shadow .15s, opacity .1s; -webkit-tap-highlight-color: transparent; touch-action: manipulation; letter-spacing: .01em; }
     .np-step:hover { transform: translateY(-1px); }
     .np-step:active { transform: scale(.95) translateY(0); opacity: .9; box-shadow: none !important; }
-
-    .np-step-minus {
-      background: linear-gradient(135deg, #FEF2EE 0%, #FDDDD4 100%);
-      color: #C2410C;
-      box-shadow: 0 4px 16px rgba(194, 65, 12, .18), inset 0 1px 0 rgba(255,255,255,.6);
-    }
+    .np-step-minus { background: linear-gradient(135deg, #FEF2EE 0%, #FDDDD4 100%); color: #C2410C; box-shadow: 0 4px 16px rgba(194, 65, 12, .18), inset 0 1px 0 rgba(255,255,255,.6); }
     .np-step-minus:hover { box-shadow: 0 6px 20px rgba(194, 65, 12, .24), inset 0 1px 0 rgba(255,255,255,.6); }
-
-    .np-step-plus {
-      background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%);
-      color: #1D4ED8;
-      box-shadow: 0 4px 16px rgba(29, 78, 216, .18), inset 0 1px 0 rgba(255,255,255,.7);
-    }
+    .np-step-plus { background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%); color: #1D4ED8; box-shadow: 0 4px 16px rgba(29, 78, 216, .18), inset 0 1px 0 rgba(255,255,255,.7); }
     .np-step-plus:hover { box-shadow: 0 6px 20px rgba(29, 78, 216, .24), inset 0 1px 0 rgba(255,255,255,.7); }
-
-    /* ── Grid de teclas — ghost style, aire generoso ── */
-    .np-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 8px;
-      padding: 0 20px 12px;
-    }
-
-    /* Base de todas las teclas */
-    .np-btn {
-      height: 66px;
-      border-radius: 14px;
-      border: none;
-      background: transparent;
-      font-size: 22px; font-weight: 400;
-      font-family: var(--font);
-      color: #1E293B;
-      cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
-      transition: background .12s ease, transform .1s cubic-bezier(.34,1.56,.64,1), box-shadow .12s ease;
-      -webkit-tap-highlight-color: transparent;
-      touch-action: manipulation;
-      position: relative;
-    }
-    /* Ghost hover — desktop */
-    .np-btn:hover {
-      background: rgba(3, 66, 145, .05);
-    }
-    /* Active — rebote sutil */
-    .np-btn:active {
-      transform: scale(.90);
-      background: rgba(3, 66, 145, .10);
-    }
-
-    /* Tecla ± — tono azul suave */
-    .np-sign-btn {
-      background: rgba(29, 78, 216, .07);
-      color: #1D4ED8;
-      font-size: 20px; font-weight: 700;
-    }
+    .np-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 0 20px 12px; }
+    .np-btn { height: 66px; border-radius: 14px; border: none; background: transparent; font-size: 22px; font-weight: 400; font-family: var(--font); color: #1E293B; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background .12s ease, transform .1s cubic-bezier(.34,1.56,.64,1), box-shadow .12s ease; -webkit-tap-highlight-color: transparent; touch-action: manipulation; position: relative; }
+    .np-btn:hover { background: rgba(3, 66, 145, .05); }
+    .np-btn:active { transform: scale(.90); background: rgba(3, 66, 145, .10); }
+    .np-sign-btn { background: rgba(29, 78, 216, .07); color: #1D4ED8; font-size: 20px; font-weight: 700; }
     .np-sign-btn:hover { background: rgba(29, 78, 216, .13); }
     .np-sign-btn:active { background: rgba(29, 78, 216, .20); }
-
-    /* Tecla punto */
-    .np-dot-btn {
-      font-size: 28px; font-weight: 700;
-      color: #475569;
-    }
-
-    /* Borrar — ámbar suave */
-    .np-bksp-btn {
-      background: rgba(217, 119, 6, .08);
-      color: #92400E;
-      font-size: 19px;
-    }
+    .np-dot-btn { font-size: 28px; font-weight: 700; color: #475569; }
+    .np-bksp-btn { background: rgba(217, 119, 6, .08); color: #92400E; font-size: 19px; }
     .np-bksp-btn:hover { background: rgba(217, 119, 6, .15); }
     .np-bksp-btn:active { background: rgba(217, 119, 6, .22); }
-
-    /* CLR — rojo suave */
-    .np-clr-btn {
-      background: rgba(220, 38, 38, .07);
-      color: #B91C1C;
-      font-size: 11px; font-weight: 800; letter-spacing: .08em;
-    }
+    .np-clr-btn { background: rgba(220, 38, 38, .07); color: #B91C1C; font-size: 11px; font-weight: 800; letter-spacing: .08em; }
     .np-clr-btn:hover { background: rgba(220, 38, 38, .13); }
     .np-clr-btn:active { background: rgba(220, 38, 38, .20); }
-
-    /* 0 ocupa 2 columnas */
     .np-zero-btn { grid-column: span 2; }
-
-    /* ── Confirmar — botón premium ── */
-    #numpad-ok {
-      display: flex; align-items: center; justify-content: center; gap: 10px;
-      width: calc(100% - 40px); margin: 4px 20px 14px;
-      height: 58px; border-radius: 18px;
-      background: linear-gradient(135deg, #034291 0%, #0550B4 50%, #0460D9 100%);
-      border: none; color: #fff;
-      font-size: 16px; font-weight: 700; font-family: var(--font);
-      cursor: pointer; letter-spacing: .03em;
-      box-shadow:
-        0 6px 24px rgba(3, 66, 145, .40),
-        0 2px 8px  rgba(3, 66, 145, .20),
-        inset 0 1px 0 rgba(255, 255, 255, .20);
-      transition: transform .15s cubic-bezier(.34,1.56,.64,1), box-shadow .18s ease, opacity .12s;
-      -webkit-tap-highlight-color: transparent;
-      touch-action: manipulation;
-    }
-    #numpad-ok:hover:not(.np-btn-disabled) {
-      transform: translateY(-2px);
-      box-shadow:
-        0 10px 32px rgba(3, 66, 145, .48),
-        0 4px 12px  rgba(3, 66, 145, .24),
-        inset 0 1px 0 rgba(255, 255, 255, .22);
-    }
-    #numpad-ok:active:not(.np-btn-disabled) {
-      transform: scale(.97) translateY(0);
-      box-shadow:
-        0 3px 12px rgba(3, 66, 145, .30),
-        inset 0 1px 0 rgba(255, 255, 255, .15);
-      opacity: .92;
-    }
-    #numpad-ok.np-btn-disabled {
-      background: #E2E8F0;
-      color: #94A3B8;
-      cursor: default;
-      pointer-events: none;
-      box-shadow: none;
-    }
-
-    /* ── Inputs de graduación ── */
-    .grad-input {
-      text-align: center;
-      font-family: var(--font-mono);
-      font-size: .85rem;
-      font-weight: 600;
-      padding: 6px 4px;
-      cursor: pointer;
-    }
-    .grad-input[readonly]:focus {
-      border-color: var(--azul);
-      box-shadow: 0 0 0 3px rgba(3,66,145,.15);
-      outline: none;
-    }
+    #numpad-ok { display: flex; align-items: center; justify-content: center; gap: 10px; width: calc(100% - 40px); margin: 4px 20px 14px; height: 58px; border-radius: 18px; background: linear-gradient(135deg, #034291 0%, #0550B4 50%, #0460D9 100%); border: none; color: #fff; font-size: 16px; font-weight: 700; font-family: var(--font); cursor: pointer; letter-spacing: .03em; box-shadow: 0 6px 24px rgba(3, 66, 145, .40), 0 2px 8px rgba(3, 66, 145, .20), inset 0 1px 0 rgba(255, 255, 255, .20); transition: transform .15s cubic-bezier(.34,1.56,.64,1), box-shadow .18s ease, opacity .12s; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+    #numpad-ok:hover:not(.np-btn-disabled) { transform: translateY(-2px); box-shadow: 0 10px 32px rgba(3, 66, 145, .48), 0 4px 12px rgba(3, 66, 145, .24), inset 0 1px 0 rgba(255, 255, 255, .22); }
+    #numpad-ok:active:not(.np-btn-disabled) { transform: scale(.97) translateY(0); box-shadow: 0 3px 12px rgba(3, 66, 145, .30), inset 0 1px 0 rgba(255, 255, 255, .15); opacity: .92; }
+    #numpad-ok.np-btn-disabled { background: #E2E8F0; color: #94A3B8; cursor: default; pointer-events: none; box-shadow: none; }
+    .grad-input { text-align: center; font-family: var(--font-mono); font-size: .85rem; font-weight: 600; padding: 6px 4px; cursor: pointer; }
+    .grad-input[readonly]:focus { border-color: var(--azul); box-shadow: 0 0 0 3px rgba(3,66,145,.15); outline: none; }
     .grad-esf { color: #1D4ED8; }
     .grad-cil { color: #C2410C; }
     .grad-eje { color: var(--gris-dark); }
     .grad-add { color: #065F46; }
+
+    /* ══════════════════════════════════════════════════
+       FAB — Botón flotante nuevo pedido
+    ══════════════════════════════════════════════════ */
+    #fab-nuevo-pedido {
+      position: fixed;
+      bottom: calc(72px + env(safe-area-inset-bottom, 0px) + 16px);
+      right: 20px;
+      width: 58px;
+      height: 58px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #034291 0%, #0460D9 100%);
+      color: #fff;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow:
+        0 6px 20px rgba(3, 66, 145, .50),
+        0 2px 8px rgba(0,0,0,.18),
+        inset 0 1px 0 rgba(255,255,255,.18);
+      z-index: 850;
+      transition: transform .2s cubic-bezier(.34,1.56,.64,1), box-shadow .18s ease;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    #fab-nuevo-pedido svg {
+      width: 28px;
+      height: 28px;
+      stroke: #fff;
+      stroke-width: 2.5;
+      stroke-linecap: round;
+    }
+    #fab-nuevo-pedido:active {
+      transform: scale(.90);
+      box-shadow: 0 2px 10px rgba(3,66,145,.35);
+    }
+    @media (hover: hover) {
+      #fab-nuevo-pedido:hover {
+        transform: scale(1.08) translateY(-2px);
+        box-shadow: 0 10px 28px rgba(3,66,145,.55), 0 3px 10px rgba(0,0,0,.2);
+      }
+    }
 
   </style>
 </head>
@@ -391,49 +241,38 @@
 <!-- ══ NUMPAD ÓPTICO v2 ══════════════════════════════════ -->
 <div id="numpad-overlay" class="hidden" role="dialog" aria-modal="true" aria-label="Teclado numérico óptico">
   <div id="numpad-sheet">
-
     <div class="np-handle-wrap"><div class="np-handle"></div></div>
-
     <div class="np-header">
       <span class="np-label" id="numpad-label">Valor</span>
       <button class="np-close" id="numpad-close" aria-label="Cerrar">✕</button>
     </div>
-
     <div class="np-display-wrap">
       <div class="np-display-hint">Múltiplos de 0.25</div>
       <div id="numpad-display">
         <span class="np-placeholder">0.00</span><span class="np-cursor"></span>
       </div>
     </div>
-
     <div class="np-quick-row">
       <button class="np-step np-step-minus" id="numpad-step-minus" aria-label="Restar 0.25">− 0.25</button>
       <button class="np-step np-step-plus"  id="numpad-step-plus"  aria-label="Sumar 0.25">+ 0.25</button>
     </div>
-
     <div class="np-grid">
       <button class="np-btn np-sign-btn" id="numpad-sign"  aria-label="Cambiar signo">±</button>
       <button class="np-btn np-dot-btn"  id="numpad-dot"   aria-label="Punto decimal">.</button>
       <button class="np-btn np-bksp-btn" id="numpad-del"   aria-label="Borrar último">⌫</button>
-
       <button class="np-btn numpad-key" data-val="1">1</button>
       <button class="np-btn numpad-key" data-val="2">2</button>
       <button class="np-btn numpad-key" data-val="3">3</button>
-
       <button class="np-btn numpad-key" data-val="4">4</button>
       <button class="np-btn numpad-key" data-val="5">5</button>
       <button class="np-btn numpad-key" data-val="6">6</button>
-
       <button class="np-btn numpad-key" data-val="7">7</button>
       <button class="np-btn numpad-key" data-val="8">8</button>
       <button class="np-btn numpad-key" data-val="9">9</button>
-
       <button class="np-btn np-zero-btn numpad-key" data-val="0">0</button>
       <button class="np-btn np-clr-btn"  id="numpad-clear" aria-label="Borrar todo">CLR</button>
     </div>
-
     <button id="numpad-ok" class="np-btn-disabled" aria-label="Confirmar valor">✓ &nbsp;Confirmar</button>
-
   </div>
 </div>
 <!-- ══════════════════════════════════════════════════════ -->
@@ -694,16 +533,16 @@
 
   <!-- Bottom nav -->
   <nav class="bottom-nav">
-    <button class="nav-item active" id="nav-inicio" onclick="App.showScreen('inicio')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-      Inicio
+    <button class="nav-item" id="nav-inicio" onclick="App.showScreen('inicio')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>
+      Nuevo
     </button>
     <button class="nav-item" id="nav-seguimiento" onclick="App.showScreen('seguimiento')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
       Estado
       <span class="nav-badge hidden" id="criticos-badge">0</span>
     </button>
-    <button class="nav-item" id="nav-pedidos" onclick="App.showScreen('pedidos')">
+    <button class="nav-item active" id="nav-pedidos" onclick="App.showScreen('pedidos')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
       Pedidos
     </button>
@@ -716,6 +555,14 @@
       Config
     </button>
   </nav>
+
+  <!-- FAB — Nuevo pedido (acceso directo desde cualquier pantalla) -->
+  <button id="fab-nuevo-pedido" onclick="App.showScreen('inicio')" aria-label="Nuevo pedido">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+      <line x1="12" y1="5" x2="12" y2="19"/>
+      <line x1="5" y1="12" x2="19" y2="12"/>
+    </svg>
+  </button>
 
 </div>
 
