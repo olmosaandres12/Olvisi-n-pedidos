@@ -2,508 +2,402 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#034291">
   <title>OLVISIÓN — Pedidos</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/logo.png">
   <link rel="stylesheet" href="style.css">
   <style>
-    /* ── Modales de detalle, edición y exportación ── */
-    .detalle-overlay{position:fixed;inset:0;z-index:7000;background:rgba(2,41,102,.5);backdrop-filter:blur(4px);display:flex;align-items:flex-end;justify-content:center;animation:fadeIn .2s ease;}
-    .detalle-overlay.hidden{display:none;}
-    .detalle-sheet{background:var(--blanco);border-radius:var(--radius-lg) var(--radius-lg) 0 0;width:100%;max-width:520px;max-height:92dvh;overflow-y:auto;animation:slideSheet .3s ease;padding-bottom:env(safe-area-inset-bottom);}
-    .detalle-header{position:sticky;top:0;z-index:10;background:var(--blanco);display:flex;align-items:center;justify-content:space-between;padding:16px 20px 12px;border-bottom:1px solid var(--gris-borde);}
-    .detalle-orden{font-size:1.1rem;font-weight:800;color:var(--azul);font-family:var(--font-mono);}
-    .detalle-actions{display:flex;gap:8px;align-items:center;}
-    .btn-editar{padding:8px 16px;border-radius:20px;background:var(--azul-light);color:var(--azul);font-size:.82rem;font-weight:700;border:none;cursor:pointer;}
-    .btn-cerrar-detalle{width:30px;height:30px;border-radius:50%;background:var(--gris-bg);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--gris-texto);}
-    .btn-borrar-detalle{width:30px;height:30px;border-radius:50%;background:var(--rojo-bg);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:15px;color:var(--rojo);transition:background var(--transition);}
-    .btn-borrar-detalle:hover{background:#fecaca;}
-    .detalle-body{padding:16px 20px;}
-    .detalle-seccion{margin-bottom:16px;background:var(--gris-bg);border-radius:var(--radius);padding:14px;}
-    .detalle-seccion-title{font-size:10px;font-weight:700;color:var(--gris-texto);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;}
-    .detalle-row{display:flex;justify-content:space-between;align-items:flex-start;padding:5px 0;border-bottom:1px solid var(--gris-borde);gap:12px;}
-    .detalle-row:last-child{border-bottom:none;padding-bottom:0;}
-    .detalle-label{font-size:12px;color:var(--gris-texto);flex-shrink:0;}
-    .detalle-valor{font-size:13px;font-weight:600;color:var(--gris-dark);text-align:right;flex:1;}
-    .detalle-grad{font-family:var(--font-mono);font-size:12px;background:var(--blanco);border-radius:6px;padding:8px 10px;margin-top:6px;color:var(--gris-dark);border:1px solid var(--gris-borde);line-height:1.8;}
-    .edit-overlay{position:fixed;inset:0;z-index:8000;background:rgba(2,41,102,.5);backdrop-filter:blur(4px);display:flex;align-items:flex-end;justify-content:center;animation:fadeIn .2s ease;}
-    .edit-overlay.hidden{display:none;}
-    .edit-sheet{background:var(--blanco);border-radius:var(--radius-lg) var(--radius-lg) 0 0;width:100%;max-width:520px;max-height:94dvh;overflow-y:auto;animation:slideSheet .3s ease;padding-bottom:env(safe-area-inset-bottom);}
-    .edit-header{position:sticky;top:0;z-index:10;background:var(--azul);display:flex;align-items:center;justify-content:space-between;padding:16px 20px;}
-    .edit-header-title{font-size:1rem;font-weight:700;color:#fff;}
-    .btn-cerrar-edit{width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.2);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff;}
-    .edit-body{padding:16px 20px;}
-    .edit-save-btn{width:100%;margin-top:8px;margin-bottom:16px;padding:16px;border-radius:var(--radius);background:var(--azul);color:#fff;font-size:1rem;font-weight:700;border:none;cursor:pointer;}
-    .edit-save-btn:active{background:var(--azul-dark);}
-    .export-overlay{position:fixed;inset:0;z-index:9000;background:rgba(2,41,102,.5);backdrop-filter:blur(4px);display:flex;align-items:flex-end;justify-content:center;animation:fadeIn .2s ease;}
-    .export-overlay.hidden{display:none;}
-    .export-sheet{background:var(--blanco);border-radius:var(--radius-lg) var(--radius-lg) 0 0;width:100%;max-width:520px;animation:slideSheet .3s ease;padding-bottom:env(safe-area-inset-bottom);}
-    .export-header{background:var(--azul);display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-radius:var(--radius-lg) var(--radius-lg) 0 0;}
-    .export-header-title{font-size:1rem;font-weight:700;color:#fff;}
-    .btn-cerrar-export{width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.2);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff;}
-    .export-body{padding:24px 20px;}
-    .export-desc{font-size:13px;color:var(--gris-texto);margin-bottom:20px;line-height:1.5;}
-    .export-label{font-size:11px;font-weight:700;color:var(--gris-texto);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;}
-    #btn-generar-pdf{width:100%;margin-top:16px;padding:16px;border-radius:var(--radius);background:var(--azul);color:#fff;font-size:1rem;font-weight:700;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;}
-    #btn-generar-pdf:active{background:var(--azul-dark);}
-    #btn-generar-pdf:disabled{opacity:.6;cursor:not-allowed;}
-    .btn-export-pdf{display:inline-flex;align-items:center;gap:6px;padding:10px 18px;border-radius:20px;background:var(--azul);color:#fff;font-size:.85rem;font-weight:700;border:none;cursor:pointer;transition:background .15s;box-shadow:0 2px 8px rgba(3,66,145,.3);}
-    .btn-export-pdf:active{background:var(--azul-dark);}
+    #app-layout { display:none;flex-direction:column;min-height:100dvh; }
 
-    /* ── Numpad ── */
-    #numpad-overlay{position:fixed;inset:0;z-index:9500;background:rgba(2,28,72,.60);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:flex;align-items:flex-end;justify-content:center;opacity:0;transition:opacity .28s ease;pointer-events:none;}
-    #numpad-overlay.hidden{display:none !important;}
-    #numpad-overlay.np-visible{opacity:1;pointer-events:all;}
-    #numpad-sheet{background:#FAFBFD;border-radius:28px 28px 0 0;width:100%;max-width:520px;padding-bottom:max(16px,env(safe-area-inset-bottom));box-shadow:0 -12px 48px rgba(3,66,145,.18);transform:translateY(100%);transition:transform .32s cubic-bezier(.25,.72,.0,1);user-select:none;-webkit-user-select:none;}
-    #numpad-overlay.np-visible #numpad-sheet{transform:translateY(0);}
-    .np-handle-wrap{display:flex;justify-content:center;padding:12px 0 8px;}
-    .np-handle{width:36px;height:4px;background:#D1D5DB;border-radius:2px;}
-    .np-header{display:flex;align-items:center;justify-content:space-between;padding:0 20px 12px;}
-    .np-label{font-size:11px;font-weight:700;color:#9CA3AF;text-transform:uppercase;letter-spacing:.1em;}
-    .np-close{width:30px;height:30px;border-radius:50%;background:#F3F4F6;border:none;color:#9CA3AF;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s,color .15s;}
-    .np-close:hover{background:#E5E7EB;color:#374151;}
-    .np-close:active{background:#D1D5DB;transform:scale(.92);}
-    .np-display-wrap{margin:0 20px 16px;background:#fff;border-radius:18px;border:1.5px solid #E5E7EB;padding:14px 20px 16px;min-height:72px;display:flex;flex-direction:column;justify-content:center;align-items:flex-end;position:relative;box-shadow:0 2px 12px rgba(3,66,145,.06);transition:border-color .2s,box-shadow .2s;}
-    .np-display-hint{font-size:10px;color:#CBD5E1;letter-spacing:.06em;align-self:flex-start;margin-bottom:6px;text-transform:uppercase;font-weight:600;}
-    #numpad-display{font-size:40px;font-weight:300;font-family:var(--font-mono);color:#1E293B;letter-spacing:-.02em;line-height:1;display:flex;align-items:center;min-height:44px;}
-    .np-placeholder{color:#E2E8F0;font-weight:300;}
-    .np-sign{font-weight:600;margin-right:2px;}
-    .np-cursor{display:inline-block;width:2px;height:32px;background:var(--azul);border-radius:2px;margin-left:4px;animation:np-blink 1s step-end infinite;}
-    @keyframes np-blink{0%,100%{opacity:1}50%{opacity:0}}
-    .np-shake{animation:np-shake-k .35s ease;}
-    @keyframes np-shake-k{0%,100%{transform:translateX(0)}20%{transform:translateX(-8px)}40%{transform:translateX(8px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}
-    .np-confirmed{background:#EFF6FF !important;border-color:#BFDBFE !important;box-shadow:0 2px 16px rgba(3,66,145,.12) !important;}
-    .np-confirmed::after{content:'✓  Listo';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:var(--azul);background:#EFF6FF;border-radius:16px;font-family:var(--font);letter-spacing:.02em;}
-    .np-quick-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 20px 14px;}
-    .np-step{height:60px;border-radius:16px;border:none;font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;transition:transform .12s cubic-bezier(.34,1.56,.64,1),box-shadow .15s,opacity .1s;-webkit-tap-highlight-color:transparent;touch-action:manipulation;letter-spacing:.01em;}
-    .np-step:hover{transform:translateY(-1px);}
-    .np-step:active{transform:scale(.95) translateY(0);opacity:.9;box-shadow:none !important;}
-    .np-step-minus{background:linear-gradient(135deg,#FEF2EE 0%,#FDDDD4 100%);color:#C2410C;box-shadow:0 4px 16px rgba(194,65,12,.18),inset 0 1px 0 rgba(255,255,255,.6);}
-    .np-step-plus{background:linear-gradient(135deg,#EFF6FF 0%,#DBEAFE 100%);color:#1D4ED8;box-shadow:0 4px 16px rgba(29,78,216,.18),inset 0 1px 0 rgba(255,255,255,.7);}
-    .np-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:0 20px 12px;}
-    .np-btn{height:66px;border-radius:14px;border:none;background:transparent;font-size:22px;font-weight:400;font-family:var(--font);color:#1E293B;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .12s ease,transform .1s cubic-bezier(.34,1.56,.64,1);-webkit-tap-highlight-color:transparent;touch-action:manipulation;position:relative;}
-    .np-btn:hover{background:rgba(3,66,145,.05);}
-    .np-btn:active{transform:scale(.90);background:rgba(3,66,145,.10);}
-    .np-sign-btn{background:rgba(29,78,216,.07);color:#1D4ED8;font-size:20px;font-weight:700;}
-    .np-sign-btn:hover{background:rgba(29,78,216,.13);}
-    .np-sign-btn:active{background:rgba(29,78,216,.20);}
-    .np-dot-btn{font-size:28px;font-weight:700;color:#475569;}
-    .np-bksp-btn{background:rgba(217,119,6,.08);color:#92400E;font-size:19px;}
-    .np-bksp-btn:hover{background:rgba(217,119,6,.15);}
-    .np-bksp-btn:active{background:rgba(217,119,6,.22);}
-    .np-clr-btn{background:rgba(220,38,38,.07);color:#B91C1C;font-size:11px;font-weight:800;letter-spacing:.08em;}
-    .np-clr-btn:hover{background:rgba(220,38,38,.13);}
-    .np-clr-btn:active{background:rgba(220,38,38,.20);}
-    .np-zero-btn{grid-column:span 2;}
-    #numpad-ok{display:flex;align-items:center;justify-content:center;gap:10px;width:calc(100% - 40px);margin:4px 20px 14px;height:58px;border-radius:18px;background:linear-gradient(135deg,#034291 0%,#0550B4 50%,#0460D9 100%);border:none;color:#fff;font-size:16px;font-weight:700;font-family:var(--font);cursor:pointer;letter-spacing:.03em;box-shadow:0 6px 24px rgba(3,66,145,.40),0 2px 8px rgba(3,66,145,.20),inset 0 1px 0 rgba(255,255,255,.20);transition:transform .15s cubic-bezier(.34,1.56,.64,1),box-shadow .18s ease,opacity .12s;-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
-    #numpad-ok:hover:not(.np-btn-disabled){transform:translateY(-2px);box-shadow:0 10px 32px rgba(3,66,145,.48),0 4px 12px rgba(3,66,145,.24),inset 0 1px 0 rgba(255,255,255,.22);}
-    #numpad-ok:active:not(.np-btn-disabled){transform:scale(.97) translateY(0);box-shadow:0 3px 12px rgba(3,66,145,.30),inset 0 1px 0 rgba(255,255,255,.15);opacity:.92;}
-    #numpad-ok.np-btn-disabled{background:#E2E8F0;color:#94A3B8;cursor:default;pointer-events:none;box-shadow:none;}
-    .grad-input{text-align:center;font-family:var(--font-mono);font-size:.85rem;font-weight:600;padding:6px 4px;cursor:pointer;}
-    .grad-input[readonly]:focus{border-color:var(--azul);box-shadow:0 0 0 3px rgba(3,66,145,.15);outline:none;}
-    .grad-esf{color:#1D4ED8;}.grad-cil{color:#C2410C;}.grad-eje{color:var(--gris-dark);}.grad-add{color:#065F46;}
+    /* FAB */
+    #fab-nuevo-pedido { position:fixed;bottom:calc(var(--nav-h) + env(safe-area-inset-bottom) + 16px);right:20px;z-index:490;width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#0550B4,#034291);color:#fff;font-size:1.6rem;font-weight:300;box-shadow:0 4px 18px rgba(3,66,145,.45),0 1px 4px rgba(3,66,145,.2);display:flex;align-items:center;justify-content:center;border:none;cursor:pointer;transition:transform .2s cubic-bezier(.34,1.56,.64,1),box-shadow .2s ease; }
+    #fab-nuevo-pedido:hover { transform:scale(1.08);box-shadow:0 6px 24px rgba(3,66,145,.5); }
+    #fab-nuevo-pedido:active { transform:scale(.95); }
+    @media(min-width:768px){ #fab-nuevo-pedido{bottom:32px;right:40px;} }
 
-    /* ── FAB ── */
-    #fab-nuevo-pedido{position:fixed;bottom:calc(72px + env(safe-area-inset-bottom,0px) + 16px);right:20px;width:58px;height:58px;border-radius:50%;background:linear-gradient(135deg,#034291 0%,#0460D9 100%);color:#fff;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 20px rgba(3,66,145,.50),0 2px 8px rgba(0,0,0,.18),inset 0 1px 0 rgba(255,255,255,.18);z-index:850;transition:transform .2s cubic-bezier(.34,1.56,.64,1),box-shadow .18s ease;-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
-    #fab-nuevo-pedido svg{width:28px;height:28px;stroke:#fff;stroke-width:2.5;stroke-linecap:round;}
-    #fab-nuevo-pedido:active{transform:scale(.90);box-shadow:0 2px 10px rgba(3,66,145,.35);}
-    @media(hover:hover){#fab-nuevo-pedido:hover{transform:scale(1.08) translateY(-2px);box-shadow:0 10px 28px rgba(3,66,145,.55),0 3px 10px rgba(0,0,0,.2);}}
-    @media(min-width:768px){
-      #fab-nuevo-pedido{bottom:32px;right:32px;}
-    }
+    /* Modales */
+    .detalle-overlay,.edit-overlay,.confirm-overlay { position:fixed;inset:0;z-index:7000;background:rgba(2,41,102,.5);backdrop-filter:blur(4px);display:flex;align-items:flex-end;justify-content:center;animation:fadeIn .2s ease; }
+    .confirm-overlay { z-index:8000; }
+    .detalle-overlay.hidden,.edit-overlay.hidden,.confirm-overlay.hidden { display:none; }
+    .detalle-sheet,.edit-sheet,.confirm-sheet { background:#fff;border-radius:20px 20px 0 0;width:100%;max-width:560px;max-height:90dvh;display:flex;flex-direction:column;animation:slideSheet .3s ease;overflow:hidden; }
+    @media(min-width:768px){ .detalle-overlay,.edit-overlay,.confirm-overlay{align-items:center;} .detalle-sheet,.edit-sheet,.confirm-sheet{border-radius:20px;max-height:85dvh;} }
+
+    .detalle-header,.edit-header,.confirm-header { display:flex;align-items:center;justify-content:space-between;padding:18px 18px 14px;border-bottom:1.5px solid var(--gris-borde);flex-shrink:0; }
+    .detalle-orden { font-family:var(--font-mono);font-size:1rem;font-weight:700;color:var(--azul); }
+    .detalle-header-actions { display:flex;align-items:center;gap:8px; }
+    .edit-title,.confirm-title { font-size:1rem;font-weight:700;color:var(--azul); }
+    .detalle-body { flex:1;overflow-y:auto;padding:0 18px 24px; }
+    .edit-body-scroll { flex:1;overflow-y:auto;padding:16px 18px 24px; }
+    .confirm-body { flex:1;overflow-y:auto;padding:16px 18px; }
+    .confirm-footer { padding:14px 18px 20px;display:flex;gap:10px;flex-shrink:0;border-top:1px solid var(--gris-borde); }
+    .confirm-footer .btn { flex:1; }
+
+    .btn-editar-detalle { padding:7px 14px;border-radius:8px;background:var(--azul-light);color:var(--azul);font-size:.8rem;font-weight:600;border:1px solid #BFD4F5;cursor:pointer;transition:background var(--transition); }
+    .btn-editar-detalle:hover { background:#d0e4ff; }
+    .btn-eliminar-detalle { width:32px;height:32px;border-radius:50%;background:var(--rojo-bg);color:var(--rojo);border:1px solid var(--rojo-borde);display:flex;align-items:center;justify-content:center;font-size:.95rem;cursor:pointer;transition:background var(--transition),transform var(--transition); }
+    .btn-eliminar-detalle:hover { background:#fecaca;transform:scale(1.08); }
+    .btn-cerrar-x { width:32px;height:32px;border-radius:50%;background:var(--gris-bg);color:var(--gris-texto);display:flex;align-items:center;justify-content:center;font-size:1rem;cursor:pointer;transition:background var(--transition); }
+    .btn-cerrar-x:hover { background:var(--gris-borde); }
+
+    .detalle-seccion { margin-top:20px; }
+    .detalle-seccion-title { font-size:.72rem;font-weight:700;color:var(--azul);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;display:flex;align-items:center;gap:8px; }
+    .detalle-seccion-title::after { content:'';flex:1;height:1px;background:var(--gris-borde); }
+    .detalle-row { display:flex;justify-content:space-between;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--gris-bg);gap:16px; }
+    .detalle-row:last-child { border-bottom:none; }
+    .detalle-label { font-size:.8rem;color:var(--gris-texto);flex-shrink:0; }
+    .detalle-valor { font-size:.9rem;font-weight:500;text-align:right; }
+    .detalle-grad { font-family:var(--font-mono);font-size:.82rem;color:var(--gris-dark);margin-top:4px;line-height:1.8;background:var(--gris-bg);padding:8px 10px;border-radius:8px;width:100%; }
+
+    .edit-save-btn { width:100%;padding:15px;background:linear-gradient(135deg,#0550B4,#034291);color:#fff;border:none;border-radius:var(--radius);font-size:1rem;font-weight:700;cursor:pointer;margin-top:8px;box-shadow:0 4px 16px rgba(3,66,145,.3);transition:opacity var(--transition); }
+    .edit-save-btn:hover { opacity:.9; }
+    .edit-save-btn:disabled { opacity:.5;cursor:not-allowed; }
+    .btn-confirmar-guardar { background:linear-gradient(135deg,#0550B4,#034291) !important;box-shadow:0 4px 16px rgba(3,66,145,.35) !important; }
+    .modal-row { display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--gris-bg);font-size:.875rem;gap:12px; }
+    .modal-row:last-child { border-bottom:none; }
+    .modal-label { color:var(--gris-texto);font-size:.8rem;flex-shrink:0; }
+    .modal-value { font-weight:500;text-align:right; }
+
+    /* Numpad */
+    #numpad-overlay { position:fixed;inset:0;z-index:9000;background:rgba(2,41,102,.45);backdrop-filter:blur(6px);display:none;align-items:flex-end;justify-content:center;opacity:0;transition:opacity .25s ease; }
+    #numpad-overlay.np-visible { opacity:1; }
+    #numpad-sheet { background:#FAFBFD;border-radius:22px 22px 0 0;width:100%;max-width:400px;padding:0 0 max(24px,env(safe-area-inset-bottom)) 0;transform:translateY(30px);transition:transform .3s cubic-bezier(.34,1.56,.64,1);box-shadow:0 -8px 40px rgba(3,66,145,.15); }
+    #numpad-overlay.np-visible #numpad-sheet { transform:translateY(0); }
+    .np-drag-bar { width:36px;height:4px;border-radius:2px;background:#D1D5DB;margin:10px auto 0;cursor:grab; }
+    .np-header { display:flex;align-items:center;justify-content:space-between;padding:10px 18px 8px; }
+    #numpad-label { font-size:.85rem;font-weight:600;color:var(--azul); }
+    #numpad-close { width:28px;height:28px;border-radius:50%;background:var(--gris-bg);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.85rem;color:var(--gris-texto); }
+    #numpad-display { margin:2px 16px 10px;background:#fff;border:2px solid var(--azul-mid);border-radius:14px;padding:12px 18px;font-size:2rem;font-weight:700;font-family:var(--font-mono);color:var(--gris-dark);letter-spacing:-.5px;min-height:62px;display:flex;align-items:center;justify-content:flex-end; }
+    .np-placeholder{color:#C9D0DC;font-weight:400;} .np-cursor{display:inline-block;width:2px;height:28px;background:var(--azul);border-radius:1px;margin-left:3px;animation:blink 1s step-end infinite;} @keyframes blink{50%{opacity:0;}}
+    .np-sign{font-size:1.5rem;margin-right:4px;font-weight:800;}
+    #numpad-display.np-shake{animation:npShake .35s ease;} @keyframes npShake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+    #numpad-display.np-confirmed{border-color:var(--verde);animation:npPulse .4s ease;} @keyframes npPulse{0%{transform:scale(1)}50%{transform:scale(1.025)}100%{transform:scale(1)}}
+    .np-step-row{display:flex;gap:10px;padding:0 12px 8px;}
+    .np-step-btn{flex:1;padding:11px 0;border-radius:12px;border:none;cursor:pointer;font-size:.95rem;font-weight:800;display:flex;align-items:center;justify-content:center;gap:5px;transition:transform .15s cubic-bezier(.34,1.56,.64,1);user-select:none;-webkit-user-select:none;}
+    .np-step-btn:active{transform:scale(.93);}
+    #numpad-step-minus{background:linear-gradient(135deg,#FAEEDA,#F7D9C0);color:var(--np-minus-color);box-shadow:0 2px 8px rgba(216,90,48,.15);}
+    #numpad-step-plus{background:linear-gradient(135deg,#E6F1FB,#CCE4F9);color:var(--np-plus-color);box-shadow:0 2px 8px rgba(24,95,165,.15);}
+    .np-step-label{font-size:.7rem;font-weight:500;opacity:.75;}
+    .np-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:0 12px 6px;}
+    .numpad-key{border:none;cursor:pointer;border-radius:10px;height:44px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;font-weight:600;transition:transform .12s cubic-bezier(.34,1.56,.64,1),filter .1s ease;user-select:none;-webkit-user-select:none;}
+    .numpad-key:active{transform:scale(.87);filter:brightness(.92);}
+    .numpad-key[data-val]{background:#F0F4FF;color:#1E3A6E;}
+    #numpad-sign{background:linear-gradient(135deg,#E6F1FB,#CCE4F9);color:var(--np-plus-color);font-size:1.2rem;}
+    #numpad-dot{background:#F0F4FF;color:#1E3A6E;font-size:1.3rem;font-weight:400;}
+    #numpad-del{background:#FEF3C7;color:#92400E;font-size:.95rem;}
+    #numpad-clear{background:#FCEBEB;color:#A32D2D;font-size:.75rem;font-weight:700;letter-spacing:.03em;}
+    #numpad-ok{margin:6px 12px 0;width:calc(100% - 24px);padding:14px;border:none;border-radius:14px;cursor:pointer;background:linear-gradient(135deg,#0550B4,#034291);color:#fff;font-size:1rem;font-weight:700;box-shadow:0 4px 16px rgba(3,66,145,.35);transition:opacity .2s ease,transform .15s cubic-bezier(.34,1.56,.64,1);}
+    #numpad-ok:hover{opacity:.92;} #numpad-ok:active{transform:scale(.97);} #numpad-ok.np-btn-disabled{opacity:.4;cursor:default;pointer-events:none;}
+
+    @keyframes fadeIn   { from{opacity:0} to{opacity:1} }
+    @keyframes slideSheet { from{transform:translateY(60px);opacity:0} to{transform:translateY(0);opacity:1} }
   </style>
 </head>
 <body>
 
-<!-- ── Loading ── -->
 <div id="loading-overlay">
-  <div class="loading-logo">OL<span>VISIÓN</span></div>
+  <div class="loading-logo">OL<span>VI</span>SIÓN</div>
   <div class="spinner-ring"></div>
 </div>
 
-<!-- ── Toasts ── -->
-<div id="toast-container"></div>
-
-<!-- ── Modal confirmación nuevo pedido ── -->
-<div id="confirm-modal" class="modal-overlay hidden">
-  <div class="modal-sheet">
-    <div class="modal-header">
-      <span class="modal-title">Confirmar pedido</span>
-      <button class="modal-close" id="modal-close-btn">✕</button>
-    </div>
-    <div class="modal-body" id="modal-body-content"></div>
-    <div class="modal-actions">
-      <button class="btn btn-secondary" id="modal-cancel-btn">Cancelar</button>
-      <button class="btn btn-primary" id="modal-confirm-btn">Guardar pedido</button>
-    </div>
-  </div>
-</div>
-
-<!-- ── Modal detalle pedido ── -->
-<div id="detalle-modal" class="detalle-overlay hidden">
-  <div class="detalle-sheet">
-    <div class="detalle-header">
-      <span class="detalle-orden" id="detalle-orden">#—</span>
-      <div class="detalle-actions">
-        <button class="btn-editar" id="btn-abrir-edicion">✏️ Editar</button>
-        <button class="btn-borrar-detalle" id="btn-borrar-pedido" title="Borrar pedido">🗑️</button>
-        <button class="btn-cerrar-detalle" id="btn-cerrar-detalle">✕</button>
-      </div>
-    </div>
-    <div class="detalle-body" id="detalle-body"></div>
-  </div>
-</div>
-
-<!-- ── Modal edición pedido ── -->
-<div id="edit-modal" class="edit-overlay hidden">
-  <div class="edit-sheet">
-    <div class="edit-header">
-      <span class="edit-header-title">Editar pedido</span>
-      <button class="btn-cerrar-edit" id="btn-cerrar-edit">✕</button>
-    </div>
-    <div class="edit-body" id="edit-body"></div>
-  </div>
-</div>
-
-<!-- ── Modal exportar PDF ── -->
-<div id="export-modal" class="export-overlay hidden">
-  <div class="export-sheet">
-    <div class="export-header">
-      <span class="export-header-title">📄 Exportar PDF</span>
-      <button class="btn-cerrar-export" onclick="Panel.cerrarExportador()">✕</button>
-    </div>
-    <div class="export-body">
-      <p class="export-desc">Generá un PDF con todos los pedidos del mes seleccionado, incluyendo tratamiento, graduación, quién lo cargó y un resumen por laboratorio.</p>
-      <div class="export-label">Seleccioná el mes</div>
-      <select id="export-mes-select" class="form-control"></select>
-      <button id="btn-generar-pdf" onclick="Panel.generarPDF()">📄 Generar y descargar PDF</button>
-    </div>
-  </div>
-</div>
-
-<!-- ══ NUMPAD ÓPTICO v2 ══ -->
-<div id="numpad-overlay" class="hidden" role="dialog" aria-modal="true" aria-label="Teclado numérico óptico">
-  <div id="numpad-sheet">
-    <div class="np-handle-wrap"><div class="np-handle"></div></div>
-    <div class="np-header">
-      <span class="np-label" id="numpad-label">Valor</span>
-      <button class="np-close" id="numpad-close" aria-label="Cerrar">✕</button>
-    </div>
-    <div class="np-display-wrap">
-      <div class="np-display-hint">Múltiplos de 0.25</div>
-      <div id="numpad-display"><span class="np-placeholder">0.00</span><span class="np-cursor"></span></div>
-    </div>
-    <div class="np-quick-row">
-      <button class="np-step np-step-minus" id="numpad-step-minus" aria-label="Restar 0.25">− 0.25</button>
-      <button class="np-step np-step-plus"  id="numpad-step-plus"  aria-label="Sumar 0.25">+ 0.25</button>
-    </div>
-    <div class="np-grid">
-      <button class="np-btn np-sign-btn" id="numpad-sign"  aria-label="Cambiar signo">±</button>
-      <button class="np-btn np-dot-btn"  id="numpad-dot"   aria-label="Punto decimal">.</button>
-      <button class="np-btn np-bksp-btn" id="numpad-del"   aria-label="Borrar último">⌫</button>
-      <button class="np-btn numpad-key" data-val="1">1</button>
-      <button class="np-btn numpad-key" data-val="2">2</button>
-      <button class="np-btn numpad-key" data-val="3">3</button>
-      <button class="np-btn numpad-key" data-val="4">4</button>
-      <button class="np-btn numpad-key" data-val="5">5</button>
-      <button class="np-btn numpad-key" data-val="6">6</button>
-      <button class="np-btn numpad-key" data-val="7">7</button>
-      <button class="np-btn numpad-key" data-val="8">8</button>
-      <button class="np-btn numpad-key" data-val="9">9</button>
-      <button class="np-btn np-zero-btn numpad-key" data-val="0">0</button>
-      <button class="np-btn np-clr-btn" id="numpad-clear" aria-label="Borrar todo">CLR</button>
-    </div>
-    <button id="numpad-ok" class="np-btn-disabled" aria-label="Confirmar valor">✓ &nbsp;Confirmar</button>
-  </div>
-</div>
-
-<!-- APP LAYOUT -->
-<div class="app-layout" id="app-layout" style="display:none">
+<div id="app-layout" class="app-layout">
 
   <header class="app-header">
-    <button class="app-header-logo-btn" id="logo-home-btn" aria-label="Inicio">
+    <button id="logo-home-btn" class="app-header-logo-btn" aria-label="Inicio">
       <img src="logo-white.png" alt="OLVISIÓN" class="app-header-logo-img"
-        onerror="this.style.display='none';document.getElementById('logo-text').style.display='block'">
-      <span class="app-header-logo-text" id="logo-text" style="display:none">OL<span>VISIÓN</span></span>
+           onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+      <span class="app-header-logo-text" style="display:none">OL<span>VI</span>SIÓN</span>
     </button>
     <div class="header-actions">
-      <span class="header-user" id="header-user"></span>
-      <button class="btn-logout" id="btn-logout">Salir</button>
+      <span id="header-user" class="header-user"></span>
+      <button id="btn-logout" class="btn-logout">Salir</button>
     </div>
   </header>
 
   <main class="app-content">
 
-    <!-- INICIO — Nuevo pedido -->
-    <section class="screen" id="screen-inicio">
+    <!-- ═══ SEGUIMIENTO ═══ -->
+    <section id="screen-seguimiento" class="screen">
       <div class="section-header">
-        <div>
-          <div class="section-title">Nuevo pedido</div>
-          <div class="section-subtitle">Campos obligatorios marcados con *</div>
-        </div>
+        <div><h1 class="section-title">Estado</h1><p class="section-subtitle">Pedidos activos en laboratorio</p></div>
+      </div>
+      <div class="seg-tabs">
+        <button class="seg-tab active" data-tab="lab" onclick="App.switchSegTab('lab')">
+          En laboratorio <span class="seg-tab-count" id="seg-count-lab">0</span>
+        </button>
+        <button class="seg-tab" data-tab="retirar" onclick="App.switchSegTab('retirar')">
+          Para retirar <span class="seg-tab-count" id="seg-count-retirar">0</span>
+        </button>
+      </div>
+      <div id="seg-content-lab" class="seg-panel">
+        <div class="skeleton-card skeleton"></div>
+        <div class="skeleton-card skeleton" style="opacity:.6;margin-top:8px"></div>
+      </div>
+      <div id="seg-content-retirar" class="seg-panel hidden"></div>
+    </section>
+
+    <!-- ═══ NUEVO PEDIDO ═══ -->
+    <section id="screen-inicio" class="screen">
+      <div class="section-header">
+        <div><h1 class="section-title">Nuevo pedido</h1><p class="section-subtitle">Completá los datos del pedido</p></div>
       </div>
       <form id="form-nuevo-pedido" novalidate>
         <div class="form-section">
           <div class="form-section-title">Cliente</div>
           <div class="form-group">
             <label class="form-label required" for="f-cliente">Nombre del cliente</label>
-            <input type="text" id="f-cliente" class="form-control" placeholder="Ej: María García" autocomplete="off">
+            <input type="text" id="f-cliente" class="form-control" placeholder="Apellido, Nombre" autocomplete="off">
             <div class="form-error" id="err-cliente">Campo obligatorio</div>
           </div>
           <div class="form-row">
             <div class="form-group">
-              <label class="form-label required" for="f-orden">Nº de orden</label>
-              <input type="text" id="f-orden" class="form-control" placeholder="Ej: 12345" autocomplete="off">
+              <label class="form-label required" for="f-orden">N° de orden</label>
+              <input type="text" id="f-orden" class="form-control" placeholder="ej: 12345" autocomplete="off" inputmode="numeric">
               <div class="form-error" id="err-orden">Campo obligatorio</div>
             </div>
             <div class="form-group">
               <label class="form-label required" for="f-urgente">Urgente</label>
-              <select id="f-urgente" class="form-control">
-                <option value="">— Seleccionar —</option>
-                <option value="No">No</option>
-                <option value="Si">Sí</option>
-              </select>
+              <select id="f-urgente" class="form-control"><option value="">— Seleccionar —</option><option value="No">No</option><option value="Si">Sí</option></select>
               <div class="form-error" id="err-urgente">Campo obligatorio</div>
             </div>
           </div>
           <div class="form-row">
             <div class="form-group">
               <label class="form-label required" for="f-tipo">Tipo de pedido</label>
-              <select id="f-tipo" class="form-control">
-                <option value="">— Seleccionar —</option>
-                <option value="Cristales">Cristales</option>
-                <option value="Armazón + Cristales">Armazón + Cristales</option>
-                <option value="Armazón">Armazón</option>
-              </select>
+              <select id="f-tipo" class="form-control"><option value="">— Seleccionar —</option><option value="Cristales">Cristales</option><option value="Armazón + Cristales">Armazón + Cristales</option><option value="Armazón">Armazón</option></select>
               <div class="form-error" id="err-tipo">Campo obligatorio</div>
             </div>
             <div class="form-group">
-              <label class="form-label required" for="f-fecha-carga">Fecha</label>
+              <label class="form-label" for="f-fecha-carga">Fecha</label>
               <input type="date" id="f-fecha-carga" class="form-control">
             </div>
           </div>
         </div>
-
         <div class="toggle-group">
-          <span class="toggle-label">¿Pedido con 2 anteojos?</span>
-          <label class="toggle-switch">
-            <input type="checkbox" id="toggle-dos-anteojos">
-            <span class="toggle-slider"></span>
-          </label>
+          <span class="toggle-label">2 anteojos</span>
+          <label class="toggle-switch"><input type="checkbox" id="toggle-dos-anteojos"><span class="toggle-slider"></span></label>
         </div>
-
         <div class="form-section">
           <div class="form-section-title" id="bloque1-title">Anteojo</div>
           <div id="bloque1-fields"></div>
         </div>
-
-        <div class="second-glass-block hidden" id="bloque-anteojo2">
+        <div id="bloque-anteojo2" class="second-glass-block hidden">
           <div class="second-glass-title">Anteojo B</div>
           <div id="bloque2-fields"></div>
         </div>
-
-        <div style="display:flex;gap:10px;margin-bottom:32px">
-          <button type="button" class="btn btn-secondary" style="flex:1" onclick="App.resetForm()">Limpiar</button>
-          <button type="submit" class="btn btn-primary" style="flex:2" id="btn-guardar">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
-            Guardar pedido
-          </button>
-        </div>
+        <button type="submit" class="btn btn-primary btn-full" style="margin-bottom:24px">Revisar pedido →</button>
       </form>
     </section>
 
-    <!-- SEGUIMIENTO -->
-    <section class="screen active" id="screen-seguimiento">
+    <!-- ═══ HISTORIAL ═══ -->
+    <section id="screen-pedidos" class="screen">
       <div class="section-header">
-        <div>
-          <div class="section-title">Estado</div>
-          <div class="section-subtitle">Pedidos activos en tiempo real</div>
-        </div>
-        <button class="btn btn-secondary btn-sm" onclick="App.loadSeguimiento()">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
-        </button>
+        <div><h1 class="section-title">Historial</h1><p class="section-subtitle" id="pedidos-subtitle">Todos los pedidos</p></div>
       </div>
-      <div class="seg-tabs">
-        <button class="seg-tab active" data-tab="lab" onclick="App.switchSegTab('lab')">
-          🏭 En laboratorio <span class="seg-tab-count" id="seg-count-lab">0</span>
-        </button>
-        <button class="seg-tab" data-tab="retirar" onclick="App.switchSegTab('retirar')">
-          📍 Para retirar <span class="seg-tab-count" id="seg-count-retirar">0</span>
-        </button>
-      </div>
-      <div id="seg-content-lab" class="seg-panel">
-        <div class="skeleton skeleton-card"></div>
-        <div class="skeleton skeleton-card"></div>
-      </div>
-      <div id="seg-content-retirar" class="seg-panel hidden"></div>
-    </section>
 
-    <!-- PEDIDOS -->
-    <section class="screen" id="screen-pedidos">
-      <div class="section-header">
-        <div>
-          <div class="section-title">Pedidos</div>
-          <div class="section-subtitle" id="pedidos-subtitle">Cargando...</div>
-        </div>
-        <button class="btn btn-secondary btn-sm" onclick="App.loadPedidos()">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
-        </button>
-      </div>
-      <div class="filtros-bar">
-        <div class="search-bar" style="margin-bottom:10px">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input type="search" id="search-input" placeholder="Buscar por cliente, orden..." autocomplete="off">
-          <button class="search-clear hidden" id="search-clear">✕</button>
-        </div>
-        <div class="filtros-row">
-          <select class="form-control filtro-select" id="filtro-lab"><option value="">Todos los labs</option></select>
-          <select class="form-control filtro-select" id="filtro-lente">
-            <option value="">Todos los tipos</option>
-            <option value="Monofocal">Monofocal</option>
-            <option value="Bifocal">Bifocal</option>
-            <option value="Ocupacional">Ocupacional</option>
-            <option value="Progresivo">Progresivo</option>
-            <option value="Teñido">Teñido</option>
-          </select>
-          <input type="date" class="form-control filtro-select" id="filtro-fecha">
-          <button class="btn btn-secondary btn-sm" onclick="App.limpiarFiltros()">✕</button>
-        </div>
-      </div>
+      <!-- Navegador de mes -->
+      <div id="mes-nav-container"></div>
+
+      <!-- Tabs de estado -->
       <div class="estado-tabs">
         <button class="estado-tab active" data-estado="todos" onclick="App.switchEstadoTab('todos')">Todos</button>
-        <button class="estado-tab" data-estado="Cristales pedidos a lab" onclick="App.switchEstadoTab('Cristales pedidos a lab')">🔬 Cristales</button>
-        <button class="estado-tab" data-estado="Armazón enviado p/calibrado" onclick="App.switchEstadoTab('Armazón enviado p/calibrado')">🕶️ Armazón</button>
-        <button class="estado-tab" data-estado="En laboratorio" onclick="App.switchEstadoTab('En laboratorio')">🏭 En lab.</button>
-        <button class="estado-tab" data-estado="Pendiente de retirar" onclick="App.switchEstadoTab('Pendiente de retirar')">📍 Retirar</button>
-        <button class="estado-tab" data-estado="Retirado" onclick="App.switchEstadoTab('Retirado')">✅ Retirado</button>
+        <button class="estado-tab" data-estado="Cristales pedidos a lab"     onclick="App.switchEstadoTab('Cristales pedidos a lab')">Cristales</button>
+        <button class="estado-tab" data-estado="Armazón enviado p/calibrado" onclick="App.switchEstadoTab('Armazón enviado p/calibrado')">Armz.</button>
+        <button class="estado-tab" data-estado="En laboratorio"              onclick="App.switchEstadoTab('En laboratorio')">En lab</button>
+        <button class="estado-tab" data-estado="Pendiente de retirar"        onclick="App.switchEstadoTab('Pendiente de retirar')">Retirar</button>
+        <button class="estado-tab" data-estado="Retirado"                    onclick="App.switchEstadoTab('Retirado')">Retirado</button>
       </div>
-      <div id="pedidos-skeleton"><div class="skeleton skeleton-card"></div><div class="skeleton skeleton-card"></div></div>
+
+      <!-- Skeleton -->
+      <div id="pedidos-skeleton" style="display:flex;flex-direction:column;border-radius:12px;overflow:hidden;border:1.5px solid var(--gris-borde)">
+        <div class="skeleton-card skeleton"></div>
+        <div class="skeleton-card skeleton" style="opacity:.6;margin-top:1px"></div>
+        <div class="skeleton-card skeleton" style="opacity:.3;margin-top:1px"></div>
+      </div>
+
+      <!-- Lista compacta -->
       <div id="pedidos-list-container" style="display:none"></div>
     </section>
 
-    <!-- PANEL ADMIN -->
-    <section class="screen" id="screen-panel">
+    <!-- ═══ PANEL ADMIN ═══ -->
+    <section id="screen-panel" class="screen">
       <div class="section-header">
-        <div>
-          <div class="section-title">Panel</div>
-          <div class="section-subtitle">Resumen general</div>
-        </div>
-        <button class="btn btn-secondary btn-sm" onclick="App.refreshPanel()">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
-        </button>
+        <div><h1 class="section-title">Panel</h1><p class="section-subtitle">KPIs y resumen del mes</p></div>
       </div>
-      <div id="panel-kpis"></div>
+      <div id="panel-content">
+        <div class="skeleton-card skeleton" style="height:80px;border-radius:12px;margin-bottom:10px"></div>
+        <div class="skeleton-card skeleton" style="height:80px;border-radius:12px;opacity:.6"></div>
+      </div>
     </section>
 
-    <!-- CONFIGURACIÓN -->
-    <section class="screen" id="screen-config">
+    <!-- ═══ CONFIGURACIÓN ═══ -->
+    <section id="screen-config" class="screen">
       <div class="section-header">
-        <div>
-          <div class="section-title">Configuración</div>
-          <div class="section-subtitle">Laboratorios, marcas, materiales y tratamientos</div>
-        </div>
+        <div><h1 class="section-title">Configuración</h1><p class="section-subtitle">Gestión de opciones del sistema</p></div>
       </div>
       <div class="form-section">
         <div class="form-section-title">Laboratorios</div>
         <div id="config-labs-list" class="config-list"></div>
         <div style="display:flex;gap:8px;margin-top:12px">
-          <input type="text" id="new-lab-input" class="form-control" placeholder="Nuevo laboratorio...">
+          <input type="text" id="new-lab-input" class="form-control" placeholder="Nombre del laboratorio" style="flex:1">
           <button class="btn btn-primary btn-sm" onclick="App.addLab()">Agregar</button>
         </div>
       </div>
       <div class="form-section">
         <div class="form-section-title">Marcas de armazón</div>
-        <div id="config-marcas-list" class="config-list" style="display:flex;flex-direction:column;gap:6px;max-height:260px;overflow-y:auto">
-          <p style="color:var(--gris-texto);font-size:.85rem;padding:8px 0">Cargando...</p>
-        </div>
+        <div id="config-marcas-list" class="config-list"></div>
         <div style="display:flex;gap:8px;margin-top:12px">
-          <input type="text" id="new-marca-input" class="form-control" placeholder="Nueva marca...">
+          <input type="text" id="new-marca-input" class="form-control" placeholder="Nombre de la marca" style="flex:1">
           <button class="btn btn-primary btn-sm" onclick="App.addMarca()">Agregar</button>
         </div>
       </div>
       <div class="form-section">
-        <div class="form-section-title">Materiales de armazón</div>
-        <div id="config-materiales-list" class="config-list" style="display:flex;flex-direction:column;gap:6px;max-height:260px;overflow-y:auto">
-          <p style="color:var(--gris-texto);font-size:.85rem;padding:8px 0">Cargando...</p>
-        </div>
+        <div class="form-section-title">Materiales</div>
+        <div id="config-materiales-list" class="config-list"></div>
         <div style="display:flex;gap:8px;margin-top:12px">
-          <input type="text" id="new-material-input" class="form-control" placeholder="Nuevo material...">
+          <input type="text" id="new-material-input" class="form-control" placeholder="Ej: Acetato, Metal…" style="flex:1">
           <button class="btn btn-primary btn-sm" onclick="App.addMaterial()">Agregar</button>
         </div>
       </div>
       <div class="form-section">
-        <div class="form-section-title">Tratamientos</div>
+        <div class="form-section-title">Tratamientos por tipo de lente</div>
         <div class="form-group">
           <label class="form-label">Tipo de lente</label>
           <select id="config-lente-select" class="form-control" onchange="App.loadConfigTratamientos()">
-            <option value="Monofocal">Monofocal</option>
-            <option value="Bifocal">Bifocal</option>
-            <option value="Ocupacional">Ocupacional</option>
-            <option value="Progresivo">Progresivo</option>
-            <option value="Teñido">Teñido</option>
+            <option value="">— Seleccionar —</option>
+            <option>Monofocal</option><option>Bifocal</option><option>Ocupacional</option><option>Progresivo</option><option>Teñido</option>
           </select>
         </div>
         <div id="config-trat-list" class="config-list"></div>
         <div style="display:flex;gap:8px;margin-top:12px">
-          <input type="text" id="new-trat-input" class="form-control" placeholder="Nuevo tratamiento...">
+          <input type="text" id="new-trat-input" class="form-control" placeholder="Nombre del tratamiento" style="flex:1">
           <button class="btn btn-primary btn-sm" onclick="App.addTratamiento()">Agregar</button>
         </div>
       </div>
       <div class="form-section">
-        <div class="form-section-title">Notificaciones</div>
-        <p style="font-size:.85rem;color:var(--gris-texto);margin-bottom:16px;line-height:1.5">
-          Recibí alertas cuando se carga un pedido nuevo, se retira uno, o hay pedidos críticos o demorados.
-        </p>
-        <button class="btn btn-primary btn-full" id="btn-activar-notif" onclick="App.activarNotificaciones()">
-          🔔 Activar notificaciones push
-        </button>
-        <p id="notif-status" style="font-size:.8rem;color:var(--gris-texto);text-align:center;margin-top:10px;line-height:1.4"></p>
+        <div class="form-section-title">Notificaciones push</div>
+        <p style="font-size:.85rem;color:var(--gris-texto);margin-bottom:12px">Activá las notificaciones para recibir alertas de pedidos nuevos, críticos y retirados.</p>
+        <button id="btn-activar-notif" class="btn btn-primary btn-full" onclick="App.activarNotificaciones()">🔔 Activar notificaciones push</button>
+        <p id="notif-status" style="font-size:.8rem;color:var(--gris-texto);margin-top:8px;text-align:center"></p>
       </div>
     </section>
 
   </main>
 
-  <!-- Bottom nav -->
+  <!-- Nav -->
   <nav class="bottom-nav">
-    <button class="nav-item" id="nav-inicio" onclick="App.showScreen('inicio')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>
-      Nuevo
-    </button>
     <button class="nav-item active" id="nav-seguimiento" onclick="App.showScreen('seguimiento')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
       Estado
       <span class="nav-badge hidden" id="criticos-badge">0</span>
     </button>
+    <button class="nav-item" id="nav-inicio" onclick="App.showScreen('inicio')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Nuevo
+    </button>
     <button class="nav-item" id="nav-pedidos" onclick="App.showScreen('pedidos')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
-      Pedidos
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+      Historial
     </button>
     <button class="nav-item hidden" id="nav-panel" onclick="App.showScreen('panel')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
       Panel
     </button>
     <button class="nav-item hidden" id="nav-config" onclick="App.showScreen('config')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
       Config
     </button>
   </nav>
 
-  <!-- FAB — Nuevo pedido -->
-  <button id="fab-nuevo-pedido" onclick="App.showScreen('inicio')" aria-label="Nuevo pedido">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-      <line x1="12" y1="5" x2="12" y2="19"/>
-      <line x1="5" y1="12" x2="19" y2="12"/>
-    </svg>
-  </button>
+  <button id="fab-nuevo-pedido" onclick="App.showScreen('inicio')" aria-label="Nuevo pedido">+</button>
 
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<div id="toast-container"></div>
+
+<!-- Modal: Detalle -->
+<div id="detalle-modal" class="detalle-overlay hidden">
+  <div class="detalle-sheet">
+    <div class="detalle-header">
+      <span class="detalle-orden" id="detalle-orden">#—</span>
+      <div class="detalle-header-actions">
+        <button class="btn-editar-detalle" id="btn-abrir-edicion">✏️ Editar</button>
+        <button class="btn-eliminar-detalle" id="btn-eliminar-pedido" title="Eliminar">🗑️</button>
+        <button class="btn-cerrar-x" id="btn-cerrar-detalle">✕</button>
+      </div>
+    </div>
+    <div class="detalle-body" id="detalle-body"></div>
+  </div>
+</div>
+
+<!-- Modal: Edición -->
+<div id="edit-modal" class="edit-overlay hidden">
+  <div class="edit-sheet">
+    <div class="edit-header">
+      <span class="edit-title">Editar pedido</span>
+      <button class="btn-cerrar-x" id="btn-cerrar-edit">✕</button>
+    </div>
+    <div class="edit-body-scroll" id="edit-body"></div>
+  </div>
+</div>
+
+<!-- Modal: Confirmación -->
+<div id="confirm-modal" class="confirm-overlay hidden">
+  <div class="confirm-sheet">
+    <div class="confirm-header">
+      <span class="confirm-title">Confirmá el pedido</span>
+      <button class="btn-cerrar-x" id="modal-close-btn">✕</button>
+    </div>
+    <div class="confirm-body" id="modal-body-content"></div>
+    <div class="confirm-footer">
+      <button class="btn btn-secondary" id="modal-cancel-btn">Cancelar</button>
+      <button class="btn btn-primary btn-confirmar-guardar" id="modal-confirm-btn">✓ Guardar pedido</button>
+    </div>
+  </div>
+</div>
+
+<!-- Numpad -->
+<div id="numpad-overlay" class="hidden">
+  <div id="numpad-sheet">
+    <div class="np-drag-bar"></div>
+    <div class="np-header">
+      <span id="numpad-label">Valor</span>
+      <button id="numpad-close">✕</button>
+    </div>
+    <div id="numpad-display"><span class="np-placeholder">0.00</span><span class="np-cursor"></span></div>
+    <div class="np-step-row">
+      <button id="numpad-step-minus" class="np-step-btn"><span style="font-size:1.2rem">−</span><span class="np-step-label">0.25</span></button>
+      <button id="numpad-step-plus"  class="np-step-btn"><span style="font-size:1.2rem">+</span><span class="np-step-label">0.25</span></button>
+    </div>
+    <div class="np-grid">
+      <button class="numpad-key" id="numpad-sign">±</button>
+      <button class="numpad-key" data-val="1">1</button>
+      <button class="numpad-key" data-val="2">2</button>
+      <button class="numpad-key" data-val="3">3</button>
+      <button class="numpad-key" id="numpad-del">⌫</button>
+      <button class="numpad-key" data-val="4">4</button>
+      <button class="numpad-key" data-val="5">5</button>
+      <button class="numpad-key" data-val="6">6</button>
+      <button class="numpad-key" id="numpad-dot">.</button>
+      <button class="numpad-key" data-val="7">7</button>
+      <button class="numpad-key" data-val="8">8</button>
+      <button class="numpad-key" data-val="9">9</button>
+      <button class="numpad-key" id="numpad-clear">CLR</button>
+      <button class="numpad-key" data-val="0" style="grid-column:span 3">0</button>
+    </div>
+    <button id="numpad-ok">Confirmar</button>
+  </div>
+</div>
+
 <script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>window.supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);</script>
 <script src="auth.js"></script>
 <script src="pedidos.js"></script>
 <script src="panel.js"></script>
 <script src="app.js"></script>
-
 </body>
 </html>
