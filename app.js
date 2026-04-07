@@ -7,7 +7,7 @@ const App = (() => {
 
   let _pedidosCache   = [];
   let _configCache    = { laboratorios: [], tratamientos: {}, marcas: [], materiales: [] };
-  let _currentScreen  = 'inicio';
+  let _currentScreen  = 'seguimiento';
   let _estadoTab      = 'todos';
   let _segTab         = 'lab';
   let _pendingGuardar = null;
@@ -78,16 +78,12 @@ const App = (() => {
       _numpadRenderDisplay();
     });
 
-    // Dígitos 0-9 — máximo 2 decimales
     overlay.querySelectorAll('.numpad-key[data-val]').forEach(btn => {
       btn.addEventListener('click', () => {
         const val = btn.dataset.val;
         if (_numpadRaw.length >= 6) return;
         const parts = _numpadRaw.split('.');
-        if (parts.length === 2 && parts[1].length >= 2) {
-          _numpadShake();
-          return;
-        }
+        if (parts.length === 2 && parts[1].length >= 2) { _numpadShake(); return; }
         _numpadRaw += val;
         _numpadRenderDisplay();
       });
@@ -100,14 +96,11 @@ const App = (() => {
       : parseFloat((_numpadSign === '-' ? '-' : '') + _numpadRaw);
     const next = Math.round((current + delta) * 100) / 100;
     if (next === 0) {
-      _numpadRaw  = '0.00';
-      _numpadSign = '+';
+      _numpadRaw  = '0.00'; _numpadSign = '+';
     } else if (next < 0) {
-      _numpadSign = '-';
-      _numpadRaw  = Math.abs(next).toFixed(2);
+      _numpadSign = '-'; _numpadRaw = Math.abs(next).toFixed(2);
     } else {
-      _numpadSign = '+';
-      _numpadRaw  = next.toFixed(2);
+      _numpadSign = '+'; _numpadRaw = next.toFixed(2);
     }
     _numpadRenderDisplay();
   }
@@ -122,15 +115,13 @@ const App = (() => {
   function _numpadStopRepeat() {
     clearTimeout(_numpadRepeatTimer);
     clearInterval(_numpadRepeatInterval);
-    _numpadRepeatTimer    = null;
-    _numpadRepeatInterval = null;
+    _numpadRepeatTimer = null; _numpadRepeatInterval = null;
   }
 
   function _numpadRenderDisplay() {
     const disp  = document.getElementById('numpad-display');
     const okBtn = document.getElementById('numpad-ok');
     if (!disp) return;
-
     if (!_numpadRaw) {
       disp.innerHTML = '<span class="np-placeholder">0.00</span><span class="np-cursor"></span>';
       okBtn?.classList.add('np-btn-disabled');
@@ -155,93 +146,51 @@ const App = (() => {
     _numpadTarget = inputEl;
     _numpadRaw    = '';
     _numpadSign   = '+';
-
-    // Pre-cargar valor existente
     const existing = (inputEl.value || '').trim();
     if (existing) {
-      if (existing.startsWith('-')) {
-        _numpadSign = '-';
-        _numpadRaw  = existing.slice(1).replace(/^\+/, '');
-      } else {
-        _numpadSign = '+';
-        _numpadRaw  = existing.replace(/^\+/, '');
-      }
+      if (existing.startsWith('-')) { _numpadSign = '-'; _numpadRaw = existing.slice(1).replace(/^\+/, ''); }
+      else                          { _numpadSign = '+'; _numpadRaw = existing.replace(/^\+/, ''); }
     }
-
     const labelEl = document.getElementById('numpad-label');
     if (labelEl) labelEl.textContent = label || 'Valor';
-
     _numpadRenderDisplay();
-
     const overlay = document.getElementById('numpad-overlay');
-
-    // ── FIX CRÍTICO ───────────────────────────────────
-    // El overlay arranca con class="hidden" que tiene display:none !important
-    // en el CSS. Eso pisaba el display:flex inline que poníamos antes.
-    // Solución: sacar .hidden primero, luego forzar display y animar.
     overlay.classList.remove('hidden');
     overlay.style.display = 'flex';
     requestAnimationFrame(() => requestAnimationFrame(() => overlay.classList.add('np-visible')));
-    // ─────────────────────────────────────────────────
-
     if (navigator.vibrate) navigator.vibrate(8);
   }
 
   function confirmNumpad() {
     if (!_numpadTarget || !_numpadRaw) return;
-
     const valor = (_numpadSign === '-' ? '-' : '+') + _numpadRaw;
     _numpadTarget.value = valor;
     _numpadTarget.dispatchEvent(new Event('input',  { bubbles: true }));
     _numpadTarget.dispatchEvent(new Event('change', { bubbles: true }));
-
     const disp = document.getElementById('numpad-display');
     if (disp) {
       disp.classList.add('np-confirmed');
-      setTimeout(() => {
-        disp.classList.remove('np-confirmed');
-        closeNumpad();
-      }, 500);
-    } else {
-      closeNumpad();
-    }
+      setTimeout(() => { disp.classList.remove('np-confirmed'); closeNumpad(); }, 500);
+    } else { closeNumpad(); }
   }
 
   function closeNumpad() {
     const overlay = document.getElementById('numpad-overlay');
     overlay.classList.remove('np-visible');
-    // ── FIX: restaurar .hidden después de que termina la animación de salida
-    setTimeout(() => {
-      overlay.classList.add('hidden');
-      overlay.style.display = '';
-    }, 280);
-    _numpadTarget = null;
-    _numpadRaw    = '';
-    _numpadSign   = '+';
+    setTimeout(() => { overlay.classList.add('hidden'); overlay.style.display = ''; }, 280);
+    _numpadTarget = null; _numpadRaw = ''; _numpadSign = '+';
     _numpadStopRepeat();
   }
 
-  // ── CONECTAR NUMPAD A INPUTS DE GRADUACIÓN ────────
   function attachNumpadListeners(container) {
     container.querySelectorAll('.grad-esf, .grad-cil, .grad-add').forEach(inp => {
       inp.setAttribute('readonly', 'readonly');
-
       const label = inp.classList.contains('grad-esf') ? 'Esfera'
-                  : inp.classList.contains('grad-cil') ? 'Cilindro'
-                  : 'Adición';
-
-      inp.addEventListener('mousedown', (e) => {
-        e.preventDefault();
-        openNumpad(inp, label);
-      });
-      inp.addEventListener('touchend', (e) => {
-        e.preventDefault();
-        openNumpad(inp, label);
-      });
-
+                  : inp.classList.contains('grad-cil') ? 'Cilindro' : 'Adición';
+      inp.addEventListener('mousedown', (e) => { e.preventDefault(); openNumpad(inp, label); });
+      inp.addEventListener('touchend',  (e) => { e.preventDefault(); openNumpad(inp, label); });
       inp.addEventListener('change', () => formatGradInput(inp));
     });
-
     container.querySelectorAll('.grad-eje').forEach(inp => {
       inp.addEventListener('blur', () => {
         const v = inp.value.replace(/[^0-9]/g, '');
@@ -256,10 +205,7 @@ const App = (() => {
     let v = inp.value.trim().replace(',', '.');
     if (!v) return;
     let sign = '';
-    if (v.startsWith('+') || v.startsWith('-')) {
-      sign = v[0];
-      v = v.slice(1);
-    }
+    if (v.startsWith('+') || v.startsWith('-')) { sign = v[0]; v = v.slice(1); }
     v = v.replace(/[^0-9.]/g, '');
     if (!v) { inp.value = ''; return; }
     const n = parseFloat(v);
@@ -323,7 +269,7 @@ const App = (() => {
     document.getElementById('app-layout').style.display = 'flex';
     document.getElementById('header-user').textContent  = Auth.getNombre();
 
-    document.getElementById('logo-home-btn').addEventListener('click', () => showScreen('pedidos'));
+    document.getElementById('logo-home-btn').addEventListener('click', () => showScreen('seguimiento'));
     document.getElementById('btn-logout').addEventListener('click',    () => Auth.logout());
 
     if (Auth.isAdmin()) {
@@ -358,6 +304,7 @@ const App = (() => {
 
     document.getElementById('btn-cerrar-detalle').addEventListener('click', cerrarDetalle);
     document.getElementById('btn-abrir-edicion').addEventListener('click',  abrirEdicion);
+    document.getElementById('btn-borrar-pedido').addEventListener('click',  () => { if (_detalleId) borrarPedido(_detalleId); });
     document.getElementById('detalle-modal').addEventListener('click', (e) => {
       if (e.target === document.getElementById('detalle-modal')) cerrarDetalle();
     });
@@ -379,8 +326,8 @@ const App = (() => {
 
     setTimeout(() => initPush(), 2000);
 
-    // ── Pantalla inicial: pedidos ─────────────────
-    showScreen('pedidos');
+    // ── Pantalla inicial: seguimiento ─────────────
+    showScreen('seguimiento');
   }
 
   // ── CONFIG ────────────────────────────────────────
@@ -400,8 +347,7 @@ const App = (() => {
     } catch (e) {
       console.warn('Config fallback:', e);
       _configCache.laboratorios = ['Sol','Bichara','Cristian','Vitolen'];
-      _configCache.marcas       = [];
-      _configCache.materiales   = [];
+      _configCache.marcas = []; _configCache.materiales = [];
     }
     const filtroLab = document.getElementById('filtro-lab');
     if (filtroLab) {
@@ -414,17 +360,11 @@ const App = (() => {
   function buildBloqueFields(num) {
     const container = document.getElementById(`bloque${num}-fields`);
     if (!container) return;
-
-    const labs = _configCache.laboratorios.map(l =>
-      `<option value="${esc(l)}">${esc(l)}</option>`).join('');
-    const marcaOpts = [
-      '<option value="">— Sin especificar —</option>',
-      ..._configCache.marcas.map(m => `<option value="${esc(m.valor)}">${esc(m.valor)}</option>`)
-    ].join('');
-    const materialOpts = [
-      '<option value="">— Sin especificar —</option>',
-      ..._configCache.materiales.map(m => `<option value="${esc(m.valor)}">${esc(m.valor)}</option>`)
-    ].join('');
+    const labs = _configCache.laboratorios.map(l => `<option value="${esc(l)}">${esc(l)}</option>`).join('');
+    const marcaOpts = ['<option value="">— Sin especificar —</option>',
+      ..._configCache.marcas.map(m => `<option value="${esc(m.valor)}">${esc(m.valor)}</option>`)].join('');
+    const materialOpts = ['<option value="">— Sin especificar —</option>',
+      ..._configCache.materiales.map(m => `<option value="${esc(m.valor)}">${esc(m.valor)}</option>`)].join('');
 
     container.innerHTML = `
       <div class="form-row">
@@ -473,10 +413,7 @@ const App = (() => {
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">2 etapas</label>
-          <select id="f-etapas${num}" class="form-control">
-            <option value="No">No</option>
-            <option value="Si">Sí</option>
-          </select>
+          <select id="f-etapas${num}" class="form-control"><option value="No">No</option><option value="Si">Sí</option></select>
         </div>
         <div class="form-group">
           <label class="form-label">Armazón</label>
@@ -504,33 +441,19 @@ const App = (() => {
         </div>
       </div>
     `;
-
     attachNumpadListeners(container);
   }
 
-  // ── TABLA DE GRADUACIÓN ───────────────────────────
   function gradTablaHTML(num, dc) {
-    const inpEsf = (id) => `<input type="text" class="form-control grad-input grad-esf" id="${id}"
-      placeholder="ej: -1.25" readonly autocomplete="off">`;
-    const inpCil = (id) => `<input type="text" class="form-control grad-input grad-cil" id="${id}"
-      placeholder="ej: -0.50" readonly autocomplete="off">`;
-    const inpEje = (id) => `<input type="text" class="form-control grad-input grad-eje" id="${id}"
-      placeholder="°" inputmode="numeric" autocomplete="off">`;
-    const inpAdd = (id) => `<input type="text" class="form-control grad-input grad-add" id="${id}"
-      placeholder="ej: +2.00" readonly autocomplete="off">`;
-    return `
-      <div class="grad-grid">
-        <div class="grad-header"></div>
-        <div class="grad-header">Esf</div>
-        <div class="grad-header">Cil</div>
-        <div class="grad-header">Eje</div>
-        <div class="grad-header">Ad.</div>
-        <div class="grad-ojo">D</div>
-        ${inpEsf(`g-${dc}-esf-D-${num}`)}${inpCil(`g-${dc}-cil-D-${num}`)}${inpEje(`g-${dc}-eje-D-${num}`)}${inpAdd(`g-${dc}-add-D-${num}`)}
-        <div class="grad-ojo">I</div>
-        ${inpEsf(`g-${dc}-esf-I-${num}`)}${inpCil(`g-${dc}-cil-I-${num}`)}${inpEje(`g-${dc}-eje-I-${num}`)}${inpAdd(`g-${dc}-add-I-${num}`)}
-      </div>
-    `;
+    const esf = (id) => `<input type="text" class="form-control grad-input grad-esf" id="${id}" placeholder="ej: -1.25" readonly autocomplete="off">`;
+    const cil = (id) => `<input type="text" class="form-control grad-input grad-cil" id="${id}" placeholder="ej: -0.50" readonly autocomplete="off">`;
+    const eje = (id) => `<input type="text" class="form-control grad-input grad-eje" id="${id}" placeholder="°" inputmode="numeric" autocomplete="off">`;
+    const add = (id) => `<input type="text" class="form-control grad-input grad-add" id="${id}" placeholder="ej: +2.00" readonly autocomplete="off">`;
+    return `<div class="grad-grid">
+      <div class="grad-header"></div><div class="grad-header">Esf</div><div class="grad-header">Cil</div><div class="grad-header">Eje</div><div class="grad-header">Ad.</div>
+      <div class="grad-ojo">D</div>${esf(`g-${dc}-esf-D-${num}`)}${cil(`g-${dc}-cil-D-${num}`)}${eje(`g-${dc}-eje-D-${num}`)}${add(`g-${dc}-add-D-${num}`)}
+      <div class="grad-ojo">I</div>${esf(`g-${dc}-esf-I-${num}`)}${cil(`g-${dc}-cil-I-${num}`)}${eje(`g-${dc}-eje-I-${num}`)}${add(`g-${dc}-add-I-${num}`)}
+    </div>`;
   }
 
   function onLenteChange(num) {
@@ -563,7 +486,7 @@ const App = (() => {
     if (name === 'panel')       refreshPanel();
     if (name === 'config')      loadConfigScreen();
 
-    // ── FAB: ocultar en la pantalla de carga, mostrar en el resto ──
+    // FAB: ocultar solo cuando estás en la pantalla de carga
     const fab = document.getElementById('fab-nuevo-pedido');
     if (fab) fab.style.display = (name === 'inicio') ? 'none' : 'flex';
   }
@@ -786,12 +709,14 @@ const App = (() => {
     modal.classList.remove('hidden');
     body.innerHTML = '<div style="padding:32px;text-align:center;color:#888">Cargando...</div>';
     try {
-      const p = await Pedidos.getPedidoById(id);
+      const p      = await Pedidos.getPedidoById(id);
       const sufijo = p.sufijo ? `-${p.sufijo}` : '';
       document.getElementById('detalle-orden').textContent = `#${p.orden}${sufijo}`;
+      const isAdmin = Auth.isAdmin();
+      document.getElementById('btn-abrir-edicion').style.display = isAdmin ? '' : 'none';
+      document.getElementById('btn-borrar-pedido').style.display = isAdmin ? '' : 'none';
       const fechaCarga  = p.fecha_carga  ? new Date(p.fecha_carga).toLocaleDateString('es-AR')  : '—';
       const fechaRetiro = p.fecha_retiro ? new Date(p.fecha_retiro).toLocaleDateString('es-AR') : '—';
-      document.getElementById('btn-abrir-edicion').style.display = Auth.isAdmin() ? '' : 'none';
       body.innerHTML = `
         <div class="detalle-seccion">
           <div class="detalle-seccion-title">Cliente</div>
@@ -807,14 +732,12 @@ const App = (() => {
           <div class="detalle-row"><span class="detalle-label">Tipo de lente</span><span class="detalle-valor">${esc(p.tipo_lente || '—')}</span></div>
           <div class="detalle-row"><span class="detalle-label">Tratamiento</span><span class="detalle-valor">${esc(p.tratamiento || '—')}</span></div>
           <div class="detalle-row"><span class="detalle-label">2 etapas</span><span class="detalle-valor">${p.dos_etapas || 'No'}</span></div>
-          ${p.graduacion ? `
-          <div class="detalle-row" style="flex-direction:column;align-items:flex-start">
+          ${p.graduacion ? `<div class="detalle-row" style="flex-direction:column;align-items:flex-start">
             <span class="detalle-label">Graduación</span>
             <div class="detalle-grad">${esc(p.graduacion).replace(/\|/g,'<br>')}</div>
           </div>` : ''}
         </div>
-        ${p.armazon ? `
-        <div class="detalle-seccion">
+        ${p.armazon ? `<div class="detalle-seccion">
           <div class="detalle-seccion-title">Armazón</div>
           <div class="detalle-row"><span class="detalle-label">Detalle</span><span class="detalle-valor">${esc(p.armazon)}</span></div>
         </div>` : ''}
@@ -837,6 +760,25 @@ const App = (() => {
     _detalleId = null;
   }
 
+  // ── BORRAR PEDIDO ─────────────────────────────────
+  async function borrarPedido(id) {
+    const p     = _pedidosCache.find(x => x.id === id);
+    const label = p ? `#${p.orden}${p.sufijo ? '-'+p.sufijo : ''} — ${p.cliente}` : `#${id}`;
+    if (!confirm(`¿Borrar el pedido ${label}?\n\nEsta acción no se puede deshacer.`)) return;
+    try {
+      const { error } = await window.supabaseClient.from('pedidos').delete().eq('id', id);
+      if (error) throw error;
+      cerrarDetalle();
+      toast('Pedido borrado', 'success');
+      _pedidosCache = await Pedidos.getTodosPedidos();
+      if (_currentScreen === 'pedidos')     renderPedidosList();
+      if (_currentScreen === 'seguimiento') loadSeguimiento();
+      updateBadge();
+    } catch (e) {
+      toast(`Error al borrar: ${e.message}`, 'error');
+    }
+  }
+
   // ── EDICIÓN PEDIDO ────────────────────────────────
   async function abrirEdicion() {
     if (!_detalleId) return;
@@ -846,14 +788,14 @@ const App = (() => {
     editModal.classList.remove('hidden');
     editBody.innerHTML = '<div style="padding:32px;text-align:center;color:#888">Cargando...</div>';
     try {
-      const p    = await Pedidos.getPedidoById(_detalleId);
-      const labs = _configCache.laboratorios.map(l => `<option value="${esc(l)}"${l===p.laboratorio?' selected':''}>${esc(l)}</option>`).join('');
+      const p      = await Pedidos.getPedidoById(_detalleId);
+      const labs   = _configCache.laboratorios.map(l => `<option value="${esc(l)}"${l===p.laboratorio?' selected':''}>${esc(l)}</option>`).join('');
       const lentes = ['Monofocal','Bifocal','Ocupacional','Progresivo','Teñido'].map(l => `<option value="${l}"${l===p.tipo_lente?' selected':''}>${l}</option>`).join('');
-      const tipos = ['Cristales','Armazón + Cristales','Armazón'].map(t => `<option value="${t}"${t===p.tipo?' selected':''}>${t}</option>`).join('');
+      const tipos  = ['Cristales','Armazón + Cristales','Armazón'].map(t => `<option value="${t}"${t===p.tipo?' selected':''}>${t}</option>`).join('');
       const urgentes = ['Si','No'].map(u => `<option value="${u}"${u===p.urgente?' selected':''}>${u==='Si'?'Sí':'No'}</option>`).join('');
-      const etapas = ['No','Si'].map(u => `<option value="${u}"${u===p.dos_etapas?' selected':''}>${u==='Si'?'Sí':'No'}</option>`).join('');
-      const ESTADOS = ['Cristales pedidos a lab','Armazón enviado p/calibrado','En laboratorio','Pendiente de retirar','Retirado'];
-      const estados = ESTADOS.map(e => `<option value="${e}"${e===p.estado?' selected':''}>${e}</option>`).join('');
+      const etapas   = ['No','Si'].map(u => `<option value="${u}"${u===p.dos_etapas?' selected':''}>${u==='Si'?'Sí':'No'}</option>`).join('');
+      const ESTADOS  = ['Cristales pedidos a lab','Armazón enviado p/calibrado','En laboratorio','Pendiente de retirar','Retirado'];
+      const estados  = ESTADOS.map(e => `<option value="${e}"${e===p.estado?' selected':''}>${e}</option>`).join('');
       editBody.innerHTML = `
         <div class="form-section">
           <div class="form-section-title">Cliente</div>
@@ -945,10 +887,7 @@ const App = (() => {
   // ── CONFIG SCREEN ─────────────────────────────────
   async function loadConfigScreen() {
     await loadConfig();
-    renderConfigLabs();
-    renderConfigMarcas();
-    renderConfigMateriales();
-    loadConfigTratamientos();
+    renderConfigLabs(); renderConfigMarcas(); renderConfigMateriales(); loadConfigTratamientos();
   }
 
   function renderConfigLabs() {
@@ -987,8 +926,7 @@ const App = (() => {
 
   async function addLab() {
     const input = document.getElementById('new-lab-input');
-    const valor = input.value.trim();
-    if (!valor) return;
+    const valor = input.value.trim(); if (!valor) return;
     try {
       await window.supabaseClient.from('configuracion').insert({ tipo:'laboratorio', valor, orden:99 });
       input.value = '';
@@ -996,7 +934,6 @@ const App = (() => {
       toast('Laboratorio agregado', 'success');
     } catch (e) { toast('Error: ' + e.message, 'error'); }
   }
-
   async function deleteLab(valor) {
     if (!confirm(`¿Eliminar laboratorio "${valor}"?`)) return;
     try {
@@ -1005,11 +942,9 @@ const App = (() => {
       toast('Laboratorio eliminado', 'success');
     } catch (e) { toast('Error: ' + e.message, 'error'); }
   }
-
   async function addMarca() {
     const input = document.getElementById('new-marca-input');
-    const valor = input.value.trim();
-    if (!valor) return;
+    const valor = input.value.trim(); if (!valor) return;
     try {
       await window.supabaseClient.from('configuracion').insert({ tipo:'marca', categoria:'armazon', valor, orden:99 });
       input.value = '';
@@ -1017,7 +952,6 @@ const App = (() => {
       toast('Marca agregada', 'success');
     } catch (e) { toast('Error: ' + e.message, 'error'); }
   }
-
   async function deleteMarca(id) {
     if (!confirm('¿Eliminar esta marca?')) return;
     try {
@@ -1026,11 +960,9 @@ const App = (() => {
       toast('Marca eliminada', 'success');
     } catch (e) { toast('Error: ' + e.message, 'error'); }
   }
-
   async function addMaterial() {
     const input = document.getElementById('new-material-input');
-    const valor = input.value.trim();
-    if (!valor) return;
+    const valor = input.value.trim(); if (!valor) return;
     try {
       await window.supabaseClient.from('configuracion').insert({ tipo:'material', categoria:'armazon', valor, orden:99 });
       input.value = '';
@@ -1038,7 +970,6 @@ const App = (() => {
       toast('Material agregado', 'success');
     } catch (e) { toast('Error: ' + e.message, 'error'); }
   }
-
   async function deleteMaterial(id) {
     if (!confirm('¿Eliminar este material?')) return;
     try {
@@ -1047,12 +978,10 @@ const App = (() => {
       toast('Material eliminada', 'success');
     } catch (e) { toast('Error: ' + e.message, 'error'); }
   }
-
   async function addTratamiento() {
     const lente = document.getElementById('config-lente-select')?.value;
     const input = document.getElementById('new-trat-input');
-    const valor = input.value.trim();
-    if (!valor || !lente) return;
+    const valor = input.value.trim(); if (!valor || !lente) return;
     try {
       await window.supabaseClient.from('configuracion').insert({ tipo:'tratamiento', categoria:lente, valor, orden:99 });
       input.value = '';
@@ -1060,7 +989,6 @@ const App = (() => {
       toast('Tratamiento agregado', 'success');
     } catch (e) { toast('Error: ' + e.message, 'error'); }
   }
-
   async function deleteTratamiento(id) {
     if (!confirm('¿Eliminar este tratamiento?')) return;
     try {
@@ -1080,9 +1008,7 @@ const App = (() => {
         const esf = v('esf',ojo), cil = v('cil',ojo), eje = v('eje',ojo), add = v('add',ojo);
         if (esf || cil) {
           let s = `O${ojo}: ${esf}`;
-          if (cil) s += ` ${cil}`;
-          if (eje) s += ` x${eje}`;
-          if (add) s += ` ADD:${add}`;
+          if (cil) s += ` ${cil}`; if (eje) s += ` x${eje}`; if (add) s += ` ADD:${add}`;
           partes.push(s.trim());
         }
       });
@@ -1098,22 +1024,16 @@ const App = (() => {
     const g     = id => document.getElementById(id)?.value.trim() ?? '';
     const doble = document.getElementById('toggle-dos-anteojos').checked;
     const antData = (n) => ({
-      laboratorio: g(`f-lab${n}`),
-      tipo_lente:  g(`f-lente${n}`),
-      tratamiento: g(`f-tratamiento${n}`),
-      graduacion:  getGraduacion(n),
-      dos_etapas:  g(`f-etapas${n}`),
-      armazon:     g(`f-armazon${n}`),
-      marca:       g(`f-marca${n}`),
-      codigoref:   g(`f-codigoref${n}`),
-      material:    g(`f-material${n}`),
-      color:       g(`f-color${n}`),
+      laboratorio: g(`f-lab${n}`), tipo_lente: g(`f-lente${n}`),
+      tratamiento: g(`f-tratamiento${n}`), graduacion: getGraduacion(n),
+      dos_etapas: g(`f-etapas${n}`), armazon: g(`f-armazon${n}`),
+      marca: g(`f-marca${n}`), codigoref: g(`f-codigoref${n}`),
+      material: g(`f-material${n}`), color: g(`f-color${n}`),
     });
     return {
       doble,
       base: { cliente: g('f-cliente'), orden: g('f-orden'), urgente: g('f-urgente'), tipo: g('f-tipo'), fecha_carga: g('f-fecha-carga') || todayStr() },
-      ant1: antData(1),
-      ant2: doble ? antData(2) : null,
+      ant1: antData(1), ant2: doble ? antData(2) : null,
     };
   }
 
@@ -1147,13 +1067,12 @@ const App = (() => {
              + rf('Tipo', data.base.tipo) + rf('Urgente', data.base.urgente) + rf('Fecha', data.base.fecha_carga);
     if (data.doble) {
       html += `<div style="margin:10px 0 4px;font-size:.78rem;font-weight:700;color:var(--azul)">ANTEOJO A</div>`;
-      html += rf('Lab', data.ant1.laboratorio) + rf('Lente', data.ant1.tipo_lente) + rf('Tratamiento', data.ant1.tratamiento) + rf('Graduación', data.ant1.graduacion) + rf('Marca', data.ant1.marca) + rf('Material', data.ant1.material);
+      html += rf('Lab', data.ant1.laboratorio) + rf('Lente', data.ant1.tipo_lente) + rf('Tratamiento', data.ant1.tratamiento) + rf('Graduación', data.ant1.graduacion);
       html += `<div style="margin:10px 0 4px;font-size:.78rem;font-weight:700;color:var(--azul)">ANTEOJO B</div>`;
-      html += rf('Lab', data.ant2.laboratorio) + rf('Lente', data.ant2.tipo_lente) + rf('Tratamiento', data.ant2.tratamiento) + rf('Graduación', data.ant2.graduacion) + rf('Marca', data.ant2.marca) + rf('Material', data.ant2.material);
+      html += rf('Lab', data.ant2.laboratorio) + rf('Lente', data.ant2.tipo_lente) + rf('Tratamiento', data.ant2.tratamiento) + rf('Graduación', data.ant2.graduacion);
     } else {
       html += rf('Laboratorio', data.ant1.laboratorio) + rf('Lente', data.ant1.tipo_lente)
-            + rf('Tratamiento', data.ant1.tratamiento) + rf('Graduación', data.ant1.graduacion)
-            + rf('Marca', data.ant1.marca) + rf('Material', data.ant1.material);
+            + rf('Tratamiento', data.ant1.tratamiento) + rf('Graduación', data.ant1.graduacion);
     }
     document.getElementById('modal-body-content').innerHTML = html;
     _pendingGuardar = data;
@@ -1169,20 +1088,13 @@ const App = (() => {
       const nombre   = Auth.getNombre();
       const fechaISO = new Date(data.base.fecha_carga + 'T12:00:00').toISOString();
       const buildRow = (ant, sufijo) => ({
-        cliente:      data.base.cliente,
-        orden:        data.base.orden,
-        sufijo,
-        tipo:         data.base.tipo,
-        urgente:      data.base.urgente,
-        laboratorio:  ant.laboratorio,
-        tipo_lente:   ant.tipo_lente,
-        tratamiento:  ant.tratamiento || null,
-        graduacion:   ant.graduacion  || null,
-        dos_etapas:   ant.dos_etapas  || 'No',
-        armazon:      [ant.armazon, ant.marca && `Marca: ${ant.marca}`, ant.codigoref && `Ref: ${ant.codigoref}`, ant.material && `Mat: ${ant.material}`, ant.color && `Color: ${ant.color}`].filter(Boolean).join(' / ') || null,
-        cargado_por:  nombre,
-        fecha_carga:  fechaISO,
-        fecha_pedido: fechaISO,
+        cliente: data.base.cliente, orden: data.base.orden, sufijo,
+        tipo: data.base.tipo, urgente: data.base.urgente,
+        laboratorio: ant.laboratorio, tipo_lente: ant.tipo_lente,
+        tratamiento: ant.tratamiento || null, graduacion: ant.graduacion || null,
+        dos_etapas: ant.dos_etapas || 'No',
+        armazon: [ant.armazon, ant.marca && `Marca: ${ant.marca}`, ant.codigoref && `Ref: ${ant.codigoref}`, ant.material && `Mat: ${ant.material}`, ant.color && `Color: ${ant.color}`].filter(Boolean).join(' / ') || null,
+        cargado_por: nombre, fecha_carga: fechaISO, fecha_pedido: fechaISO,
       });
       const rows = data.doble
         ? [buildRow(data.ant1, 'A'), buildRow(data.ant2, 'B')]
@@ -1193,11 +1105,9 @@ const App = (() => {
       closeModal();
       toast('Pedido guardado ✓', 'success');
       resetForm();
-      // ── Después de guardar, volver a la lista de pedidos ──
-      showScreen('pedidos');
+      showScreen('seguimiento');
     } catch (err) {
-      closeModal();
-      toast(err.message, 'error');
+      closeModal(); toast(err.message, 'error');
     } finally {
       btn.classList.remove('btn-loading'); btn.disabled = false;
     }
@@ -1219,13 +1129,11 @@ const App = (() => {
     _pendingGuardar = null;
   }
 
-  // ── Notificaciones manuales ───────────────────────
   async function activarNotificaciones() {
     const btn    = document.getElementById('btn-activar-notif');
     const status = document.getElementById('notif-status');
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-      if (status) status.textContent = '⚠️ Tu navegador no soporta notificaciones push';
-      return;
+      if (status) status.textContent = '⚠️ Tu navegador no soporta notificaciones push'; return;
     }
     try {
       if (btn) { btn.disabled = true; btn.textContent = 'Activando...'; }
@@ -1238,12 +1146,7 @@ const App = (() => {
         return;
       }
       let sub = await reg.pushManager.getSubscription();
-      if (!sub) {
-        sub = await reg.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC),
-        });
-      }
+      if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC) });
       await guardarSuscripcion(sub);
       if (btn) { btn.textContent = '✅ Notificaciones activadas'; btn.style.background = 'var(--verde)'; }
       if (status) status.textContent = 'Vas a recibir alertas de pedidos nuevos, retirados y críticos.';
@@ -1280,11 +1183,9 @@ const App = (() => {
     switchEstadoTab, switchSegTab, limpiarFiltros,
     onLenteChange, setDistancia,
     loadConfigScreen, loadConfigTratamientos,
-    addLab, deleteLab,
-    addMarca, deleteMarca,
-    addMaterial, deleteMaterial,
-    addTratamiento, deleteTratamiento,
-    guardarEdicion, activarNotificaciones,
+    addLab, deleteLab, addMarca, deleteMarca,
+    addMaterial, deleteMaterial, addTratamiento, deleteTratamiento,
+    guardarEdicion, borrarPedido, activarNotificaciones,
   };
 })();
 
