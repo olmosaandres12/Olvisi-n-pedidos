@@ -11,7 +11,7 @@ const App = (() => {
   let _segTab         = 'lab';
   let _pendingGuardar = null;
   let _detalleId      = null;
-  let _expandedId     = null;  // number (single) o string 'pair-ORDEN' (par A/B)
+  let _expandedId     = null;
 
   const hoy = new Date();
   let _mesActual = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
@@ -29,8 +29,6 @@ const App = (() => {
       let sy = 0;
       sheet.addEventListener('touchstart', (e) => { sy = e.touches[0].clientY; }, { passive: true });
       sheet.addEventListener('touchend',   (e) => { if (e.changedTouches[0].clientY - sy > 72) closeNumpad(); }, { passive: true });
-
-      // Inyectar indicador de campo si no existe
       if (!document.getElementById('np-field-indicator')) {
         const ind = document.createElement('div');
         ind.id = 'np-field-indicator';
@@ -43,8 +41,9 @@ const App = (() => {
     document.getElementById('numpad-close')?.addEventListener('click', closeNumpad);
     document.getElementById('numpad-ok')?.addEventListener('click', confirmNumpad);
 
-    // Inyectar botón Siguiente si no existe
     const ok = document.getElementById('numpad-ok');
+
+    // Botón Siguiente
     if (ok && !document.getElementById('numpad-siguiente')) {
       const sig = document.createElement('button');
       sig.id = 'numpad-siguiente';
@@ -53,6 +52,17 @@ const App = (() => {
       sig.innerHTML = 'Siguiente <span class="np-sig-arrow">›</span>';
       ok.parentNode.insertBefore(sig, ok);
       sig.addEventListener('click', siguienteNumpad);
+    }
+
+    // Botón Ambos ojos
+    if (ok && !document.getElementById('numpad-ambos')) {
+      const amb = document.createElement('button');
+      amb.id = 'numpad-ambos';
+      amb.type = 'button';
+      amb.className = 'numpad-ambos-btn hidden';
+      amb.innerHTML = '👁️ Copiar a ambos ojos';
+      ok.parentNode.insertBefore(amb, ok);
+      amb.addEventListener('click', copiarAmbosOjos);
     }
 
     const bm = document.getElementById('numpad-step-minus');
@@ -77,7 +87,7 @@ const App = (() => {
     });
   }
 
-  // Obtiene el siguiente campo en la secuencia Esf → Cil → Eje
+  // Siguiente campo: Esf → Cil → Eje
   function getNextField(inputEl) {
     const id = inputEl.id;
     if (!id || !id.startsWith('g-')) return null;
@@ -89,7 +99,35 @@ const App = (() => {
     return null;
   }
 
-  // Actualiza el indicador de campo (Esf › Cil › Eje) en el sheet
+  // Campo del ojo opuesto (D↔I) del mismo tipo
+  function getOppositeField(inputEl) {
+    const id = inputEl.id;
+    if (!id || !id.startsWith('g-')) return null;
+    const parts = id.split('-');
+    if (parts.length < 5) return null;
+    const [, dc, type, ojo, num] = parts;
+    const ojoOpuesto = ojo === 'D' ? 'I' : 'D';
+    return document.getElementById(`g-${dc}-${type}-${ojoOpuesto}-${num}`);
+  }
+
+  // Copia el valor actual a ambos ojos y cierra
+  function copiarAmbosOjos() {
+    if (!_numpadTarget || !_numpadRaw) return;
+    const valor = (_numpadSign === '-' ? '-' : '+') + _numpadRaw;
+    _numpadTarget.value = valor;
+    _numpadTarget.dispatchEvent(new Event('input', { bubbles: true }));
+    _numpadTarget.dispatchEvent(new Event('change', { bubbles: true }));
+    const opposite = getOppositeField(_numpadTarget);
+    if (opposite) {
+      opposite.value = valor;
+      opposite.dispatchEvent(new Event('input', { bubbles: true }));
+      opposite.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    const d = document.getElementById('numpad-display');
+    if (d) { d.classList.add('np-confirmed'); setTimeout(() => { d.classList.remove('np-confirmed'); closeNumpad(); }, 400); }
+    else closeNumpad();
+  }
+
   function updateFieldIndicator(inputEl) {
     const indicator = document.getElementById('np-field-indicator');
     if (!indicator) return;
@@ -111,7 +149,6 @@ const App = (() => {
     indicator.classList.remove('hidden');
   }
 
-  // Confirma el valor actual y avanza al siguiente campo
   function siguienteNumpad() {
     const next = _numpadNext;
     if (_numpadTarget && _numpadRaw) {
@@ -119,10 +156,8 @@ const App = (() => {
       _numpadTarget.dispatchEvent(new Event('input',{bubbles:true}));
       _numpadTarget.dispatchEvent(new Event('change',{bubbles:true}));
     }
-    // Cerrar sin animación de confirmación para transición rápida
     const ov = document.getElementById('numpad-overlay');
     ov.classList.remove('np-visible');
-    // Restaurar zoom iOS
     const vp = document.querySelector('meta[name=viewport]');
     if (vp) vp.content = 'width=device-width, initial-scale=1, viewport-fit=cover';
     _numpadTarget = null; _numpadRaw = ''; _numpadSign = '+'; _numpadNext = null; _numpadStopRepeat();
@@ -167,6 +202,7 @@ const App = (() => {
     d.classList.remove('np-shake'); void d.offsetWidth; d.classList.add('np-shake');
     setTimeout(() => d.classList.remove('np-shake'), 380);
   }
+
   function openNumpad(inputEl, label) {
     _numpadTarget = inputEl;
     _numpadNext   = getNextField(inputEl);
@@ -176,9 +212,12 @@ const App = (() => {
     const lbl = document.getElementById('numpad-label'); if (lbl) lbl.textContent = label||'Valor';
     _numpadRenderDisplay();
     updateFieldIndicator(inputEl);
+    // Siguiente: visible solo si hay campo siguiente
     const sigBtn = document.getElementById('numpad-siguiente');
     if (sigBtn) sigBtn.classList.toggle('hidden', !_numpadNext);
-    // Bloquear zoom iOS mientras el numpad está abierto
+    // Ambos ojos: visible solo si el campo tiene ojo opuesto
+    const ambBtn = document.getElementById('numpad-ambos');
+    if (ambBtn) ambBtn.classList.toggle('hidden', !getOppositeField(inputEl));
     const vp = document.querySelector('meta[name=viewport]');
     if (vp) vp.content = 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no';
     const ov = document.getElementById('numpad-overlay');
@@ -186,6 +225,7 @@ const App = (() => {
     requestAnimationFrame(() => requestAnimationFrame(() => ov.classList.add('np-visible')));
     if (navigator.vibrate) navigator.vibrate(8);
   }
+
   function confirmNumpad() {
     if (!_numpadTarget || !_numpadRaw) return;
     _numpadTarget.value = (_numpadSign==='-'?'-':'+')+_numpadRaw;
@@ -195,21 +235,21 @@ const App = (() => {
     if (d) { d.classList.add('np-confirmed'); setTimeout(() => { d.classList.remove('np-confirmed'); closeNumpad(); }, 500); }
     else closeNumpad();
   }
+
   function closeNumpad() {
     const ov = document.getElementById('numpad-overlay');
     ov.classList.remove('np-visible');
     setTimeout(() => { ov.classList.add('hidden'); ov.style.display=''; }, 280);
-    // Restaurar zoom iOS
     const vp = document.querySelector('meta[name=viewport]');
     if (vp) vp.content = 'width=device-width, initial-scale=1, viewport-fit=cover';
     _numpadTarget=null; _numpadRaw=''; _numpadSign='+'; _numpadNext=null; _numpadStopRepeat();
   }
+
   function attachNumpadListeners(container) {
     container.querySelectorAll('.grad-esf,.grad-cil,.grad-add').forEach(inp => {
       inp.setAttribute('readonly','readonly');
-      inp.style.fontSize = '16px'; // Previene zoom en iOS
+      inp.style.fontSize = '16px';
       const label = inp.classList.contains('grad-esf') ? 'Esfera' : inp.classList.contains('grad-cil') ? 'Cilindro' : 'Adición';
-      // touchstart con passive:false para prevenir zoom en iOS antes de que ocurra
       inp.addEventListener('touchstart', (e) => { e.preventDefault(); openNumpad(inp,label); }, { passive: false });
       inp.addEventListener('mousedown',  (e) => { e.preventDefault(); openNumpad(inp,label); });
       inp.addEventListener('change', () => formatGradInput(inp));
@@ -220,6 +260,7 @@ const App = (() => {
       inp.addEventListener('focus', () => setTimeout(()=>inp.select(),0));
     });
   }
+
   function formatGradInput(inp) {
     let v=inp.value.trim().replace(',','.'); if(!v) return;
     let sign=''; if(v.startsWith('+')||v.startsWith('-')){sign=v[0];v=v.slice(1);}
@@ -325,8 +366,9 @@ const App = (() => {
   function buildBloqueFields(num) {
     const container=document.getElementById(`bloque${num}-fields`); if (!container) return;
     const labs=_configCache.laboratorios.map(l=>`<option value="${esc(l)}">${esc(l)}</option>`).join('');
-    const marcaOpts=['<option value="">— Sin especificar —</option>',..._configCache.marcas.map(m=>`<option value="${esc(m.valor)}">${esc(m.valor)}</option>`)].join('');
+    const marcaSelectOpts=['<option value="">— Sin especificar —</option>',..._configCache.marcas.map(m=>`<option value="${esc(m.valor)}">${esc(m.valor)}</option>`)].join('');
     const matOpts=['<option value="">— Sin especificar —</option>',..._configCache.materiales.map(m=>`<option value="${esc(m.valor)}">${esc(m.valor)}</option>`)].join('');
+
     container.innerHTML=`
       <div class="form-row">
         <div class="form-group"><label class="form-label required">Laboratorio</label>
@@ -353,17 +395,55 @@ const App = (() => {
         <div class="form-group"><label class="form-label">2 etapas</label>
           <select id="f-etapas${num}" class="form-control"><option value="No">No</option><option value="Si">Sí</option></select></div>
         <div class="form-group"><label class="form-label">Armazón</label>
-          <input type="text" id="f-armazon${num}" class="form-control" placeholder="Descripción"></div>
+          <select id="f-armazon-tipo${num}" class="form-control" onchange="App.onArmazonTipoChange(${num})">
+            <option value="">— Sin armazón —</option>
+            <option value="nuevo">Nuevo</option>
+            <option value="cliente">Del cliente</option>
+          </select></div>
       </div>
-      <div class="form-row">
-        <div class="form-group"><label class="form-label">Marca</label><select id="f-marca${num}" class="form-control">${marcaOpts}</select></div>
-        <div class="form-group"><label class="form-label">Código / Ref</label><input type="text" id="f-codigoref${num}" class="form-control" placeholder="RB3025"></div>
+
+      <!-- Armazón NUEVO -->
+      <div id="f-armazon-nuevo${num}" class="armazon-bloque hidden">
+        <div class="armazon-bloque-title">🆕 Armazón nuevo</div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Marca</label>
+            <select id="f-marca${num}" class="form-control">${marcaSelectOpts}</select></div>
+          <div class="form-group"><label class="form-label">Código / Ref</label>
+            <input type="text" id="f-codigoref${num}" class="form-control" placeholder="RB3025"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Material</label>
+            <select id="f-material${num}" class="form-control">${matOpts}</select></div>
+          <div class="form-group"><label class="form-label">Color</label>
+            <input type="text" id="f-color${num}" class="form-control" placeholder="Negro, Dorado..."></div>
+        </div>
       </div>
-      <div class="form-row">
-        <div class="form-group"><label class="form-label">Material</label><select id="f-material${num}" class="form-control">${matOpts}</select></div>
-        <div class="form-group"><label class="form-label">Color</label><input type="text" id="f-color${num}" class="form-control" placeholder="Negro, Dorado..."></div>
+
+      <!-- Armazón DEL CLIENTE -->
+      <div id="f-armazon-cliente${num}" class="armazon-bloque hidden">
+        <div class="armazon-bloque-title">👤 Armazón del cliente</div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Marca</label>
+            <input type="text" id="f-marca-cli${num}" class="form-control" placeholder="Escribe la marca"></div>
+          <div class="form-group"><label class="form-label">Material</label>
+            <select id="f-material-cli${num}" class="form-control">${matOpts}</select></div>
+        </div>
+        <div class="form-group"><label class="form-label">Color</label>
+          <input type="text" id="f-color-cli${num}" class="form-control" placeholder="Negro, Dorado..."></div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Observaciones</label>
+        <textarea id="f-obs${num}" class="form-control" rows="2" placeholder="Notas adicionales sobre este anteojo..." style="resize:vertical;font-size:1rem"></textarea>
       </div>`;
+
     attachNumpadListeners(container);
+  }
+
+  function onArmazonTipoChange(num) {
+    const tipo = document.getElementById(`f-armazon-tipo${num}`)?.value;
+    document.getElementById(`f-armazon-nuevo${num}`)?.classList.toggle('hidden', tipo !== 'nuevo');
+    document.getElementById(`f-armazon-cliente${num}`)?.classList.toggle('hidden', tipo !== 'cliente');
   }
 
   function gradTablaHTML(num,dc) {
@@ -437,26 +517,17 @@ const App = (() => {
       if (seen.has(p.id)) continue;
       if (p.sufijo === 'A') {
         const b = list.find(x => x.orden === p.orden && x.sufijo === 'B' && !seen.has(x.id));
-        if (b) {
-          result.push({ type:'pair', a:p, b });
-          seen.add(p.id); seen.add(b.id);
-          continue;
-        }
+        if (b) { result.push({ type:'pair', a:p, b }); seen.add(p.id); seen.add(b.id); continue; }
       } else if (p.sufijo === 'B') {
         const a = list.find(x => x.orden === p.orden && x.sufijo === 'A' && !seen.has(x.id));
-        if (a) {
-          result.push({ type:'pair', a, b:p });
-          seen.add(a.id); seen.add(p.id);
-          continue;
-        }
+        if (a) { result.push({ type:'pair', a, b:p }); seen.add(a.id); seen.add(p.id); continue; }
       }
-      result.push({ type:'single', p });
-      seen.add(p.id);
+      result.push({ type:'single', p }); seen.add(p.id);
     }
     return result;
   }
 
-  // ── Render fila compacta (pedido individual) ──────
+  // ── Render fila compacta ──────────────────────────
   function renderCompactRow(p) {
     const sufijo  = p.sufijo ? `-${p.sufijo}` : '';
     const estCls  = p._est.valor==='critico' ? 'ped-row--critico' : p._est.valor==='demorado' ? 'ped-row--demorado' : '';
@@ -476,6 +547,7 @@ const App = (() => {
           ${p.dos_etapas==='Si'?`<div class="prd-item"><span class="prd-label">Etapas</span><span class="prd-val">2 etapas</span></div>`:''}
           ${p.graduacion ?`<div class="prd-item prd-item--full"><span class="prd-label">Graduación</span><span class="prd-val" style="font-family:var(--font-mono);font-size:.8rem">${esc(p.graduacion).replace(/\|/g,' | ')}</span></div>`:''}
           ${p.armazon    ?`<div class="prd-item prd-item--full"><span class="prd-label">Armazón</span><span class="prd-val">${esc(p.armazon)}</span></div>`:''}
+          ${p.observaciones?`<div class="prd-item prd-item--full"><span class="prd-label">Observaciones</span><span class="prd-val" style="font-style:italic;color:var(--gris-texto)">${esc(p.observaciones)}</span></div>`:''}
           <div class="prd-item"><span class="prd-label">Días</span><span class="prd-val">${p._dias}d · ${p._est.texto}</span></div>
           <div class="prd-item"><span class="prd-label">Por</span><span class="prd-val">${esc(p.cargado_por||'—')}</span></div>
         </div>
@@ -523,6 +595,7 @@ const App = (() => {
           <span class="ped-pair-dias">${p._dias}d</span>
         </div>
         ${p.graduacion?`<div class="ped-pair-grad">${esc(p.graduacion).replace(/\|/g,' | ')}</div>`:''}
+        ${p.observaciones?`<div class="ped-pair-obs">💬 ${esc(p.observaciones)}</div>`:''}
         <div class="ped-pair-actions">
           <select class="estado-select ${scls} estado-select-inline" data-id="${p.id}" data-prev="${esc(p.estado)}" onclick="event.stopPropagation()">${opts}</select>
           ${Auth.isAdmin()?`<button class="ped-row-edit-btn" onclick="event.stopPropagation();App._abrirDetalleRapido(${p.id})">✏️</button>`:''}
@@ -547,7 +620,6 @@ const App = (() => {
     </div>`;
   }
 
-  // ── renderSegPanel usa filas compactas + agrupadas ─
   function renderSegPanel(id, pedidos) {
     const el = document.getElementById(id); if (!el) return;
     if (!pedidos.length) {
@@ -632,7 +704,6 @@ const App = (() => {
     const sorted=[...filtered].sort((a,b)=>new Date(b.fecha_carga)-new Date(a.fecha_carga));
     const groups=groupPedidos(sorted);
     container.innerHTML=`<div class="ped-compact-list">${groups.map(g=>g.type==='pair'?renderPairedRow(g.a,g.b):renderCompactRow(g.p)).join('')}</div>`;
-    // Restaurar fila expandida si hay una
     if (_expandedId !== null) {
       const isPair = typeof _expandedId === 'string' && _expandedId.startsWith('pair-');
       const sel = isPair ? `.ped-row[data-pair-id="${_expandedId}"]` : `.ped-row[data-id="${_expandedId}"]`;
@@ -646,7 +717,6 @@ const App = (() => {
   }
 
   function togglePedidoRow(id) {
-    // id puede ser number (fila simple) o string 'pair-ORDEN' (par A/B)
     const isPair = typeof id === 'string' && id.startsWith('pair-');
     const selector = isPair ? `.ped-row[data-pair-id="${id}"]` : `.ped-row[data-id="${id}"]`;
     const clickedRow = document.querySelector(selector);
@@ -654,7 +724,6 @@ const App = (() => {
     const detail = clickedRow.querySelector('.ped-row-detail');
     const arrow  = clickedRow.querySelector('.ped-row-arrow');
     const isOpen = !detail.classList.contains('hidden');
-    // Cerrar todos
     document.querySelectorAll('.ped-row').forEach(r=>{
       r.querySelector('.ped-row-detail')?.classList.add('hidden');
       r.querySelector('.ped-row-arrow')?.classList.remove('open');
@@ -725,6 +794,8 @@ const App = (() => {
         </div>
         ${p.armazon?`<div class="detalle-seccion"><div class="detalle-seccion-title">Armazón</div>
           <div class="detalle-row"><span class="detalle-label">Detalle</span><span class="detalle-valor">${esc(p.armazon)}</span></div></div>`:''}
+        ${p.observaciones?`<div class="detalle-seccion"><div class="detalle-seccion-title">Observaciones</div>
+          <div class="detalle-row"><span class="detalle-valor" style="font-style:italic">${esc(p.observaciones)}</span></div></div>`:''}
         <div class="detalle-seccion"><div class="detalle-seccion-title">Estado</div>
           <div class="detalle-row"><span class="detalle-label">Estado actual</span><span class="detalle-valor">${esc(p.estado)}</span></div>
           <div class="detalle-row"><span class="detalle-label">Días en proceso</span><span class="detalle-valor">${p._dias}d</span></div>
@@ -790,6 +861,9 @@ const App = (() => {
         <div class="form-section"><div class="form-section-title">Armazón</div>
           <div class="form-group"><label class="form-label">Detalle</label><input type="text" id="e-armazon" class="form-control" value="${esc(p.armazon||'')}"></div>
         </div>
+        <div class="form-section"><div class="form-section-title">Observaciones</div>
+          <div class="form-group"><textarea id="e-observaciones" class="form-control" rows="2" style="resize:vertical;font-size:1rem" placeholder="Observaciones...">${esc(p.observaciones||'')}</textarea></div>
+        </div>
         <div class="form-section"><div class="form-section-title">Estado</div>
           <div class="form-group"><label class="form-label">Estado actual</label><select id="e-estado" class="form-control">${estados}</select></div>
         </div>
@@ -813,6 +887,7 @@ const App = (() => {
         graduacion:document.getElementById('e-graduacion')?.value.trim()||null,
         dos_etapas:document.getElementById('e-etapas')?.value,
         armazon:document.getElementById('e-armazon')?.value.trim()||null,
+        observaciones:document.getElementById('e-observaciones')?.value.trim()||null,
         estado:nuevoEstado,
       };
       if (nuevoEstado==='Retirado') campos.fecha_retiro=new Date().toISOString();
@@ -890,10 +965,38 @@ const App = (() => {
     return [l&&`Lejos: ${l}`,c&&`Cerca: ${c}`].filter(Boolean).join(' — ');
   }
 
+  function getArmazonData(num) {
+    const tipo = document.getElementById(`f-armazon-tipo${num}`)?.value;
+    if (!tipo) return { armazon: null };
+    const g = id => document.getElementById(id)?.value.trim() || '';
+    if (tipo === 'nuevo') {
+      const marca = g(`f-marca${num}`);
+      const ref   = g(`f-codigoref${num}`);
+      const mat   = g(`f-material${num}`);
+      const color = g(`f-color${num}`);
+      const partes = ['Nuevo', marca&&`Marca: ${marca}`, ref&&`Ref: ${ref}`, mat&&`Mat: ${mat}`, color&&`Color: ${color}`].filter(Boolean);
+      return { armazon: partes.join(' / ') };
+    } else {
+      const marca = g(`f-marca-cli${num}`);
+      const mat   = g(`f-material-cli${num}`);
+      const color = g(`f-color-cli${num}`);
+      const partes = ['Del cliente', marca&&`Marca: ${marca}`, mat&&`Mat: ${mat}`, color&&`Color: ${color}`].filter(Boolean);
+      return { armazon: partes.join(' / ') };
+    }
+  }
+
   function getFormData() {
     const g=id=>document.getElementById(id)?.value.trim()??'';
     const doble=document.getElementById('toggle-dos-anteojos').checked;
-    const antData=(n)=>({laboratorio:g(`f-lab${n}`),tipo_lente:g(`f-lente${n}`),tratamiento:g(`f-tratamiento${n}`),graduacion:getGraduacion(n),dos_etapas:g(`f-etapas${n}`),armazon:g(`f-armazon${n}`),marca:g(`f-marca${n}`),codigoref:g(`f-codigoref${n}`),material:g(`f-material${n}`),color:g(`f-color${n}`)});
+    const antData=(n)=>({
+      laboratorio:g(`f-lab${n}`),
+      tipo_lente:g(`f-lente${n}`),
+      tratamiento:g(`f-tratamiento${n}`),
+      graduacion:getGraduacion(n),
+      dos_etapas:g(`f-etapas${n}`),
+      ...getArmazonData(n),
+      observaciones:document.getElementById(`f-obs${n}`)?.value.trim()||null,
+    });
     return {doble,base:{cliente:g('f-cliente'),orden:g('f-orden'),urgente:g('f-urgente'),tipo:g('f-tipo'),fecha_carga:g('f-fecha-carga')||todayStr()},ant1:antData(1),ant2:doble?antData(2):null};
   }
 
@@ -915,11 +1018,11 @@ const App = (() => {
     let html=rf('Cliente',data.base.cliente)+rf('Orden',data.doble?`${data.base.orden}-A / -B`:data.base.orden)+rf('Tipo',data.base.tipo)+rf('Urgente',data.base.urgente)+rf('Fecha',data.base.fecha_carga);
     if(data.doble){
       html+=`<div style="margin:10px 0 4px;font-size:.78rem;font-weight:700;color:var(--azul)">ANTEOJO A</div>`;
-      html+=rf('Lab',data.ant1.laboratorio)+rf('Lente',data.ant1.tipo_lente)+rf('Tratamiento',data.ant1.tratamiento)+rf('Graduación',data.ant1.graduacion);
+      html+=rf('Lab',data.ant1.laboratorio)+rf('Lente',data.ant1.tipo_lente)+rf('Tratamiento',data.ant1.tratamiento)+rf('Graduación',data.ant1.graduacion)+rf('Armazón',data.ant1.armazon)+rf('Obs.',data.ant1.observaciones);
       html+=`<div style="margin:10px 0 4px;font-size:.78rem;font-weight:700;color:var(--azul)">ANTEOJO B</div>`;
-      html+=rf('Lab',data.ant2.laboratorio)+rf('Lente',data.ant2.tipo_lente)+rf('Tratamiento',data.ant2.tratamiento)+rf('Graduación',data.ant2.graduacion);
+      html+=rf('Lab',data.ant2.laboratorio)+rf('Lente',data.ant2.tipo_lente)+rf('Tratamiento',data.ant2.tratamiento)+rf('Graduación',data.ant2.graduacion)+rf('Armazón',data.ant2.armazon)+rf('Obs.',data.ant2.observaciones);
     } else {
-      html+=rf('Laboratorio',data.ant1.laboratorio)+rf('Lente',data.ant1.tipo_lente)+rf('Tratamiento',data.ant1.tratamiento)+rf('Graduación',data.ant1.graduacion)+rf('Marca',data.ant1.marca)+rf('Material',data.ant1.material);
+      html+=rf('Laboratorio',data.ant1.laboratorio)+rf('Lente',data.ant1.tipo_lente)+rf('Tratamiento',data.ant1.tratamiento)+rf('Graduación',data.ant1.graduacion)+rf('Armazón',data.ant1.armazon)+rf('Obs.',data.ant1.observaciones);
     }
     document.getElementById('modal-body-content').innerHTML=html;
     _pendingGuardar=data;
@@ -932,7 +1035,23 @@ const App = (() => {
     btn.classList.add('btn-loading'); btn.disabled=true;
     try {
       const nombre=Auth.getNombre(), fechaISO=new Date(data.base.fecha_carga+'T12:00:00').toISOString();
-      const buildRow=(ant,sufijo)=>({cliente:data.base.cliente,orden:data.base.orden,sufijo,tipo:data.base.tipo,urgente:data.base.urgente,laboratorio:ant.laboratorio,tipo_lente:ant.tipo_lente,tratamiento:ant.tratamiento||null,graduacion:ant.graduacion||null,dos_etapas:ant.dos_etapas||'No',armazon:[ant.armazon,ant.marca&&`Marca: ${ant.marca}`,ant.codigoref&&`Ref: ${ant.codigoref}`,ant.material&&`Mat: ${ant.material}`,ant.color&&`Color: ${ant.color}`].filter(Boolean).join(' / ')||null,cargado_por:nombre,fecha_carga:fechaISO,fecha_pedido:fechaISO});
+      const buildRow=(ant,sufijo)=>({
+        cliente:data.base.cliente,
+        orden:data.base.orden,
+        sufijo,
+        tipo:data.base.tipo,
+        urgente:data.base.urgente,
+        laboratorio:ant.laboratorio,
+        tipo_lente:ant.tipo_lente,
+        tratamiento:ant.tratamiento||null,
+        graduacion:ant.graduacion||null,
+        dos_etapas:ant.dos_etapas||'No',
+        armazon:ant.armazon||null,
+        observaciones:ant.observaciones||null,
+        cargado_por:nombre,
+        fecha_carga:fechaISO,
+        fecha_pedido:fechaISO,
+      });
       const rows=data.doble?[buildRow(data.ant1,'A'),buildRow(data.ant2,'B')]:[buildRow(data.ant1,null)];
       await Pedidos.crearPedido(rows);
       enviarNotificacion('📋 Nuevo pedido — OLVISIÓN',`${nombre} cargó un pedido para ${data.base.cliente}`,true);
@@ -949,7 +1068,11 @@ const App = (() => {
     document.getElementById('bloque1-title').textContent='Anteojo';
     document.querySelectorAll('.form-control').forEach(el=>el.classList.remove('error'));
     document.querySelectorAll('.form-error').forEach(el=>el.classList.remove('visible'));
-    [1,2].forEach(n=>{try{setDistancia(n,'lejos');}catch{}});
+    [1,2].forEach(n=>{
+      try { setDistancia(n,'lejos'); } catch {}
+      document.getElementById(`f-armazon-nuevo${n}`)?.classList.add('hidden');
+      document.getElementById(`f-armazon-cliente${n}`)?.classList.add('hidden');
+    });
     _pendingGuardar=null;
   }
 
@@ -989,7 +1112,7 @@ const App = (() => {
     init, showScreen,
     loadPedidos, loadSeguimiento, refreshPanel, resetForm,
     switchEstadoTab, switchSegTab,
-    onLenteChange, setDistancia,
+    onLenteChange, setDistancia, onArmazonTipoChange,
     loadConfigScreen, loadConfigTratamientos,
     addLab, deleteLab, addMarca, deleteMarca, addMaterial, deleteMaterial, addTratamiento, deleteTratamiento,
     guardarEdicion, eliminarPedido, activarNotificaciones,
