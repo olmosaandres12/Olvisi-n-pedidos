@@ -122,6 +122,9 @@ const App = (() => {
     // Cerrar sin animación de confirmación para transición rápida
     const ov = document.getElementById('numpad-overlay');
     ov.classList.remove('np-visible');
+    // Restaurar zoom iOS
+    const vp = document.querySelector('meta[name=viewport]');
+    if (vp) vp.content = 'width=device-width, initial-scale=1, viewport-fit=cover';
     _numpadTarget = null; _numpadRaw = ''; _numpadSign = '+'; _numpadNext = null; _numpadStopRepeat();
     setTimeout(() => {
       ov.classList.add('hidden'); ov.style.display = '';
@@ -175,6 +178,9 @@ const App = (() => {
     updateFieldIndicator(inputEl);
     const sigBtn = document.getElementById('numpad-siguiente');
     if (sigBtn) sigBtn.classList.toggle('hidden', !_numpadNext);
+    // Bloquear zoom iOS mientras el numpad está abierto
+    const vp = document.querySelector('meta[name=viewport]');
+    if (vp) vp.content = 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no';
     const ov = document.getElementById('numpad-overlay');
     ov.classList.remove('hidden'); ov.style.display = 'flex';
     requestAnimationFrame(() => requestAnimationFrame(() => ov.classList.add('np-visible')));
@@ -193,6 +199,9 @@ const App = (() => {
     const ov = document.getElementById('numpad-overlay');
     ov.classList.remove('np-visible');
     setTimeout(() => { ov.classList.add('hidden'); ov.style.display=''; }, 280);
+    // Restaurar zoom iOS
+    const vp = document.querySelector('meta[name=viewport]');
+    if (vp) vp.content = 'width=device-width, initial-scale=1, viewport-fit=cover';
     _numpadTarget=null; _numpadRaw=''; _numpadSign='+'; _numpadNext=null; _numpadStopRepeat();
   }
   function attachNumpadListeners(container) {
