@@ -13,9 +13,8 @@
   <style>
     #app-layout { display:none;flex-direction:column;min-height:100dvh; }
 
-    /* FAB */
-    #fab-nuevo-pedido { position:fixed;bottom:calc(var(--nav-h) + env(safe-area-inset-bottom) + 16px);right:20px;z-index:490;width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#0550B4,#034291);color:#fff;font-size:1.6rem;font-weight:300;box-shadow:0 4px 18px rgba(3,66,145,.45),0 1px 4px rgba(3,66,145,.2);display:flex;align-items:center;justify-content:center;border:none;cursor:pointer;transition:transform .2s cubic-bezier(.34,1.56,.64,1),box-shadow .2s ease; }
-    #fab-nuevo-pedido:hover { transform:scale(1.08);box-shadow:0 6px 24px rgba(3,66,145,.5); }
+    #fab-nuevo-pedido { position:fixed;bottom:calc(var(--nav-h) + env(safe-area-inset-bottom) + 16px);right:20px;z-index:490;width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#0550B4,#034291);color:#fff;font-size:1.6rem;font-weight:300;box-shadow:0 4px 18px rgba(3,66,145,.45);display:flex;align-items:center;justify-content:center;border:none;cursor:pointer;transition:transform .2s cubic-bezier(.34,1.56,.64,1); }
+    #fab-nuevo-pedido:hover { transform:scale(1.08); }
     #fab-nuevo-pedido:active { transform:scale(.95); }
     @media(min-width:768px){ #fab-nuevo-pedido{bottom:32px;right:40px;} }
 
@@ -36,12 +35,9 @@
     .confirm-footer { padding:14px 18px 20px;display:flex;gap:10px;flex-shrink:0;border-top:1px solid var(--gris-borde); }
     .confirm-footer .btn { flex:1; }
 
-    .btn-editar-detalle { padding:7px 14px;border-radius:8px;background:var(--azul-light);color:var(--azul);font-size:.8rem;font-weight:600;border:1px solid #BFD4F5;cursor:pointer;transition:background var(--transition); }
-    .btn-editar-detalle:hover { background:#d0e4ff; }
-    .btn-eliminar-detalle { width:32px;height:32px;border-radius:50%;background:var(--rojo-bg);color:var(--rojo);border:1px solid var(--rojo-borde);display:flex;align-items:center;justify-content:center;font-size:.95rem;cursor:pointer;transition:background var(--transition),transform var(--transition); }
-    .btn-eliminar-detalle:hover { background:#fecaca;transform:scale(1.08); }
-    .btn-cerrar-x { width:32px;height:32px;border-radius:50%;background:var(--gris-bg);color:var(--gris-texto);display:flex;align-items:center;justify-content:center;font-size:1rem;cursor:pointer;transition:background var(--transition); }
-    .btn-cerrar-x:hover { background:var(--gris-borde); }
+    .btn-editar-detalle { padding:7px 14px;border-radius:8px;background:var(--azul-light);color:var(--azul);font-size:.8rem;font-weight:600;border:1px solid #BFD4F5;cursor:pointer; }
+    .btn-eliminar-detalle { width:32px;height:32px;border-radius:50%;background:var(--rojo-bg);color:var(--rojo);border:1px solid var(--rojo-borde);display:flex;align-items:center;justify-content:center;font-size:.95rem;cursor:pointer; }
+    .btn-cerrar-x { width:32px;height:32px;border-radius:50%;background:var(--gris-bg);color:var(--gris-texto);display:flex;align-items:center;justify-content:center;font-size:1rem;cursor:pointer; }
 
     .detalle-seccion { margin-top:20px; }
     .detalle-seccion-title { font-size:.72rem;font-weight:700;color:var(--azul);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;display:flex;align-items:center;gap:8px; }
@@ -52,10 +48,8 @@
     .detalle-valor { font-size:.9rem;font-weight:500;text-align:right; }
     .detalle-grad { font-family:var(--font-mono);font-size:.82rem;color:var(--gris-dark);margin-top:4px;line-height:1.8;background:var(--gris-bg);padding:8px 10px;border-radius:8px;width:100%; }
 
-    .edit-save-btn { width:100%;padding:15px;background:linear-gradient(135deg,#0550B4,#034291);color:#fff;border:none;border-radius:var(--radius);font-size:1rem;font-weight:700;cursor:pointer;margin-top:8px;box-shadow:0 4px 16px rgba(3,66,145,.3);transition:opacity var(--transition); }
-    .edit-save-btn:hover { opacity:.9; }
-    .edit-save-btn:disabled { opacity:.5;cursor:not-allowed; }
-    .btn-confirmar-guardar { background:linear-gradient(135deg,#0550B4,#034291) !important;box-shadow:0 4px 16px rgba(3,66,145,.35) !important; }
+    .edit-save-btn { width:100%;padding:15px;background:linear-gradient(135deg,#0550B4,#034291);color:#fff;border:none;border-radius:var(--radius);font-size:1rem;font-weight:700;cursor:pointer;margin-top:8px; }
+    .btn-confirmar-guardar { background:linear-gradient(135deg,#0550B4,#034291) !important; }
     .modal-row { display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--gris-bg);font-size:.875rem;gap:12px; }
     .modal-row:last-child { border-bottom:none; }
     .modal-label { color:var(--gris-texto);font-size:.8rem;flex-shrink:0; }
@@ -66,31 +60,31 @@
     #numpad-overlay.np-visible { opacity:1; }
     #numpad-sheet { background:#FAFBFD;border-radius:22px 22px 0 0;width:100%;max-width:400px;padding:0 0 max(24px,env(safe-area-inset-bottom)) 0;transform:translateY(30px);transition:transform .3s cubic-bezier(.34,1.56,.64,1);box-shadow:0 -8px 40px rgba(3,66,145,.15); }
     #numpad-overlay.np-visible #numpad-sheet { transform:translateY(0); }
-    .np-drag-bar { width:36px;height:4px;border-radius:2px;background:#D1D5DB;margin:10px auto 0;cursor:grab; }
+    .np-drag-bar { width:36px;height:4px;border-radius:2px;background:#D1D5DB;margin:10px auto 0; }
     .np-header { display:flex;align-items:center;justify-content:space-between;padding:10px 18px 8px; }
     #numpad-label { font-size:.85rem;font-weight:600;color:var(--azul); }
     #numpad-close { width:28px;height:28px;border-radius:50%;background:var(--gris-bg);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.85rem;color:var(--gris-texto); }
-    #numpad-display { margin:2px 16px 10px;background:#fff;border:2px solid var(--azul-mid);border-radius:14px;padding:12px 18px;font-size:2rem;font-weight:700;font-family:var(--font-mono);color:var(--gris-dark);letter-spacing:-.5px;min-height:62px;display:flex;align-items:center;justify-content:flex-end; }
+    #numpad-display { margin:2px 16px 10px;background:#fff;border:2px solid var(--azul-mid);border-radius:14px;padding:12px 18px;font-size:2rem;font-weight:700;font-family:var(--font-mono);color:var(--gris-dark);min-height:62px;display:flex;align-items:center;justify-content:flex-end; }
     .np-placeholder{color:#C9D0DC;font-weight:400;} .np-cursor{display:inline-block;width:2px;height:28px;background:var(--azul);border-radius:1px;margin-left:3px;animation:blink 1s step-end infinite;} @keyframes blink{50%{opacity:0;}}
     .np-sign{font-size:1.5rem;margin-right:4px;font-weight:800;}
     #numpad-display.np-shake{animation:npShake .35s ease;} @keyframes npShake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
-    #numpad-display.np-confirmed{border-color:var(--verde);animation:npPulse .4s ease;} @keyframes npPulse{0%{transform:scale(1)}50%{transform:scale(1.025)}100%{transform:scale(1)}}
+    #numpad-display.np-confirmed{border-color:var(--verde);}
     .np-step-row{display:flex;gap:10px;padding:0 12px 8px;}
-    .np-step-btn{flex:1;padding:11px 0;border-radius:12px;border:none;cursor:pointer;font-size:.95rem;font-weight:800;display:flex;align-items:center;justify-content:center;gap:5px;transition:transform .15s cubic-bezier(.34,1.56,.64,1);user-select:none;-webkit-user-select:none;}
+    .np-step-btn{flex:1;padding:11px 0;border-radius:12px;border:none;cursor:pointer;font-size:.95rem;font-weight:800;display:flex;align-items:center;justify-content:center;gap:5px;user-select:none;-webkit-user-select:none;}
     .np-step-btn:active{transform:scale(.93);}
-    #numpad-step-minus{background:linear-gradient(135deg,#FAEEDA,#F7D9C0);color:var(--np-minus-color);box-shadow:0 2px 8px rgba(216,90,48,.15);}
-    #numpad-step-plus{background:linear-gradient(135deg,#E6F1FB,#CCE4F9);color:var(--np-plus-color);box-shadow:0 2px 8px rgba(24,95,165,.15);}
+    #numpad-step-minus{background:linear-gradient(135deg,#FAEEDA,#F7D9C0);color:var(--np-minus-color);}
+    #numpad-step-plus{background:linear-gradient(135deg,#E6F1FB,#CCE4F9);color:var(--np-plus-color);}
     .np-step-label{font-size:.7rem;font-weight:500;opacity:.75;}
     .np-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:0 12px 6px;}
-    .numpad-key{border:none;cursor:pointer;border-radius:10px;height:44px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;font-weight:600;transition:transform .12s cubic-bezier(.34,1.56,.64,1),filter .1s ease;user-select:none;-webkit-user-select:none;}
-    .numpad-key:active{transform:scale(.87);filter:brightness(.92);}
+    .numpad-key{border:none;cursor:pointer;border-radius:10px;height:44px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;font-weight:600;user-select:none;-webkit-user-select:none;}
+    .numpad-key:active{transform:scale(.87);}
     .numpad-key[data-val]{background:#F0F4FF;color:#1E3A6E;}
     #numpad-sign{background:linear-gradient(135deg,#E6F1FB,#CCE4F9);color:var(--np-plus-color);font-size:1.2rem;}
-    #numpad-dot{background:#F0F4FF;color:#1E3A6E;font-size:1.3rem;font-weight:400;}
-    #numpad-del{background:#FEF3C7;color:#92400E;font-size:.95rem;}
-    #numpad-clear{background:#FCEBEB;color:#A32D2D;font-size:.75rem;font-weight:700;letter-spacing:.03em;}
-    #numpad-ok{margin:6px 12px 0;width:calc(100% - 24px);padding:14px;border:none;border-radius:14px;cursor:pointer;background:linear-gradient(135deg,#0550B4,#034291);color:#fff;font-size:1rem;font-weight:700;box-shadow:0 4px 16px rgba(3,66,145,.35);transition:opacity .2s ease,transform .15s cubic-bezier(.34,1.56,.64,1);}
-    #numpad-ok:hover{opacity:.92;} #numpad-ok:active{transform:scale(.97);} #numpad-ok.np-btn-disabled{opacity:.4;cursor:default;pointer-events:none;}
+    #numpad-dot{background:#F0F4FF;color:#1E3A6E;font-size:1.3rem;}
+    #numpad-del{background:#FEF3C7;color:#92400E;}
+    #numpad-clear{background:#FCEBEB;color:#A32D2D;font-size:.75rem;font-weight:700;}
+    #numpad-ok{margin:6px 12px 0;width:calc(100% - 24px);padding:14px;border:none;border-radius:14px;cursor:pointer;background:linear-gradient(135deg,#0550B4,#034291);color:#fff;font-size:1rem;font-weight:700;box-shadow:0 4px 16px rgba(3,66,145,.35);}
+    #numpad-ok.np-btn-disabled{opacity:.4;cursor:default;pointer-events:none;}
 
     @keyframes fadeIn   { from{opacity:0} to{opacity:1} }
     @keyframes slideSheet { from{transform:translateY(60px);opacity:0} to{transform:translateY(0);opacity:1} }
@@ -133,8 +127,10 @@
         </button>
       </div>
       <div id="seg-content-lab" class="seg-panel">
-        <div class="skeleton-card skeleton"></div>
-        <div class="skeleton-card skeleton" style="opacity:.6;margin-top:8px"></div>
+        <div style="border-radius:12px;overflow:hidden;border:1.5px solid var(--gris-borde)">
+          <div class="skeleton-card skeleton"></div>
+          <div class="skeleton-card skeleton" style="margin-top:1px;opacity:.6"></div>
+        </div>
       </div>
       <div id="seg-content-retirar" class="seg-panel hidden"></div>
     </section>
@@ -197,11 +193,7 @@
       <div class="section-header">
         <div><h1 class="section-title">Historial</h1><p class="section-subtitle" id="pedidos-subtitle">Todos los pedidos</p></div>
       </div>
-
-      <!-- Navegador de mes -->
       <div id="mes-nav-container"></div>
-
-      <!-- Tabs de estado -->
       <div class="estado-tabs">
         <button class="estado-tab active" data-estado="todos" onclick="App.switchEstadoTab('todos')">Todos</button>
         <button class="estado-tab" data-estado="Cristales pedidos a lab"     onclick="App.switchEstadoTab('Cristales pedidos a lab')">Cristales</button>
@@ -210,15 +202,11 @@
         <button class="estado-tab" data-estado="Pendiente de retirar"        onclick="App.switchEstadoTab('Pendiente de retirar')">Retirar</button>
         <button class="estado-tab" data-estado="Retirado"                    onclick="App.switchEstadoTab('Retirado')">Retirado</button>
       </div>
-
-      <!-- Skeleton -->
       <div id="pedidos-skeleton" style="display:flex;flex-direction:column;border-radius:12px;overflow:hidden;border:1.5px solid var(--gris-borde)">
         <div class="skeleton-card skeleton"></div>
         <div class="skeleton-card skeleton" style="opacity:.6;margin-top:1px"></div>
         <div class="skeleton-card skeleton" style="opacity:.3;margin-top:1px"></div>
       </div>
-
-      <!-- Lista compacta -->
       <div id="pedidos-list-container" style="display:none"></div>
     </section>
 
@@ -227,7 +215,8 @@
       <div class="section-header">
         <div><h1 class="section-title">Panel</h1><p class="section-subtitle">KPIs y resumen del mes</p></div>
       </div>
-      <div id="panel-content">
+      <!-- ID panel-kpis — requerido por panel.js -->
+      <div id="panel-kpis">
         <div class="skeleton-card skeleton" style="height:80px;border-radius:12px;margin-bottom:10px"></div>
         <div class="skeleton-card skeleton" style="height:80px;border-radius:12px;opacity:.6"></div>
       </div>
@@ -299,7 +288,7 @@
       Nuevo
     </button>
     <button class="nav-item" id="nav-pedidos" onclick="App.showScreen('pedidos')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
       Historial
     </button>
     <button class="nav-item hidden" id="nav-panel" onclick="App.showScreen('panel')">
@@ -363,10 +352,7 @@
 <div id="numpad-overlay" class="hidden">
   <div id="numpad-sheet">
     <div class="np-drag-bar"></div>
-    <div class="np-header">
-      <span id="numpad-label">Valor</span>
-      <button id="numpad-close">✕</button>
-    </div>
+    <div class="np-header"><span id="numpad-label">Valor</span><button id="numpad-close">✕</button></div>
     <div id="numpad-display"><span class="np-placeholder">0.00</span><span class="np-cursor"></span></div>
     <div class="np-step-row">
       <button id="numpad-step-minus" class="np-step-btn"><span style="font-size:1.2rem">−</span><span class="np-step-label">0.25</span></button>
@@ -374,17 +360,11 @@
     </div>
     <div class="np-grid">
       <button class="numpad-key" id="numpad-sign">±</button>
-      <button class="numpad-key" data-val="1">1</button>
-      <button class="numpad-key" data-val="2">2</button>
-      <button class="numpad-key" data-val="3">3</button>
+      <button class="numpad-key" data-val="1">1</button><button class="numpad-key" data-val="2">2</button><button class="numpad-key" data-val="3">3</button>
       <button class="numpad-key" id="numpad-del">⌫</button>
-      <button class="numpad-key" data-val="4">4</button>
-      <button class="numpad-key" data-val="5">5</button>
-      <button class="numpad-key" data-val="6">6</button>
+      <button class="numpad-key" data-val="4">4</button><button class="numpad-key" data-val="5">5</button><button class="numpad-key" data-val="6">6</button>
       <button class="numpad-key" id="numpad-dot">.</button>
-      <button class="numpad-key" data-val="7">7</button>
-      <button class="numpad-key" data-val="8">8</button>
-      <button class="numpad-key" data-val="9">9</button>
+      <button class="numpad-key" data-val="7">7</button><button class="numpad-key" data-val="8">8</button><button class="numpad-key" data-val="9">9</button>
       <button class="numpad-key" id="numpad-clear">CLR</button>
       <button class="numpad-key" data-val="0" style="grid-column:span 3">0</button>
     </div>
