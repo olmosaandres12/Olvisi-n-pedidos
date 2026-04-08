@@ -11,13 +11,13 @@ const App = (() => {
   let _segTab         = 'lab';
   let _pendingGuardar = null;
   let _detalleId      = null;
-  let _expandedId     = null;
+  let _expandedId     = null;  // number (single) o string 'pair-ORDEN' (par A/B)
 
   const hoy = new Date();
   let _mesActual = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
 
   // ── Numpad ───────────────────────────────────────
-  let _numpadTarget = null, _numpadSign = '+', _numpadRaw = '';
+  let _numpadTarget = null, _numpadSign = '+', _numpadRaw = '', _numpadNext = null;
   let _numpadRepeatTimer = null, _numpadRepeatInterval = null;
 
   function initNumpad() {
@@ -29,9 +29,32 @@ const App = (() => {
       let sy = 0;
       sheet.addEventListener('touchstart', (e) => { sy = e.touches[0].clientY; }, { passive: true });
       sheet.addEventListener('touchend',   (e) => { if (e.changedTouches[0].clientY - sy > 72) closeNumpad(); }, { passive: true });
+
+      // Inyectar indicador de campo si no existe
+      if (!document.getElementById('np-field-indicator')) {
+        const ind = document.createElement('div');
+        ind.id = 'np-field-indicator';
+        ind.className = 'np-field-indicator hidden';
+        const npHeader = sheet.querySelector('.np-header');
+        if (npHeader) npHeader.insertAdjacentElement('afterend', ind);
+      }
     }
+
     document.getElementById('numpad-close')?.addEventListener('click', closeNumpad);
     document.getElementById('numpad-ok')?.addEventListener('click', confirmNumpad);
+
+    // Inyectar botón Siguiente si no existe
+    const ok = document.getElementById('numpad-ok');
+    if (ok && !document.getElementById('numpad-siguiente')) {
+      const sig = document.createElement('button');
+      sig.id = 'numpad-siguiente';
+      sig.type = 'button';
+      sig.className = 'numpad-siguiente-btn hidden';
+      sig.innerHTML = 'Siguiente <span class="np-sig-arrow">›</span>';
+      ok.parentNode.insertBefore(sig, ok);
+      sig.addEventListener('click', siguienteNumpad);
+    }
+
     const bm = document.getElementById('numpad-step-minus');
     const bp = document.getElementById('numpad-step-plus');
     if (bm) { bm.addEventListener('pointerdown', () => _numpadStartRepeat(-0.25)); bm.addEventListener('pointerup', _numpadStopRepeat); bm.addEventListener('pointerleave', _numpadStopRepeat); }
@@ -52,6 +75,65 @@ const App = (() => {
         _numpadRaw += btn.dataset.val; _numpadRenderDisplay();
       });
     });
+  }
+
+  // Obtiene el siguiente campo en la secuencia Esf → Cil → Eje
+  function getNextField(inputEl) {
+    const id = inputEl.id;
+    if (!id || !id.startsWith('g-')) return null;
+    const parts = id.split('-');
+    if (parts.length < 5) return null;
+    const [, dc, type, ojo, num] = parts;
+    if (type === 'esf') return document.getElementById(`g-${dc}-cil-${ojo}-${num}`);
+    if (type === 'cil') return document.getElementById(`g-${dc}-eje-${ojo}-${num}`);
+    return null;
+  }
+
+  // Actualiza el indicador de campo (Esf › Cil › Eje) en el sheet
+  function updateFieldIndicator(inputEl) {
+    const indicator = document.getElementById('np-field-indicator');
+    if (!indicator) return;
+    const isEsf = inputEl.classList.contains('grad-esf');
+    const isCil = inputEl.classList.contains('grad-cil');
+    if (!isEsf && !isCil) { indicator.classList.add('hidden'); return; }
+    const id = inputEl.id || '';
+    const parts = id.split('-');
+    const ojo = parts.length >= 4 ? parts[3] : '';
+    const ojoLabel = ojo === 'D' ? 'OD' : ojo === 'I' ? 'OI' : '';
+    const activeKey = isEsf ? 'esf' : 'cil';
+    const steps = [{k:'esf',l:'Esf'},{k:'cil',l:'Cil'},{k:'eje',l:'Eje'}];
+    indicator.innerHTML =
+      (ojoLabel ? `<span class="np-fi-ojo">${ojoLabel}</span>` : '') +
+      steps.map((s, i) =>
+        `<span class="np-fi-step ${s.k === activeKey ? 'np-fi-step--active' : ''}">${s.l}</span>` +
+        (i < 2 ? '<span class="np-fi-sep">›</span>' : '')
+      ).join('');
+    indicator.classList.remove('hidden');
+  }
+
+  // Confirma el valor actual y avanza al siguiente campo
+  function siguienteNumpad() {
+    const next = _numpadNext;
+    if (_numpadTarget && _numpadRaw) {
+      _numpadTarget.value = (_numpadSign==='-'?'-':'+')+_numpadRaw;
+      _numpadTarget.dispatchEvent(new Event('input',{bubbles:true}));
+      _numpadTarget.dispatchEvent(new Event('change',{bubbles:true}));
+    }
+    // Cerrar sin animación de confirmación para transición rápida
+    const ov = document.getElementById('numpad-overlay');
+    ov.classList.remove('np-visible');
+    _numpadTarget = null; _numpadRaw = ''; _numpadSign = '+'; _numpadNext = null; _numpadStopRepeat();
+    setTimeout(() => {
+      ov.classList.add('hidden'); ov.style.display = '';
+      if (!next) return;
+      if (next.classList.contains('grad-eje')) {
+        next.focus();
+        setTimeout(() => next.select(), 50);
+      } else {
+        const label = next.classList.contains('grad-esf') ? 'Esfera' : 'Cilindro';
+        openNumpad(next, label);
+      }
+    }, 160);
   }
 
   function _numpadStepBy(delta) {
@@ -83,11 +165,16 @@ const App = (() => {
     setTimeout(() => d.classList.remove('np-shake'), 380);
   }
   function openNumpad(inputEl, label) {
-    _numpadTarget = inputEl; _numpadRaw = ''; _numpadSign = '+';
+    _numpadTarget = inputEl;
+    _numpadNext   = getNextField(inputEl);
+    _numpadRaw    = ''; _numpadSign = '+';
     const ex = (inputEl.value||'').trim();
     if (ex) { if (ex.startsWith('-')) { _numpadSign='-'; _numpadRaw=ex.slice(1).replace(/^\+/,''); } else { _numpadSign='+'; _numpadRaw=ex.replace(/^\+/,''); } }
     const lbl = document.getElementById('numpad-label'); if (lbl) lbl.textContent = label||'Valor';
     _numpadRenderDisplay();
+    updateFieldIndicator(inputEl);
+    const sigBtn = document.getElementById('numpad-siguiente');
+    if (sigBtn) sigBtn.classList.toggle('hidden', !_numpadNext);
     const ov = document.getElementById('numpad-overlay');
     ov.classList.remove('hidden'); ov.style.display = 'flex';
     requestAnimationFrame(() => requestAnimationFrame(() => ov.classList.add('np-visible')));
@@ -106,17 +193,20 @@ const App = (() => {
     const ov = document.getElementById('numpad-overlay');
     ov.classList.remove('np-visible');
     setTimeout(() => { ov.classList.add('hidden'); ov.style.display=''; }, 280);
-    _numpadTarget=null; _numpadRaw=''; _numpadSign='+'; _numpadStopRepeat();
+    _numpadTarget=null; _numpadRaw=''; _numpadSign='+'; _numpadNext=null; _numpadStopRepeat();
   }
   function attachNumpadListeners(container) {
     container.querySelectorAll('.grad-esf,.grad-cil,.grad-add').forEach(inp => {
       inp.setAttribute('readonly','readonly');
+      inp.style.fontSize = '16px'; // Previene zoom en iOS
       const label = inp.classList.contains('grad-esf') ? 'Esfera' : inp.classList.contains('grad-cil') ? 'Cilindro' : 'Adición';
-      inp.addEventListener('mousedown', (e) => { e.preventDefault(); openNumpad(inp,label); });
-      inp.addEventListener('touchend',  (e) => { e.preventDefault(); openNumpad(inp,label); });
+      // touchstart con passive:false para prevenir zoom en iOS antes de que ocurra
+      inp.addEventListener('touchstart', (e) => { e.preventDefault(); openNumpad(inp,label); }, { passive: false });
+      inp.addEventListener('mousedown',  (e) => { e.preventDefault(); openNumpad(inp,label); });
       inp.addEventListener('change', () => formatGradInput(inp));
     });
     container.querySelectorAll('.grad-eje').forEach(inp => {
+      inp.style.fontSize = '16px';
       inp.addEventListener('blur', () => { const v=inp.value.replace(/[^0-9]/g,''); if(!v||v==='0'){inp.value='';return;} inp.value=String(Math.min(180,Math.max(0,parseInt(v)))); });
       inp.addEventListener('focus', () => setTimeout(()=>inp.select(),0));
     });
@@ -308,7 +398,6 @@ const App = (() => {
   }
 
   // ── SEGUIMIENTO ───────────────────────────────────
-  // Usa filas compactas igual que el historial
   async function loadSeguimiento() {
     try {
       const todos=await Pedidos.getPedidosActivos();
@@ -332,8 +421,33 @@ const App = (() => {
     return (ord[a._est.valor]??2)-(ord[b._est.valor]??2)||b._dias-a._dias;
   }
 
-  // ── Render compacto (filas acordeón) ─────────────
-  // Usado en SEGUIMIENTO e HISTORIAL
+  // ── Agrupador de pares A/B ────────────────────────
+  function groupPedidos(list) {
+    const result = [], seen = new Set();
+    for (const p of list) {
+      if (seen.has(p.id)) continue;
+      if (p.sufijo === 'A') {
+        const b = list.find(x => x.orden === p.orden && x.sufijo === 'B' && !seen.has(x.id));
+        if (b) {
+          result.push({ type:'pair', a:p, b });
+          seen.add(p.id); seen.add(b.id);
+          continue;
+        }
+      } else if (p.sufijo === 'B') {
+        const a = list.find(x => x.orden === p.orden && x.sufijo === 'A' && !seen.has(x.id));
+        if (a) {
+          result.push({ type:'pair', a, b:p });
+          seen.add(a.id); seen.add(p.id);
+          continue;
+        }
+      }
+      result.push({ type:'single', p });
+      seen.add(p.id);
+    }
+    return result;
+  }
+
+  // ── Render fila compacta (pedido individual) ──────
   function renderCompactRow(p) {
     const sufijo  = p.sufijo ? `-${p.sufijo}` : '';
     const estCls  = p._est.valor==='critico' ? 'ped-row--critico' : p._est.valor==='demorado' ? 'ped-row--demorado' : '';
@@ -344,7 +458,7 @@ const App = (() => {
     const scls    = Pedidos.claseEstado(p.estado);
     const fechaCorta = new Date(p.fecha_carga).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'});
     const detalle=`
-      <div class="ped-row-detail ${isOpen?'':'hidden'}">
+      <div class="ped-row-detail ${isOpen?'':'hidden'}" onclick="event.stopPropagation()">
         <div class="ped-row-detail-grid">
           ${p.laboratorio?`<div class="prd-item"><span class="prd-label">Lab</span><span class="prd-val">${esc(p.laboratorio)}</span></div>`:''}
           ${p.tipo_lente ?`<div class="prd-item"><span class="prd-label">Lente</span><span class="prd-val">${esc(p.tipo_lente)}</span></div>`:''}
@@ -357,7 +471,7 @@ const App = (() => {
           <div class="prd-item"><span class="prd-label">Por</span><span class="prd-val">${esc(p.cargado_por||'—')}</span></div>
         </div>
         <div class="ped-row-detail-actions">
-          <select class="estado-select ${scls} estado-select-inline" data-id="${p.id}" data-prev="${esc(p.estado)}">${opts}</select>
+          <select class="estado-select ${scls} estado-select-inline" data-id="${p.id}" data-prev="${esc(p.estado)}" onclick="event.stopPropagation()">${opts}</select>
           ${Auth.isAdmin()?`<button class="ped-row-edit-btn" onclick="event.stopPropagation();App._abrirDetalleRapido(${p.id})">✏️ Editar</button>`:''}
           ${Auth.isAdmin()?`<button class="ped-row-del-btn" onclick="event.stopPropagation();App.eliminarPedido(${p.id})">🗑️</button>`:''}
         </div>
@@ -376,7 +490,55 @@ const App = (() => {
     </div>`;
   }
 
-  // ── renderSegPanel usa filas compactas ────────────
+  // ── Render fila par A/B ───────────────────────────
+  function renderPairedRow(pA, pB) {
+    const pairId  = `pair-${pA.orden}`;
+    const isOpen  = _expandedId === pairId;
+    const worstEst = (pA._est.valor==='critico'||pB._est.valor==='critico') ? 'critico'
+                   : (pA._est.valor==='demorado'||pB._est.valor==='demorado') ? 'demorado' : 'ok';
+    const rowCls   = worstEst==='critico' ? 'ped-row--critico' : worstEst==='demorado' ? 'ped-row--demorado' : '';
+    const urgDot   = (pA.urgente==='Si'||pB.urgente==='Si') ? '<span class="ped-row-urgente" title="Urgente">⚡</span>' : '';
+    const fechaCorta = new Date(pA.fecha_carga).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'});
+    const ESTADOS  = ['Cristales pedidos a lab','Armazón enviado p/calibrado','En laboratorio','Pendiente de retirar','Retirado'];
+
+    const subRow = (p, color) => {
+      const opts = ESTADOS.map(e=>`<option value="${e}"${e===p.estado?' selected':''}>${e}</option>`).join('');
+      const scls = Pedidos.claseEstado(p.estado);
+      return `<div class="ped-pair-sub ped-pair-sub--${color}">
+        <div class="ped-pair-header">
+          <span class="ped-pair-badge ped-pair-badge--${color}">${p.sufijo}</span>
+          ${p.laboratorio?`<span class="ped-row-lab">${esc(p.laboratorio)}</span>`:''}
+          ${p.tipo_lente?`<span class="ped-pair-lente">${esc(p.tipo_lente)}</span>`:''}
+          <span class="ped-pair-spacer"></span>
+          <span class="est-inteligente ${p._est.clase}" style="font-size:.75rem">${p._est.texto}</span>
+          <span class="ped-pair-dias">${p._dias}d</span>
+        </div>
+        ${p.graduacion?`<div class="ped-pair-grad">${esc(p.graduacion).replace(/\|/g,' | ')}</div>`:''}
+        <div class="ped-pair-actions">
+          <select class="estado-select ${scls} estado-select-inline" data-id="${p.id}" data-prev="${esc(p.estado)}" onclick="event.stopPropagation()">${opts}</select>
+          ${Auth.isAdmin()?`<button class="ped-row-edit-btn" onclick="event.stopPropagation();App._abrirDetalleRapido(${p.id})">✏️</button>`:''}
+          ${Auth.isAdmin()?`<button class="ped-row-del-btn" onclick="event.stopPropagation();App.eliminarPedido(${p.id})">🗑️</button>`:''}
+        </div>
+      </div>`;
+    };
+
+    return `<div class="ped-row ped-row--pair ${rowCls}" data-pair-id="${pairId}" onclick="App.togglePedidoRow('${pairId}')">
+      <div class="ped-row-main">
+        <span class="ped-row-orden">#${esc(pA.orden)}</span>
+        ${urgDot}
+        <span class="ped-row-cliente">${esc(pA.cliente)}</span>
+        <span class="ped-pair-ab-badge">A · B</span>
+        <span class="ped-row-fecha">${fechaCorta}</span>
+        <span class="ped-row-arrow ${isOpen?'open':''}">›</span>
+      </div>
+      <div class="ped-row-detail ${isOpen?'':'hidden'}" onclick="event.stopPropagation()">
+        ${subRow(pA,'azul')}
+        ${subRow(pB,'morado')}
+      </div>
+    </div>`;
+  }
+
+  // ── renderSegPanel usa filas compactas + agrupadas ─
   function renderSegPanel(id, pedidos) {
     const el = document.getElementById(id); if (!el) return;
     if (!pedidos.length) {
@@ -385,7 +547,8 @@ const App = (() => {
         <h3>Sin pedidos</h3><p>No hay pedidos en este estado</p></div>`;
       return;
     }
-    el.innerHTML=`<div class="ped-compact-list">${pedidos.map(renderCompactRow).join('')}</div>`;
+    const groups = groupPedidos(pedidos);
+    el.innerHTML=`<div class="ped-compact-list">${groups.map(g=>g.type==='pair'?renderPairedRow(g.a,g.b):renderCompactRow(g.p)).join('')}</div>`;
     attachInlineSelects(el);
   }
 
@@ -458,23 +621,30 @@ const App = (() => {
       return;
     }
     const sorted=[...filtered].sort((a,b)=>new Date(b.fecha_carga)-new Date(a.fecha_carga));
-    container.innerHTML=`<div class="ped-compact-list">${sorted.map(p=>renderCompactRow(p)).join('')}</div>`;
-    if (_expandedId) {
-      const row=container.querySelector(`.ped-row[data-id="${_expandedId}"]`);
-      if (row) row.querySelector('.ped-row-detail')?.classList.remove('hidden');
+    const groups=groupPedidos(sorted);
+    container.innerHTML=`<div class="ped-compact-list">${groups.map(g=>g.type==='pair'?renderPairedRow(g.a,g.b):renderCompactRow(g.p)).join('')}</div>`;
+    // Restaurar fila expandida si hay una
+    if (_expandedId !== null) {
+      const isPair = typeof _expandedId === 'string' && _expandedId.startsWith('pair-');
+      const sel = isPair ? `.ped-row[data-pair-id="${_expandedId}"]` : `.ped-row[data-id="${_expandedId}"]`;
+      const row = container.querySelector(sel);
+      if (row) {
+        row.querySelector('.ped-row-detail')?.classList.remove('hidden');
+        row.querySelector('.ped-row-arrow')?.classList.add('open');
+      }
     }
     attachInlineSelects(container);
   }
 
   function togglePedidoRow(id) {
-    const container=document.getElementById(_currentScreen==='pedidos'?'pedidos-list-container':'seg-content-'+_segTab);
-    // Buscar en toda la página
-    const allRows=document.querySelectorAll(`.ped-row[data-id="${id}"]`);
-    if (!allRows.length) return;
-    const clickedRow=allRows[0];
-    const detail=clickedRow.querySelector('.ped-row-detail');
-    const arrow=clickedRow.querySelector('.ped-row-arrow');
-    const isOpen=!detail.classList.contains('hidden');
+    // id puede ser number (fila simple) o string 'pair-ORDEN' (par A/B)
+    const isPair = typeof id === 'string' && id.startsWith('pair-');
+    const selector = isPair ? `.ped-row[data-pair-id="${id}"]` : `.ped-row[data-id="${id}"]`;
+    const clickedRow = document.querySelector(selector);
+    if (!clickedRow) return;
+    const detail = clickedRow.querySelector('.ped-row-detail');
+    const arrow  = clickedRow.querySelector('.ped-row-arrow');
+    const isOpen = !detail.classList.contains('hidden');
     // Cerrar todos
     document.querySelectorAll('.ped-row').forEach(r=>{
       r.querySelector('.ped-row-detail')?.classList.add('hidden');
@@ -483,7 +653,7 @@ const App = (() => {
     if (isOpen) { _expandedId=null; return; }
     detail.classList.remove('hidden');
     arrow?.classList.add('open');
-    _expandedId=id;
+    _expandedId = id;
     setTimeout(()=>clickedRow.scrollIntoView({behavior:'smooth',block:'nearest'}),50);
   }
 
