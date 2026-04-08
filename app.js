@@ -13,11 +13,10 @@ const App = (() => {
   let _detalleId      = null;
   let _expandedId     = null;
 
-  // Mes actual para historial
   const hoy = new Date();
   let _mesActual = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
 
-  // ── Teclado numérico ─────────────────────────────
+  // ── Numpad ───────────────────────────────────────
   let _numpadTarget = null, _numpadSign = '+', _numpadRaw = '';
   let _numpadRepeatTimer = null, _numpadRepeatInterval = null;
 
@@ -64,7 +63,7 @@ const App = (() => {
     _numpadRenderDisplay();
   }
   function _numpadStartRepeat(d) { _numpadStepBy(d); _numpadRepeatTimer = setTimeout(() => { _numpadRepeatInterval = setInterval(() => _numpadStepBy(d), 80); }, 350); }
-  function _numpadStopRepeat()   { clearTimeout(_numpadRepeatTimer); clearInterval(_numpadRepeatInterval); _numpadRepeatTimer = null; _numpadRepeatInterval = null; }
+  function _numpadStopRepeat() { clearTimeout(_numpadRepeatTimer); clearInterval(_numpadRepeatInterval); _numpadRepeatTimer = null; _numpadRepeatInterval = null; }
 
   function _numpadRenderDisplay() {
     const disp = document.getElementById('numpad-display'), ok = document.getElementById('numpad-ok');
@@ -74,8 +73,7 @@ const App = (() => {
       ok?.classList.add('np-btn-disabled');
     } else {
       const color = _numpadSign==='-' ? 'var(--np-minus-color)' : 'var(--np-plus-color)';
-      const sig   = _numpadSign==='-' ? '−' : '+';
-      disp.innerHTML = `<span class="np-sign" style="color:${color}">${sig}</span>${_numpadRaw}<span class="np-cursor"></span>`;
+      disp.innerHTML = `<span class="np-sign" style="color:${color}">${_numpadSign==='-'?'−':'+'}</span>${_numpadRaw}<span class="np-cursor"></span>`;
       ok?.classList.remove('np-btn-disabled');
     }
   }
@@ -135,32 +133,27 @@ const App = (() => {
 
   // ── Push ─────────────────────────────────────────
   const VAPID_PUBLIC = 'BNHBkj7wiOQKz06CN3-AdpB1n0RXBKUuKvneiQ_zkUt9Q_yOUifGe_NeXL3eePKDXdmSNkTyBNnqWHed3VeY5LQ';
-
   async function initPush() {
     if (!('serviceWorker' in navigator)||!('PushManager' in window)) return;
     try {
-      const reg=await navigator.serviceWorker.register('/sw.js');
-      await navigator.serviceWorker.ready;
-      const perm=await Notification.requestPermission();
-      if (perm!=='granted') return;
+      const reg=await navigator.serviceWorker.register('/sw.js'); await navigator.serviceWorker.ready;
+      const perm=await Notification.requestPermission(); if (perm!=='granted') return;
       const ex=await reg.pushManager.getSubscription();
       if (ex){await guardarSuscripcion(ex);return;}
       const sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64ToUint8Array(VAPID_PUBLIC)});
-      await guardarSuscripcion(sub);
-      toast('🔔 Notificaciones activadas','success');
+      await guardarSuscripcion(sub); toast('🔔 Notificaciones activadas','success');
     } catch(e){console.warn('Push:',e);}
   }
   async function guardarSuscripcion(sub) {
-    const {data:{user}}=await window.supabaseClient.auth.getUser();
-    if (!user) return;
+    const {data:{user}}=await window.supabaseClient.auth.getUser(); if (!user) return;
     await window.supabaseClient.from('push_subscriptions').upsert({user_id:user.id,subscription:sub.toJSON()},{onConflict:'user_id'});
   }
   async function enviarNotificacion(title,body,soloAdmin=false) {
-    try { await fetch(`${SUPABASE_URL}/functions/v1/push-notify`,{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${SUPABASE_ANON_KEY}`},body:JSON.stringify({title,body,soloAdmin})}); } catch(e){}
+    try { await fetch(`${SUPABASE_URL}/functions/v1/push-notify`,{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${SUPABASE_ANON_KEY}`},body:JSON.stringify({title,body,soloAdmin})}); } catch{}
   }
   function urlBase64ToUint8Array(b64) {
-    const pad='='.repeat((4-b64.length%4)%4), base64=(b64+pad).replace(/-/g,'+').replace(/_/g,'/');
-    const raw=atob(base64); return Uint8Array.from([...raw].map(c=>c.charCodeAt(0)));
+    const pad='='.repeat((4-b64.length%4)%4),base64=(b64+pad).replace(/-/g,'+').replace(/_/g,'/');
+    return Uint8Array.from([...atob(base64)].map(c=>c.charCodeAt(0)));
   }
 
   // ── INIT ─────────────────────────────────────────
@@ -290,9 +283,7 @@ const App = (() => {
     const lente=document.getElementById(`f-lente${num}`)?.value;
     const sel=document.getElementById(`f-tratamiento${num}`); if (!sel) return;
     const opts=_configCache.tratamientos[lente]||[];
-    sel.innerHTML=opts.length
-      ?`<option value="">— Seleccionar —</option>`+opts.map(t=>`<option value="${esc(t.valor)}">${esc(t.valor)}</option>`).join('')
-      :`<option value="">Sin tratamientos para este tipo</option>`;
+    sel.innerHTML=opts.length?`<option value="">— Seleccionar —</option>`+opts.map(t=>`<option value="${esc(t.valor)}">${esc(t.valor)}</option>`).join(''):`<option value="">Sin tratamientos para este tipo</option>`;
   }
 
   function setDistancia(num,dist) {
@@ -317,6 +308,7 @@ const App = (() => {
   }
 
   // ── SEGUIMIENTO ───────────────────────────────────
+  // Usa filas compactas igual que el historial
   async function loadSeguimiento() {
     try {
       const todos=await Pedidos.getPedidosActivos();
@@ -340,14 +332,61 @@ const App = (() => {
     return (ord[a._est.valor]??2)-(ord[b._est.valor]??2)||b._dias-a._dias;
   }
 
-  function renderSegPanel(id,pedidos) {
-    const el=document.getElementById(id); if (!el) return;
+  // ── Render compacto (filas acordeón) ─────────────
+  // Usado en SEGUIMIENTO e HISTORIAL
+  function renderCompactRow(p) {
+    const sufijo  = p.sufijo ? `-${p.sufijo}` : '';
+    const estCls  = p._est.valor==='critico' ? 'ped-row--critico' : p._est.valor==='demorado' ? 'ped-row--demorado' : '';
+    const urgDot  = p.urgente==='Si' ? '<span class="ped-row-urgente" title="Urgente">⚡</span>' : '';
+    const isOpen  = _expandedId===p.id;
+    const ESTADOS = ['Cristales pedidos a lab','Armazón enviado p/calibrado','En laboratorio','Pendiente de retirar','Retirado'];
+    const opts    = ESTADOS.map(e=>`<option value="${e}"${e===p.estado?' selected':''}>${e}</option>`).join('');
+    const scls    = Pedidos.claseEstado(p.estado);
+    const fechaCorta = new Date(p.fecha_carga).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'});
+    const detalle=`
+      <div class="ped-row-detail ${isOpen?'':'hidden'}">
+        <div class="ped-row-detail-grid">
+          ${p.laboratorio?`<div class="prd-item"><span class="prd-label">Lab</span><span class="prd-val">${esc(p.laboratorio)}</span></div>`:''}
+          ${p.tipo_lente ?`<div class="prd-item"><span class="prd-label">Lente</span><span class="prd-val">${esc(p.tipo_lente)}</span></div>`:''}
+          ${p.tratamiento?`<div class="prd-item"><span class="prd-label">Tratamiento</span><span class="prd-val">${esc(p.tratamiento)}</span></div>`:''}
+          ${p.tipo       ?`<div class="prd-item"><span class="prd-label">Tipo</span><span class="prd-val">${esc(p.tipo)}</span></div>`:''}
+          ${p.dos_etapas==='Si'?`<div class="prd-item"><span class="prd-label">Etapas</span><span class="prd-val">2 etapas</span></div>`:''}
+          ${p.graduacion ?`<div class="prd-item prd-item--full"><span class="prd-label">Graduación</span><span class="prd-val" style="font-family:var(--font-mono);font-size:.8rem">${esc(p.graduacion).replace(/\|/g,' | ')}</span></div>`:''}
+          ${p.armazon    ?`<div class="prd-item prd-item--full"><span class="prd-label">Armazón</span><span class="prd-val">${esc(p.armazon)}</span></div>`:''}
+          <div class="prd-item"><span class="prd-label">Días</span><span class="prd-val">${p._dias}d · ${p._est.texto}</span></div>
+          <div class="prd-item"><span class="prd-label">Por</span><span class="prd-val">${esc(p.cargado_por||'—')}</span></div>
+        </div>
+        <div class="ped-row-detail-actions">
+          <select class="estado-select ${scls} estado-select-inline" data-id="${p.id}" data-prev="${esc(p.estado)}">${opts}</select>
+          ${Auth.isAdmin()?`<button class="ped-row-edit-btn" onclick="event.stopPropagation();App._abrirDetalleRapido(${p.id})">✏️ Editar</button>`:''}
+          ${Auth.isAdmin()?`<button class="ped-row-del-btn" onclick="event.stopPropagation();App.eliminarPedido(${p.id})">🗑️</button>`:''}
+        </div>
+      </div>`;
+    return `<div class="ped-row ${estCls}" data-id="${p.id}" onclick="App.togglePedidoRow(${p.id})">
+      <div class="ped-row-main">
+        <span class="ped-row-orden">#${esc(p.orden)}${sufijo}</span>
+        ${urgDot}
+        <span class="ped-row-cliente">${esc(p.cliente)}</span>
+        ${p.laboratorio?`<span class="ped-row-lab">${esc(p.laboratorio)}</span>`:''}
+        <span class="ped-row-est ${p._est.clase}">${p._est.icono||''}</span>
+        <span class="ped-row-fecha">${fechaCorta}</span>
+        <span class="ped-row-arrow ${isOpen?'open':''}">›</span>
+      </div>
+      ${detalle}
+    </div>`;
+  }
+
+  // ── renderSegPanel usa filas compactas ────────────
+  function renderSegPanel(id, pedidos) {
+    const el = document.getElementById(id); if (!el) return;
     if (!pedidos.length) {
-      el.innerHTML=`<div class="empty-state"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><h3>Sin pedidos</h3><p>No hay pedidos en este estado</p></div>`;
+      el.innerHTML=`<div class="empty-state">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <h3>Sin pedidos</h3><p>No hay pedidos en este estado</p></div>`;
       return;
     }
-    el.innerHTML=`<div class="pedidos-list">${pedidos.map(renderCard).join('')}</div>`;
-    attachSelects(el); attachCardTaps(el);
+    el.innerHTML=`<div class="ped-compact-list">${pedidos.map(renderCompactRow).join('')}</div>`;
+    attachInlineSelects(el);
   }
 
   function switchSegTab(tab) {
@@ -357,8 +396,7 @@ const App = (() => {
     document.getElementById('seg-content-retirar').classList.toggle('hidden',tab!=='retirar');
   }
 
-  // ── PEDIDOS — Historial compacto ─────────────────
-
+  // ── HISTORIAL ────────────────────────────────────
   function mesLabel(d) {
     return d.toLocaleDateString('es-AR',{month:'long',year:'numeric'}).replace(/^\w/,c=>c.toUpperCase());
   }
@@ -374,17 +412,8 @@ const App = (() => {
       </div>`;
   }
 
-  function mesPrev() {
-    _mesActual=new Date(_mesActual.getFullYear(),_mesActual.getMonth()-1,1);
-    _expandedId=null;
-    renderMesNav(); renderPedidosList();
-  }
-  function mesNext() {
-    const next=new Date(_mesActual.getFullYear(),_mesActual.getMonth()+1,1);
-    if (next>hoy) return;
-    _mesActual=next; _expandedId=null;
-    renderMesNav(); renderPedidosList();
-  }
+  function mesPrev() { _mesActual=new Date(_mesActual.getFullYear(),_mesActual.getMonth()-1,1); _expandedId=null; renderMesNav(); renderPedidosList(); }
+  function mesNext() { const n=new Date(_mesActual.getFullYear(),_mesActual.getMonth()+1,1); if(n>hoy)return; _mesActual=n; _expandedId=null; renderMesNav(); renderPedidosList(); }
 
   async function loadPedidos() {
     const skel=document.getElementById('pedidos-skeleton');
@@ -413,97 +442,41 @@ const App = (() => {
     const container=document.getElementById('pedidos-list-container');
     const sub=document.getElementById('pedidos-subtitle');
     if (!container) return;
-
-    // Filtro por mes
-    const mesInicio = _mesActual;
-    const mesFin    = new Date(_mesActual.getFullYear(), _mesActual.getMonth()+1, 1);
-
+    const mesInicio=_mesActual;
+    const mesFin=new Date(_mesActual.getFullYear(),_mesActual.getMonth()+1,1);
     const filtered=_pedidosCache.filter(p=>{
       const fc=new Date(p.fecha_carga);
       if (fc<mesInicio||fc>=mesFin) return false;
       if (_estadoTab!=='todos'&&p.estado!==_estadoTab) return false;
       return true;
     });
-
     sub.textContent=`${filtered.length} pedido${filtered.length!==1?'s':''}`;
-
     if (!filtered.length) {
       container.innerHTML=`<div class="empty-state">
         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         <h3>Sin pedidos</h3><p>No hay pedidos en ${mesLabel(_mesActual).toLowerCase()}</p></div>`;
       return;
     }
-
-    // Ordenar por fecha desc
     const sorted=[...filtered].sort((a,b)=>new Date(b.fecha_carga)-new Date(a.fecha_carga));
-
     container.innerHTML=`<div class="ped-compact-list">${sorted.map(p=>renderCompactRow(p)).join('')}</div>`;
-
-    // Restaurar expandido si existía
     if (_expandedId) {
       const row=container.querySelector(`.ped-row[data-id="${_expandedId}"]`);
       if (row) row.querySelector('.ped-row-detail')?.classList.remove('hidden');
     }
-
-    // Selects dentro de filas expandidas
     attachInlineSelects(container);
   }
 
-  function renderCompactRow(p) {
-    const sufijo  = p.sufijo ? `-${p.sufijo}` : '';
-    const estCls  = p._est.valor==='critico' ? 'ped-row--critico' : p._est.valor==='demorado' ? 'ped-row--demorado' : '';
-    const urgDot  = p.urgente==='Si' ? '<span class="ped-row-urgente" title="Urgente">⚡</span>' : '';
-    const isOpen  = _expandedId===p.id;
-    const ESTADOS = ['Cristales pedidos a lab','Armazón enviado p/calibrado','En laboratorio','Pendiente de retirar','Retirado'];
-    const opts    = ESTADOS.map(e=>`<option value="${e}"${e===p.estado?' selected':''}>${e}</option>`).join('');
-    const scls    = Pedidos.claseEstado(p.estado);
-    const fechaCorta = new Date(p.fecha_carga).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'});
-
-    // Detalle expandido
-    const detalle=`
-      <div class="ped-row-detail ${isOpen?'':'hidden'}">
-        <div class="ped-row-detail-grid">
-          ${p.laboratorio?`<div class="prd-item"><span class="prd-label">Lab</span><span class="prd-val">${esc(p.laboratorio)}</span></div>`:''}
-          ${p.tipo_lente ?`<div class="prd-item"><span class="prd-label">Lente</span><span class="prd-val">${esc(p.tipo_lente)}</span></div>`:''}
-          ${p.tratamiento?`<div class="prd-item"><span class="prd-label">Tratamiento</span><span class="prd-val">${esc(p.tratamiento)}</span></div>`:''}
-          ${p.tipo       ?`<div class="prd-item"><span class="prd-label">Tipo</span><span class="prd-val">${esc(p.tipo)}</span></div>`:''}
-          ${p.dos_etapas==='Si'?`<div class="prd-item"><span class="prd-label">Etapas</span><span class="prd-val">2 etapas</span></div>`:''}
-          ${p.graduacion ?`<div class="prd-item prd-item--full"><span class="prd-label">Graduación</span><span class="prd-val" style="font-family:var(--font-mono);font-size:.8rem">${esc(p.graduacion).replace(/\|/g,' | ')}</span></div>`:''}
-          ${p.armazon    ?`<div class="prd-item prd-item--full"><span class="prd-label">Armazón</span><span class="prd-val">${esc(p.armazon)}</span></div>`:''}
-          <div class="prd-item"><span class="prd-label">Días</span><span class="prd-val">${p._dias}d · ${p._est.texto}</span></div>
-          <div class="prd-item"><span class="prd-label">Por</span><span class="prd-val">${esc(p.cargado_por||'—')}</span></div>
-        </div>
-        <div class="ped-row-detail-actions">
-          <select class="estado-select ${scls} estado-select-inline" data-id="${p.id}" data-prev="${esc(p.estado)}">${opts}</select>
-          ${Auth.isAdmin()?`<button class="ped-row-edit-btn" onclick="event.stopPropagation();App._abrirDetalleRapido(${p.id})">✏️ Editar</button>`:''}
-          ${Auth.isAdmin()?`<button class="ped-row-del-btn" onclick="event.stopPropagation();App.eliminarPedido(${p.id})">🗑️</button>`:''}
-        </div>
-      </div>`;
-
-    return `<div class="ped-row ${estCls}" data-id="${p.id}" onclick="App.togglePedidoRow(${p.id})">
-      <div class="ped-row-main">
-        <span class="ped-row-orden">#${esc(p.orden)}${sufijo}</span>
-        ${urgDot}
-        <span class="ped-row-cliente">${esc(p.cliente)}</span>
-        ${p.laboratorio?`<span class="ped-row-lab">${esc(p.laboratorio)}</span>`:''}
-        <span class="ped-row-est ${p._est.clase}">${p._est.icono||''}</span>
-        <span class="ped-row-fecha">${fechaCorta}</span>
-        <span class="ped-row-arrow ${isOpen?'open':''}">›</span>
-      </div>
-      ${detalle}
-    </div>`;
-  }
-
   function togglePedidoRow(id) {
-    const container=document.getElementById('pedidos-list-container'); if (!container) return;
-    const rows=container.querySelectorAll('.ped-row');
-    const clickedRow=container.querySelector(`.ped-row[data-id="${id}"]`);
-    if (!clickedRow) return;
+    const container=document.getElementById(_currentScreen==='pedidos'?'pedidos-list-container':'seg-content-'+_segTab);
+    // Buscar en toda la página
+    const allRows=document.querySelectorAll(`.ped-row[data-id="${id}"]`);
+    if (!allRows.length) return;
+    const clickedRow=allRows[0];
     const detail=clickedRow.querySelector('.ped-row-detail');
-    const arrow =clickedRow.querySelector('.ped-row-arrow');
+    const arrow=clickedRow.querySelector('.ped-row-arrow');
     const isOpen=!detail.classList.contains('hidden');
     // Cerrar todos
-    rows.forEach(r=>{
+    document.querySelectorAll('.ped-row').forEach(r=>{
       r.querySelector('.ped-row-detail')?.classList.add('hidden');
       r.querySelector('.ped-row-arrow')?.classList.remove('open');
     });
@@ -511,20 +484,18 @@ const App = (() => {
     detail.classList.remove('hidden');
     arrow?.classList.add('open');
     _expandedId=id;
-    // Scroll suave
     setTimeout(()=>clickedRow.scrollIntoView({behavior:'smooth',block:'nearest'}),50);
   }
 
   function attachInlineSelects(container) {
     container.querySelectorAll('.estado-select-inline').forEach(sel=>{
-      sel.addEventListener('change', async (e)=>{
+      sel.addEventListener('change', async(e)=>{
         e.stopPropagation();
         const id=parseInt(e.target.dataset.id), est=e.target.value, prev=e.target.dataset.prev;
         e.target.dataset.prev=est;
         e.target.className=`estado-select ${Pedidos.claseEstado(est)} estado-select-inline`;
         try {
-          await Pedidos.actualizarEstado(id,est);
-          toast(`Estado: ${est}`,'success');
+          await Pedidos.actualizarEstado(id,est); toast(`Estado: ${est}`,'success');
           const p=_pedidosCache.find(x=>x.id===id);
           if (est==='Retirado'&&p) enviarNotificacion('✅ Retirado — OLVISIÓN',`#${p.orden} de ${p.cliente}`,false);
           _pedidosCache=await Pedidos.getTodosPedidos();
@@ -540,11 +511,8 @@ const App = (() => {
     });
   }
 
-  // ── DETALLE / EDICIÓN (modal completo) ────────────
-  async function _abrirDetalleRapido(id) {
-    _detalleId=id;
-    abrirEdicion();
-  }
+  // ── Detalle / Edición ─────────────────────────────
+  async function _abrirDetalleRapido(id) { _detalleId=id; abrirEdicion(); }
 
   async function abrirDetalle(id) {
     _detalleId=id;
@@ -559,7 +527,7 @@ const App = (() => {
       const esAdmin=Auth.isAdmin();
       document.getElementById('btn-abrir-edicion').style.display=esAdmin?'':'none';
       document.getElementById('btn-eliminar-pedido').style.display=esAdmin?'':'none';
-      const fechaCarga =p.fecha_carga ?new Date(p.fecha_carga).toLocaleDateString('es-AR'):'—';
+      const fechaCarga=p.fecha_carga?new Date(p.fecha_carga).toLocaleDateString('es-AR'):'—';
       const fechaRetiro=p.fecha_retiro?new Date(p.fecha_retiro).toLocaleDateString('es-AR'):'—';
       body.innerHTML=`
         <div class="detalle-seccion"><div class="detalle-seccion-title">Cliente</div>
@@ -598,11 +566,10 @@ const App = (() => {
     try {
       const {error}=await window.supabaseClient.from('pedidos').delete().eq('id',id);
       if (error) throw error;
-      cerrarDetalle(); cerrarEdicion();
-      _expandedId=null;
+      cerrarDetalle(); cerrarEdicion(); _expandedId=null;
       toast('Pedido eliminado','success');
       _pedidosCache=await Pedidos.getTodosPedidos();
-      if (_currentScreen==='pedidos')     renderPedidosList();
+      if (_currentScreen==='pedidos') renderPedidosList();
       if (_currentScreen==='seguimiento') loadSeguimiento();
       updateBadge();
     } catch(e){toast(`Error al eliminar: ${e.message}`,'error');}
@@ -680,71 +647,6 @@ const App = (() => {
 
   function cerrarEdicion() { document.getElementById('edit-modal').classList.add('hidden'); }
 
-  // ── SEGUIMIENTO — card completa ───────────────────
-  function renderCard(p) {
-    const sufijo=p.sufijo?`-${p.sufijo}`:'';
-    const estClase=p._est.valor==='critico'?'critico':p._est.valor==='demorado'?'demorado':'';
-    const urgente=p.urgente==='Si'?'<span class="pedido-urgente">URGENTE</span>':'';
-    const scls=Pedidos.claseEstado(p.estado);
-    const ESTADOS=['Cristales pedidos a lab','Armazón enviado p/calibrado','En laboratorio','Pendiente de retirar','Retirado'];
-    const opts=ESTADOS.map(e=>`<option value="${e}"${e===p.estado?' selected':''}>${e}</option>`).join('');
-    const color=(n)=>{const l=(n||'').toLowerCase(); if(l.includes('andr'))return'#034291'; if(l.includes('sand'))return'#7B1FA2'; if(l.includes('vale'))return'#00695C'; return'#888';};
-    return `<div class="pedido-card ${estClase}" data-id="${p.id}">
-      <div class="pedido-card-tap" data-id="${p.id}">
-        <div class="pedido-card-header">
-          <span class="pedido-orden">#${esc(p.orden)}${sufijo}</span>
-          <div style="display:flex;align-items:center;gap:6px">
-            ${urgente}
-            <span class="pedido-avatar" style="background:${color(p.cargado_por)}" title="${esc(p.cargado_por||'')}">${(p.cargado_por||'?').charAt(0).toUpperCase()}</span>
-          </div>
-        </div>
-        <div class="pedido-card-body">
-          <div class="pedido-cliente">${esc(p.cliente)}</div>
-          <div class="pedido-meta">
-            ${p.laboratorio?`<span class="meta-chip lab">${esc(p.laboratorio)}</span>`:''}
-            ${p.tipo_lente ?`<span class="meta-chip">${esc(p.tipo_lente)}</span>`:''}
-            ${p.tratamiento?`<span class="meta-chip">${esc(p.tratamiento)}</span>`:''}
-            ${p.tipo       ?`<span class="meta-chip">${esc(p.tipo)}</span>`:''}
-            ${p.dos_etapas==='Si'?'<span class="meta-chip">2 etapas</span>':''}
-          </div>
-        </div>
-      </div>
-      <div class="pedido-card-footer">
-        <div class="estado-info">
-          <span class="est-inteligente ${p._est.clase}">${p._est.texto}</span>
-          <span class="dias-badge">${p._dias}d</span>
-        </div>
-        <select class="estado-select ${scls}" data-id="${p.id}" data-prev="${esc(p.estado)}">${opts}</select>
-      </div>
-    </div>`;
-  }
-
-  function attachSelects(container) {
-    container.querySelectorAll('.estado-select').forEach(sel=>{
-      sel.addEventListener('change', async(e)=>{
-        const id=parseInt(e.target.dataset.id), est=e.target.value, prev=e.target.dataset.prev;
-        e.target.dataset.prev=est; e.target.className=`estado-select ${Pedidos.claseEstado(est)}`;
-        try {
-          await Pedidos.actualizarEstado(id,est); toast(`Estado: ${est}`,'success');
-          const p=_pedidosCache.find(x=>x.id===id);
-          if (est==='Retirado'&&p) enviarNotificacion('✅ Retirado — OLVISIÓN',`#${p.orden} de ${p.cliente}`,false);
-          _pedidosCache=await Pedidos.getTodosPedidos();
-          if (_currentScreen==='seguimiento') loadSeguimiento();
-          updateBadge();
-        } catch(err){
-          toast(`Error: ${err.message}`,'error');
-          e.target.value=prev; e.target.className=`estado-select ${Pedidos.claseEstado(prev)}`;
-        }
-      });
-    });
-  }
-
-  function attachCardTaps(container) {
-    container.querySelectorAll('.pedido-card-tap').forEach(tap=>{
-      tap.addEventListener('click',()=>abrirDetalle(parseInt(tap.dataset.id)));
-    });
-  }
-
   // ── PANEL ─────────────────────────────────────────
   async function refreshPanel() {
     if (!Auth.isAdmin()) return;
@@ -819,9 +721,9 @@ const App = (() => {
   function validateForm(data) {
     let valid=true;
     const check=(fId,eId,cond)=>{const f=document.getElementById(fId),e=document.getElementById(eId);if(!f||!e)return;f.classList.toggle('error',cond);e.classList.toggle('visible',cond);if(cond)valid=false;};
-    check('f-cliente','err-cliente',!data.base.cliente);check('f-orden','err-orden',!data.base.orden);
-    check('f-urgente','err-urgente',!data.base.urgente);check('f-tipo','err-tipo',!data.base.tipo);
-    check('f-lab1','err-lab1',!data.ant1.laboratorio);check('f-lente1','err-lente1',!data.ant1.tipo_lente);
+    check('f-cliente','err-cliente',!data.base.cliente); check('f-orden','err-orden',!data.base.orden);
+    check('f-urgente','err-urgente',!data.base.urgente); check('f-tipo','err-tipo',!data.base.tipo);
+    check('f-lab1','err-lab1',!data.ant1.laboratorio);   check('f-lente1','err-lente1',!data.ant1.tipo_lente);
     if(data.doble){check('f-lab2','err-lab2',!data.ant2.laboratorio);check('f-lente2','err-lente2',!data.ant2.tipo_lente);}
     return valid;
   }
@@ -832,8 +734,14 @@ const App = (() => {
     if (!validateForm(data)){toast('Completá los campos obligatorios','warn');return;}
     const rf=(label,val)=>val?`<div class="modal-row"><span class="modal-label">${label}</span><span class="modal-value">${esc(String(val))}</span></div>`:'';
     let html=rf('Cliente',data.base.cliente)+rf('Orden',data.doble?`${data.base.orden}-A / -B`:data.base.orden)+rf('Tipo',data.base.tipo)+rf('Urgente',data.base.urgente)+rf('Fecha',data.base.fecha_carga);
-    if(data.doble){html+=`<div style="margin:10px 0 4px;font-size:.78rem;font-weight:700;color:var(--azul)">ANTEOJO A</div>`;html+=rf('Lab',data.ant1.laboratorio)+rf('Lente',data.ant1.tipo_lente)+rf('Trat.',data.ant1.tratamiento)+rf('Grad.',data.ant1.graduacion);html+=`<div style="margin:10px 0 4px;font-size:.78rem;font-weight:700;color:var(--azul)">ANTEOJO B</div>`;html+=rf('Lab',data.ant2.laboratorio)+rf('Lente',data.ant2.tipo_lente)+rf('Trat.',data.ant2.tratamiento)+rf('Grad.',data.ant2.graduacion);}
-    else{html+=rf('Laboratorio',data.ant1.laboratorio)+rf('Lente',data.ant1.tipo_lente)+rf('Tratamiento',data.ant1.tratamiento)+rf('Graduación',data.ant1.graduacion)+rf('Marca',data.ant1.marca)+rf('Material',data.ant1.material);}
+    if(data.doble){
+      html+=`<div style="margin:10px 0 4px;font-size:.78rem;font-weight:700;color:var(--azul)">ANTEOJO A</div>`;
+      html+=rf('Lab',data.ant1.laboratorio)+rf('Lente',data.ant1.tipo_lente)+rf('Tratamiento',data.ant1.tratamiento)+rf('Graduación',data.ant1.graduacion);
+      html+=`<div style="margin:10px 0 4px;font-size:.78rem;font-weight:700;color:var(--azul)">ANTEOJO B</div>`;
+      html+=rf('Lab',data.ant2.laboratorio)+rf('Lente',data.ant2.tipo_lente)+rf('Tratamiento',data.ant2.tratamiento)+rf('Graduación',data.ant2.graduacion);
+    } else {
+      html+=rf('Laboratorio',data.ant1.laboratorio)+rf('Lente',data.ant1.tipo_lente)+rf('Tratamiento',data.ant1.tratamiento)+rf('Graduación',data.ant1.graduacion)+rf('Marca',data.ant1.marca)+rf('Material',data.ant1.material);
+    }
     document.getElementById('modal-body-content').innerHTML=html;
     _pendingGuardar=data;
     document.getElementById('confirm-modal').classList.remove('hidden');
@@ -887,18 +795,15 @@ const App = (() => {
 
   // ── UTILS ─────────────────────────────────────────
   function todayStr() { return new Date().toISOString().slice(0,10); }
-
   function toast(msg,tipo='success') {
     const c=document.getElementById('toast-container');
     const d=document.createElement('div'); d.className=`toast toast-${tipo}`; d.textContent=msg;
     c.appendChild(d); setTimeout(()=>d.remove(),3100);
   }
-
   function esc(str) {
     if (!str) return '';
     return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
-
   window.toast=toast; window.escHtml=esc;
 
   return {
