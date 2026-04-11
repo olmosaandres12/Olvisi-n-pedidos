@@ -188,16 +188,50 @@ select.form-control { background-image:url("data:image/svg+xml,%3Csvg xmlns='htt
 }
 
 .ped-row {
-  border-bottom: 1px solid var(--gris-borde);
+  border-bottom: 1px solid rgba(0,0,0,.06);
   cursor: pointer;
-  transition: background var(--transition);
+  transition: background var(--transition), filter var(--transition);
   position: relative;
 }
 .ped-row:last-child { border-bottom: none; }
-.ped-row:hover { background: #FAFBFF; }
+.ped-row:hover { filter: brightness(.97); }
 
+/* ── Estado inteligente: borde izquierdo ─────────── */
 .ped-row--critico  { box-shadow: inset 4px 0 0 var(--rojo); }
 .ped-row--demorado { box-shadow: inset 4px 0 0 #F59E0B; }
+
+/* ══════════════════════════════════════════════════
+   COLORES POR ESTADO DEL PEDIDO
+   ══════════════════════════════════════════════════ */
+.ped-row--estado-cristales {
+  background: #EBF2FF;
+}
+.ped-row--estado-armazon {
+  background: #F0ECFF;
+}
+.ped-row--estado-lab {
+  background: #DBEAFE;
+}
+.ped-row--estado-retirar {
+  background: #FEF3C7;
+}
+.ped-row--estado-retirado {
+  background: #DCFCE7;
+}
+
+/* Critico/demorado combinado: box-shadow sigue funcionando sobre cualquier bg */
+.ped-row--critico.ped-row--estado-cristales,
+.ped-row--critico.ped-row--estado-armazon,
+.ped-row--critico.ped-row--estado-lab,
+.ped-row--critico.ped-row--estado-retirar {
+  box-shadow: inset 4px 0 0 var(--rojo);
+}
+.ped-row--demorado.ped-row--estado-cristales,
+.ped-row--demorado.ped-row--estado-armazon,
+.ped-row--demorado.ped-row--estado-lab,
+.ped-row--demorado.ped-row--estado-retirar {
+  box-shadow: inset 4px 0 0 #F59E0B;
+}
 
 /* ── Fila principal ───────────────────────────────── */
 .ped-row-main {
@@ -205,10 +239,23 @@ select.form-control { background-image:url("data:image/svg+xml,%3Csvg xmlns='htt
   padding: 11px 14px;
   min-height: 44px;
 }
+
+/* ── Número de orden — pill vistoso ──────────────── */
 .ped-row-orden {
-  font-family: var(--font-mono); font-size: .85rem; font-weight: 700;
-  color: var(--azul); flex-shrink: 0; min-width: 72px;
+  font-family: var(--font-mono);
+  font-size: .88rem;
+  font-weight: 800;
+  color: var(--azul);
+  background: rgba(255,255,255,.88);
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1.5px solid rgba(3,66,145,.22);
+  flex-shrink: 0;
+  white-space: nowrap;
+  letter-spacing: .02em;
+  box-shadow: 0 1px 3px rgba(3,66,145,.12);
 }
+
 .ped-row-urgente { font-size: .8rem; flex-shrink: 0; line-height: 1; }
 .ped-row-cliente {
   font-size: .9rem; font-weight: 500; color: var(--gris-dark);
@@ -217,7 +264,8 @@ select.form-control { background-image:url("data:image/svg+xml,%3Csvg xmlns='htt
 }
 .ped-row-lab {
   font-size: .72rem; font-weight: 600; color: var(--azul);
-  background: var(--azul-light); padding: 2px 8px; border-radius: 10px;
+  background: rgba(255,255,255,.7); padding: 2px 8px; border-radius: 10px;
+  border: 1px solid rgba(3,66,145,.15);
   flex-shrink: 0; white-space: nowrap;
 }
 .ped-row-est  { font-size: .8rem; flex-shrink: 0; }
@@ -230,9 +278,10 @@ select.form-control { background-image:url("data:image/svg+xml,%3Csvg xmlns='htt
 
 /* ── Detalle expandido ───────────────────────────── */
 .ped-row-detail {
-  border-top: 1px solid var(--gris-borde);
+  border-top: 1px solid rgba(0,0,0,.07);
   padding: 14px 14px 16px;
-  background: var(--gris-bg);
+  background: rgba(255,255,255,.7);
+  backdrop-filter: blur(4px);
   animation: expandDown .2s ease;
 }
 @keyframes expandDown { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:translateY(0); } }
@@ -292,9 +341,9 @@ select.form-control { background-image:url("data:image/svg+xml,%3Csvg xmlns='htt
 .ped-pair-ab-badge {
   font-size: .7rem; font-weight: 800; letter-spacing: .04em;
   padding: 2px 8px; border-radius: 10px;
-  background: linear-gradient(90deg, var(--azul-light) 50%, var(--morado-mid) 50%);
+  background: rgba(255,255,255,.8);
   color: var(--azul);
-  border: 1px solid var(--gris-borde);
+  border: 1px solid rgba(3,66,145,.2);
   flex-shrink: 0; white-space: nowrap;
 }
 
