@@ -486,6 +486,19 @@ const App = (() => {
     if (fab) fab.style.display=(name==='inicio')?'none':'flex';
   }
 
+  // ── HELPERS DE COLOR POR ESTADO ───────────────────
+  // Devuelve la clase CSS de fondo según el estado del pedido
+  function estadoRowClass(estado) {
+    const map = {
+      'Cristales pedidos a lab':      'ped-row--estado-cristales',
+      'Armazón enviado p/calibrado':  'ped-row--estado-armazon',
+      'En laboratorio':               'ped-row--estado-lab',
+      'Pendiente de retirar':         'ped-row--estado-retirar',
+      'Retirado':                     'ped-row--estado-retirado',
+    };
+    return map[estado] || '';
+  }
+
   // ── SEGUIMIENTO ───────────────────────────────────
   async function loadSeguimiento() {
     try {
@@ -495,8 +508,12 @@ const App = (() => {
       const retirar=todos.filter(p=>p.estado==='Pendiente de retirar');
       document.getElementById('seg-count-lab').textContent=enLab.length;
       document.getElementById('seg-count-retirar').textContent=retirar.length;
-      renderSegPanel('seg-content-lab',     enLab.sort(sortPorEstado));
-      renderSegPanel('seg-content-retirar', retirar.sort(sortPorEstado));
+
+      // ── Orden: más reciente primero ────────────────
+      const sortFechaDesc = (a, b) => new Date(b.fecha_carga) - new Date(a.fecha_carga);
+      renderSegPanel('seg-content-lab',     enLab.sort(sortFechaDesc));
+      renderSegPanel('seg-content-retirar', retirar.sort(sortFechaDesc));
+
       updateBadge();
       const criticos=todos.filter(p=>p._est.valor==='critico');
       const demorados=todos.filter(p=>p._est.valor==='demorado');
@@ -529,13 +546,14 @@ const App = (() => {
 
   // ── Render fila compacta ──────────────────────────
   function renderCompactRow(p) {
-    const sufijo  = p.sufijo ? `-${p.sufijo}` : '';
-    const estCls  = p._est.valor==='critico' ? 'ped-row--critico' : p._est.valor==='demorado' ? 'ped-row--demorado' : '';
-    const urgDot  = p.urgente==='Si' ? '<span class="ped-row-urgente" title="Urgente">⚡</span>' : '';
-    const isOpen  = _expandedId===p.id;
-    const ESTADOS = ['Cristales pedidos a lab','Armazón enviado p/calibrado','En laboratorio','Pendiente de retirar','Retirado'];
-    const opts    = ESTADOS.map(e=>`<option value="${e}"${e===p.estado?' selected':''}>${e}</option>`).join('');
-    const scls    = Pedidos.claseEstado(p.estado);
+    const sufijo    = p.sufijo ? `-${p.sufijo}` : '';
+    const estCls    = p._est.valor==='critico' ? 'ped-row--critico' : p._est.valor==='demorado' ? 'ped-row--demorado' : '';
+    const estadoCls = estadoRowClass(p.estado);
+    const urgDot    = p.urgente==='Si' ? '<span class="ped-row-urgente" title="Urgente">⚡</span>' : '';
+    const isOpen    = _expandedId===p.id;
+    const ESTADOS   = ['Cristales pedidos a lab','Armazón enviado p/calibrado','En laboratorio','Pendiente de retirar','Retirado'];
+    const opts      = ESTADOS.map(e=>`<option value="${e}"${e===p.estado?' selected':''}>${e}</option>`).join('');
+    const scls      = Pedidos.claseEstado(p.estado);
     const fechaCorta = new Date(p.fecha_carga).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'});
     const detalle=`
       <div class="ped-row-detail ${isOpen?'':'hidden'}" onclick="event.stopPropagation()">
@@ -557,7 +575,7 @@ const App = (() => {
           ${Auth.isAdmin()?`<button class="ped-row-del-btn" onclick="event.stopPropagation();App.eliminarPedido(${p.id})">🗑️</button>`:''}
         </div>
       </div>`;
-    return `<div class="ped-row ${estCls}" data-id="${p.id}" onclick="App.togglePedidoRow(${p.id})">
+    return `<div class="ped-row ${estCls} ${estadoCls}" data-id="${p.id}" onclick="App.togglePedidoRow(${p.id})">
       <div class="ped-row-main">
         <span class="ped-row-orden">#${esc(p.orden)}${sufijo}</span>
         ${urgDot}
@@ -573,11 +591,18 @@ const App = (() => {
 
   // ── Render fila par A/B ───────────────────────────
   function renderPairedRow(pA, pB) {
-    const pairId  = `pair-${pA.orden}`;
-    const isOpen  = _expandedId === pairId;
+    const pairId   = `pair-${pA.orden}`;
+    const isOpen   = _expandedId === pairId;
     const worstEst = (pA._est.valor==='critico'||pB._est.valor==='critico') ? 'critico'
                    : (pA._est.valor==='demorado'||pB._est.valor==='demorado') ? 'demorado' : 'ok';
     const rowCls   = worstEst==='critico' ? 'ped-row--critico' : worstEst==='demorado' ? 'ped-row--demorado' : '';
+    // Color de fondo por el estado más temprano del par (el menos avanzado)
+    const estadoPrioridad = ['Cristales pedidos a lab','Armazón enviado p/calibrado','En laboratorio','Pendiente de retirar','Retirado'];
+    const prioA = estadoPrioridad.indexOf(pA.estado);
+    const prioB = estadoPrioridad.indexOf(pB.estado);
+    const estadoPar = prioA <= prioB ? pA.estado : pB.estado;
+    const estadoCls = estadoRowClass(estadoPar);
+
     const urgDot   = (pA.urgente==='Si'||pB.urgente==='Si') ? '<span class="ped-row-urgente" title="Urgente">⚡</span>' : '';
     const fechaCorta = new Date(pA.fecha_carga).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'});
     const ESTADOS  = ['Cristales pedidos a lab','Armazón enviado p/calibrado','En laboratorio','Pendiente de retirar','Retirado'];
@@ -604,7 +629,7 @@ const App = (() => {
       </div>`;
     };
 
-    return `<div class="ped-row ped-row--pair ${rowCls}" data-pair-id="${pairId}" onclick="App.togglePedidoRow('${pairId}')">
+    return `<div class="ped-row ped-row--pair ${rowCls} ${estadoCls}" data-pair-id="${pairId}" onclick="App.togglePedidoRow('${pairId}')">
       <div class="ped-row-main">
         <span class="ped-row-orden">#${esc(pA.orden)}</span>
         ${urgDot}
@@ -701,6 +726,7 @@ const App = (() => {
         <h3>Sin pedidos</h3><p>No hay pedidos en ${mesLabel(_mesActual).toLowerCase()}</p></div>`;
       return;
     }
+    // Más reciente primero
     const sorted=[...filtered].sort((a,b)=>new Date(b.fecha_carga)-new Date(a.fecha_carga));
     const groups=groupPedidos(sorted);
     container.innerHTML=`<div class="ped-compact-list">${groups.map(g=>g.type==='pair'?renderPairedRow(g.a,g.b):renderCompactRow(g.p)).join('')}</div>`;
