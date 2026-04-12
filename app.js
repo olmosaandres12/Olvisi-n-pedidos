@@ -522,7 +522,7 @@ const App = (() => {
     'Armazón enviado p/calibrado': { badgeCls: 'indigo',   icono: '📦', label: 'ARMAZÓN EN TRÁNSITO', borderCls: 'indigo'   },
     'En laboratorio':              { badgeCls: 'azul',     icono: '🔵', label: 'EN LABORATORIO',      borderCls: 'azul'     },
     'Pendiente de retirar':        { badgeCls: 'verde',    icono: '✅', label: 'LISTO PARA RETIRAR',  borderCls: 'verde'    },
-    'Retirado':                    { badgeCls: 'gris',     icono: '✔️', label: 'RETIRADO',            borderCls: 'gris'     },
+    'Retirado':                    { badgeCls: 'morado',   icono: '✔️', label: 'RETIRADO',            borderCls: 'morado'   },
   };
 
   function getCardConfig(p) {
