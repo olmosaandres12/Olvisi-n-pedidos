@@ -176,7 +176,7 @@ select.form-control { background-image:url("data:image/svg+xml,%3Csvg xmlns='htt
 }
 
 /* ═══════════════════════════════════════════════════
-   FILAS COMPACTAS (historial + seguimiento)
+   LISTA COMPACTA — contenedor
    ═══════════════════════════════════════════════════ */
 .ped-compact-list {
   display: flex; flex-direction: column;
@@ -187,89 +187,132 @@ select.form-control { background-image:url("data:image/svg+xml,%3Csvg xmlns='htt
   background: var(--blanco);
 }
 
+/* ── Fila base (mantenida para compatibilidad con togglePedidoRow) ── */
 .ped-row {
   border-bottom: 1px solid rgba(0,0,0,.06);
   cursor: pointer;
-  transition: background var(--transition), filter var(--transition);
+  transition: background var(--transition);
   position: relative;
 }
 .ped-row:last-child { border-bottom: none; }
-.ped-row:hover { filter: brightness(.97); }
+.ped-row:hover { background: #F7F9FF; }
 
-/* ── Estado inteligente: borde izquierdo ─────────── */
-.ped-row--critico  { box-shadow: inset 4px 0 0 var(--rojo); }
-.ped-row--demorado { box-shadow: inset 4px 0 0 #F59E0B; }
-
-/* ══════════════════════════════════════════════════
-   PESTAÑA SUPERIOR POR ESTADO DEL PEDIDO
-   Fondo blanco + franja de color arriba de cada fila
-   ══════════════════════════════════════════════════ */
-.ped-row--estado-cristales { border-top: 3px solid #9CA3AF; }   /* Gris        */
-.ped-row--estado-armazon   { border-top: 3px solid #6366F1; }   /* Índigo      */
-.ped-row--estado-lab       { border-top: 3px solid #034291; }   /* Azul OLVISIÓN */
-.ped-row--estado-retirar   { border-top: 3px solid #D97706; }   /* Ámbar       */
-.ped-row--estado-retirado  { border-top: 3px solid #16A34A; }   /* Verde       */
-
-/* La primera fila del grupo hereda border-radius del contenedor */
-.ped-compact-list .ped-row:first-child { border-top: none; }
-.ped-compact-list .ped-row:first-child.ped-row--estado-cristales::before,
-.ped-compact-list .ped-row:first-child.ped-row--estado-armazon::before,
-.ped-compact-list .ped-row:first-child.ped-row--estado-lab::before,
-.ped-compact-list .ped-row:first-child.ped-row--estado-retirar::before,
-.ped-compact-list .ped-row:first-child.ped-row--estado-retirado::before {
-  content: ''; display: block; height: 3px; margin: 0;
-}
-.ped-compact-list .ped-row:first-child.ped-row--estado-cristales::before { background: #9CA3AF; }
-.ped-compact-list .ped-row:first-child.ped-row--estado-armazon::before   { background: #6366F1; }
-.ped-compact-list .ped-row:first-child.ped-row--estado-lab::before       { background: #034291; }
-.ped-compact-list .ped-row:first-child.ped-row--estado-retirar::before   { background: #D97706; }
-.ped-compact-list .ped-row:first-child.ped-row--estado-retirado::before  { background: #16A34A; }
-
-/* Crítico y demorado: borde lateral izquierdo, compatible con franja superior */
-/* (box-shadow ya definido arriba en .ped-row--critico y .ped-row--demorado) */
-
-/* ── Fila principal ───────────────────────────────── */
-.ped-row-main {
-  display: flex; align-items: center; gap: 8px;
-  padding: 11px 14px;
-  min-height: 44px;
+/* ═══════════════════════════════════════════════════
+   CARD — nuevo diseño con borde lateral + badge
+   ═══════════════════════════════════════════════════ */
+.ped-card {
+  padding: 13px 14px 13px 18px;
 }
 
-/* ── Número de orden — pill vistoso ──────────────── */
-.ped-row-orden {
-  font-family: var(--font-mono);
-  font-size: .88rem;
-  font-weight: 800;
-  color: var(--azul);
-  background: rgba(255,255,255,.88);
-  padding: 4px 10px;
-  border-radius: 20px;
-  border: 1.5px solid rgba(3,66,145,.22);
-  flex-shrink: 0;
-  white-space: nowrap;
-  letter-spacing: .02em;
-  box-shadow: 0 1px 3px rgba(3,66,145,.12);
-}
+/* ── Borde lateral por estado ─────────────────────── */
+.ped-card--amarillo { border-left: 4px solid #D97706; }
+.ped-card--indigo   { border-left: 4px solid #6366F1; }
+.ped-card--azul     { border-left: 4px solid #034291; }
+.ped-card--verde    { border-left: 4px solid #16A34A; }
+.ped-card--gris     { border-left: 4px solid #9CA3AF; }
+.ped-card--rojo     { border-left: 4px solid #DC2626; }
+.ped-card--naranja  { border-left: 4px solid #F59E0B; }
 
-.ped-row-urgente { font-size: .8rem; flex-shrink: 0; line-height: 1; }
-.ped-row-cliente {
-  font-size: .9rem; font-weight: 500; color: var(--gris-dark);
-  flex: 1; min-width: 0;
+/* ── Estructura interna de la card ───────────────── */
+.ped-card-main    { display: flex; flex-direction: column; gap: 5px; }
+.ped-card-top-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+}
+.ped-card-indicators {
+  display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+}
+.ped-card-cliente {
+  font-size: .95rem; font-weight: 600; color: var(--gris-dark);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+.ped-card-meta {
+  display: flex; align-items: center; gap: 5px;
+  font-size: .75rem; color: var(--gris-texto); flex-wrap: wrap;
+}
+.ped-card-orden {
+  font-family: var(--font-mono); font-weight: 700; color: var(--azul);
+}
+.meta-dot { color: var(--gris-borde); line-height: 1; }
+
+/* ── Badge de estado ──────────────────────────────── */
+.ped-status-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 10px; border-radius: 20px;
+  font-size: .65rem; font-weight: 700;
+  letter-spacing: .06em; text-transform: uppercase; white-space: nowrap;
+}
+.badge--amarillo { background: #FEF3C7; color: #92400E; }
+.badge--indigo   { background: #EEF2FF; color: #4338CA; }
+.badge--azul     { background: #EBF2FF; color: #034291; }
+.badge--verde    { background: #DCFCE7; color: #166534; }
+.badge--gris     { background: #F3F4F6; color: #6B7280; }
+.badge--rojo     { background: #FEE2E2; color: #991B1B; }
+.badge--naranja  { background: #FEF3C7; color: #B45309; }
+
+/* ── Badge de días ────────────────────────────────── */
+.ped-days-badge {
+  font-size: .68rem; font-weight: 600; color: var(--gris-texto);
+  background: var(--gris-bg); padding: 2px 8px; border-radius: 10px;
+  white-space: nowrap;
+}
+
+/* ── Badge de advertencia (⚠️ 5+ días hábiles) ──── */
+.ped-warning-badge {
+  font-size: .68rem; font-weight: 700; color: #991B1B;
+  background: #FEE2E2; padding: 2px 8px; border-radius: 10px;
+  white-space: nowrap;
+  animation: pulseWarn 2s ease-in-out infinite;
+}
+@keyframes pulseWarn { 0%,100%{opacity:1} 50%{opacity:.65} }
+
+/* ── Chip urgente ─────────────────────────────────── */
+.ped-urgente-chip {
+  font-size: .62rem; font-weight: 700; color: #fff;
+  background: var(--rojo); padding: 2px 7px; border-radius: 10px;
+  letter-spacing: .04em; white-space: nowrap;
+}
+
+/* ── Flecha ───────────────────────────────────────── */
+.ped-row-arrow {
+  font-size: 1rem; color: var(--gris-texto); flex-shrink: 0;
+  transition: transform .2s cubic-bezier(.34,1.56,.64,1); line-height: 1;
+}
+.ped-row-arrow.open { transform: rotate(90deg); }
+
+/* ── Encabezado de grupo ──────────────────────────── */
+.ped-group-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 16px; font-size: .67rem; font-weight: 700;
+  color: var(--gris-texto); text-transform: uppercase; letter-spacing: .08em;
+  background: var(--gris-bg); border-bottom: 1px solid var(--gris-borde);
+}
+.ped-group-count {
+  background: var(--gris-borde); color: var(--gris-dark);
+  font-size: .62rem; font-weight: 700;
+  padding: 1px 7px; border-radius: 10px;
+}
+.ped-group-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+}
+
+/* ── Compatibilidad: ped-row-lab para sub-rows de par ─ */
 .ped-row-lab {
   font-size: .72rem; font-weight: 600; color: var(--azul);
   background: rgba(255,255,255,.7); padding: 2px 8px; border-radius: 10px;
   border: 1px solid rgba(3,66,145,.15);
   flex-shrink: 0; white-space: nowrap;
 }
-.ped-row-est  { font-size: .8rem; flex-shrink: 0; }
-.ped-row-fecha { font-size: .72rem; color: var(--gris-texto); flex-shrink: 0; }
-.ped-row-arrow {
-  font-size: 1rem; color: var(--gris-texto); flex-shrink: 0;
-  transition: transform .2s cubic-bezier(.34,1.56,.64,1); line-height: 1;
+
+/* Legacy - mantenido para historial */
+.ped-row-urgente { font-size: .8rem; flex-shrink: 0; line-height: 1; }
+.ped-row-orden {
+  font-family: var(--font-mono); font-size: .88rem; font-weight: 800;
+  color: var(--azul); background: rgba(255,255,255,.88);
+  padding: 4px 10px; border-radius: 20px;
+  border: 1.5px solid rgba(3,66,145,.22); flex-shrink: 0;
+  white-space: nowrap; letter-spacing: .02em;
+  box-shadow: 0 1px 3px rgba(3,66,145,.12);
 }
-.ped-row-arrow.open { transform: rotate(90deg); }
 
 /* ── Detalle expandido ───────────────────────────── */
 .ped-row-detail {
