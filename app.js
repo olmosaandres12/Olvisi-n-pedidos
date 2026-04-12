@@ -670,7 +670,7 @@ const App = (() => {
     const isOpen   = _expandedId === pairId;
     const cfgA     = getCardConfig(pA);
     const cfgB     = getCardConfig(pB);
-    const BORDER_PRIO = ['rojo','naranja','amarillo','indigo','azul','verde','gris'];
+    const BORDER_PRIO = ['rojo','naranja','amarillo','indigo','azul','verde','teal','morado','gris'];
     const prioA = BORDER_PRIO.indexOf(cfgA.borderCls);
     const prioB = BORDER_PRIO.indexOf(cfgB.borderCls);
     const borderCls = BORDER_PRIO[Math.min(prioA < 0 ? 99 : prioA, prioB < 0 ? 99 : prioB)] || 'gris';
@@ -726,7 +726,7 @@ const App = (() => {
       </div>
       <div class="ped-row-detail ${isOpen?'':'hidden'}" onclick="event.stopPropagation()">
         ${subRow(pA,'azul')}
-        ${subRow(pB,'morado')}
+        ${subRow(pB,'teal')}
       </div>
     </div>`;
   }
