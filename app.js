@@ -499,6 +499,69 @@ const App = (() => {
     return map[estado] || '';
   }
 
+  // ── DÍAS HÁBILES (lun-vie, sin sáb/dom) ──────────
+  function calcDiasHabiles(fecha) {
+    if (!fecha) return 0;
+    const inicio = new Date(fecha);
+    inicio.setHours(0, 0, 0, 0);
+    const hoyDate = new Date();
+    hoyDate.setHours(0, 0, 0, 0);
+    let dias = 0;
+    const cur = new Date(inicio);
+    while (cur < hoyDate) {
+      const dow = cur.getDay();
+      if (dow !== 0 && dow !== 6) dias++;
+      cur.setDate(cur.getDate() + 1);
+    }
+    return dias;
+  }
+
+  // ── CONFIGURACIÓN DE CARD POR ESTADO ─────────────
+  const CARD_ESTADO_MAP = {
+    'Cristales pedidos a lab':     { badgeCls: 'amarillo', icono: '⏳', label: 'CRISTALES PEDIDOS',   borderCls: 'amarillo' },
+    'Armazón enviado p/calibrado': { badgeCls: 'indigo',   icono: '📦', label: 'ARMAZÓN EN TRÁNSITO', borderCls: 'indigo'   },
+    'En laboratorio':              { badgeCls: 'azul',     icono: '🔵', label: 'EN LABORATORIO',      borderCls: 'azul'     },
+    'Pendiente de retirar':        { badgeCls: 'verde',    icono: '✅', label: 'LISTO PARA RETIRAR',  borderCls: 'verde'    },
+    'Retirado':                    { badgeCls: 'gris',     icono: '✔️', label: 'RETIRADO',            borderCls: 'gris'     },
+  };
+
+  function getCardConfig(p) {
+    const dh = calcDiasHabiles(p.fecha_pedido || p.fecha_carga);
+    const advertencia = dh >= 5 && p.estado !== 'Retirado';
+    const cfg = CARD_ESTADO_MAP[p.estado] || { badgeCls: 'gris', icono: '●', label: p.estado, borderCls: 'gris' };
+    let borderCls = cfg.borderCls;
+    // Override borde: rojo si critico o 5+ días hábiles; naranja si demorado
+    if (advertencia || p._est.valor === 'critico') borderCls = 'rojo';
+    else if (p._est.valor === 'demorado') borderCls = 'naranja';
+    return { ...cfg, dh, advertencia, borderCls };
+  }
+
+  // Categoría para agrupación
+  function getCategoryKey(p) {
+    if (p.estado === 'Retirado') return 'retirado';
+    const dh = calcDiasHabiles(p.fecha_pedido || p.fecha_carga);
+    if (dh >= 5 || p._est.valor === 'critico' || p._est.valor === 'demorado') return 'advertencia';
+    if (['Cristales pedidos a lab', 'Armazón enviado p/calibrado'].includes(p.estado)) return 'espera';
+    if (p.estado === 'En laboratorio') return 'lab';
+    if (p.estado === 'Pendiente de retirar') return 'listo';
+    return 'lab';
+  }
+
+  // Orden de prioridad para sort
+  const CAT_ORDER = { advertencia: 0, espera: 1, lab: 2, listo: 3, retirado: 4 };
+
+  function sortPorPrioridad(a, b) {
+    const catA = CAT_ORDER[getCategoryKey(a)] ?? 9;
+    const catB = CAT_ORDER[getCategoryKey(b)] ?? 9;
+    if (catA !== catB) return catA - catB;
+    // Dentro de la misma categoría: más días primero
+    const dhA = calcDiasHabiles(a.fecha_pedido || a.fecha_carga);
+    const dhB = calcDiasHabiles(b.fecha_pedido || b.fecha_carga);
+    if (dhB !== dhA) return dhB - dhA;
+    // Desempate: más reciente primero
+    return new Date(b.fecha_carga) - new Date(a.fecha_carga);
+  }
+
   // ── SEGUIMIENTO ───────────────────────────────────
   async function loadSeguimiento() {
     try {
@@ -509,10 +572,9 @@ const App = (() => {
       document.getElementById('seg-count-lab').textContent=enLab.length;
       document.getElementById('seg-count-retirar').textContent=retirar.length;
 
-      // ── Orden: más reciente primero ────────────────
-      const sortFechaDesc = (a, b) => new Date(b.fecha_carga) - new Date(a.fecha_carga);
-      renderSegPanel('seg-content-lab',     enLab.sort(sortFechaDesc));
-      renderSegPanel('seg-content-retirar', retirar.sort(sortFechaDesc));
+      // Orden por prioridad (advertencia > espera > lab)
+      renderSegPanel('seg-content-lab',     enLab.sort(sortPorPrioridad),   true);
+      renderSegPanel('seg-content-retirar', retirar.sort(sortPorPrioridad), false);
 
       updateBadge();
       const criticos=todos.filter(p=>p._est.valor==='critico');
@@ -544,18 +606,23 @@ const App = (() => {
     return result;
   }
 
-  // ── Render fila compacta ──────────────────────────
+  // ── Render fila compacta — nuevo diseño card ──────
   function renderCompactRow(p) {
     const sufijo    = p.sufijo ? `-${p.sufijo}` : '';
-    const estCls    = p._est.valor==='critico' ? 'ped-row--critico' : p._est.valor==='demorado' ? 'ped-row--demorado' : '';
-    const estadoCls = estadoRowClass(p.estado);
-    const urgDot    = p.urgente==='Si' ? '<span class="ped-row-urgente" title="Urgente">⚡</span>' : '';
-    const isOpen    = _expandedId===p.id;
+    const isOpen    = _expandedId === p.id;
+    const cfg       = getCardConfig(p);
     const ESTADOS   = ['Cristales pedidos a lab','Armazón enviado p/calibrado','En laboratorio','Pendiente de retirar','Retirado'];
     const opts      = ESTADOS.map(e=>`<option value="${e}"${e===p.estado?' selected':''}>${e}</option>`).join('');
     const scls      = Pedidos.claseEstado(p.estado);
     const fechaCorta = new Date(p.fecha_carga).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'});
-    const detalle=`
+
+    const daysBadge = cfg.advertencia
+      ? `<span class="ped-warning-badge">⚠️ ${cfg.dh}dh</span>`
+      : `<span class="ped-days-badge">${cfg.dh}dh</span>`;
+
+    const urgenteBadge = p.urgente==='Si' ? '<span class="ped-urgente-chip">⚡ URGENTE</span>' : '';
+
+    const detalle = `
       <div class="ped-row-detail ${isOpen?'':'hidden'}" onclick="event.stopPropagation()">
         <div class="ped-row-detail-grid">
           ${p.laboratorio?`<div class="prd-item"><span class="prd-label">Lab</span><span class="prd-val">${esc(p.laboratorio)}</span></div>`:''}
@@ -566,8 +633,8 @@ const App = (() => {
           ${p.graduacion ?`<div class="prd-item prd-item--full"><span class="prd-label">Graduación</span><span class="prd-val" style="font-family:var(--font-mono);font-size:.8rem">${esc(p.graduacion).replace(/\|/g,' | ')}</span></div>`:''}
           ${p.armazon    ?`<div class="prd-item prd-item--full"><span class="prd-label">Armazón</span><span class="prd-val">${esc(p.armazon)}</span></div>`:''}
           ${p.observaciones?`<div class="prd-item prd-item--full"><span class="prd-label">Observaciones</span><span class="prd-val" style="font-style:italic;color:var(--gris-texto)">${esc(p.observaciones)}</span></div>`:''}
-          <div class="prd-item"><span class="prd-label">Días</span><span class="prd-val">${p._dias}d · ${p._est.texto}</span></div>
-          <div class="prd-item"><span class="prd-label">Por</span><span class="prd-val">${esc(p.cargado_por||'—')}</span></div>
+          <div class="prd-item"><span class="prd-label">Estado inteligente</span><span class="prd-val">${p._est.texto}</span></div>
+          <div class="prd-item"><span class="prd-label">Cargado por</span><span class="prd-val">${esc(p.cargado_por||'—')}</span></div>
         </div>
         <div class="ped-row-detail-actions">
           <select class="estado-select ${scls} estado-select-inline" data-id="${p.id}" data-prev="${esc(p.estado)}" onclick="event.stopPropagation()">${opts}</select>
@@ -575,49 +642,60 @@ const App = (() => {
           ${Auth.isAdmin()?`<button class="ped-row-del-btn" onclick="event.stopPropagation();App.eliminarPedido(${p.id})">🗑️</button>`:''}
         </div>
       </div>`;
-    return `<div class="ped-row ${estCls} ${estadoCls}" data-id="${p.id}" onclick="App.togglePedidoRow(${p.id})">
-      <div class="ped-row-main">
-        <span class="ped-row-orden">#${esc(p.orden)}${sufijo}</span>
-        ${urgDot}
-        <span class="ped-row-cliente">${esc(p.cliente)}</span>
-        ${p.laboratorio?`<span class="ped-row-lab">${esc(p.laboratorio)}</span>`:''}
-        <span class="ped-row-est ${p._est.clase}">${p._est.icono||''}</span>
-        <span class="ped-row-fecha">${fechaCorta}</span>
-        <span class="ped-row-arrow ${isOpen?'open':''}">›</span>
+
+    return `<div class="ped-row ped-card ped-card--${cfg.borderCls}" data-id="${p.id}" onclick="App.togglePedidoRow(${p.id})">
+      <div class="ped-card-main">
+        <div class="ped-card-top-row">
+          <span class="ped-status-badge badge--${cfg.badgeCls}">${cfg.icono} ${cfg.label}</span>
+          <div class="ped-card-indicators">
+            ${urgenteBadge}
+            ${daysBadge}
+            <span class="ped-row-arrow ${isOpen?'open':''}">›</span>
+          </div>
+        </div>
+        <div class="ped-card-cliente">${esc(p.cliente)}</div>
+        <div class="ped-card-meta">
+          <span class="ped-card-orden">#${esc(p.orden)}${sufijo}</span>
+          ${p.laboratorio?`<span class="meta-dot">·</span><span>${esc(p.laboratorio)}</span>`:''}
+          <span class="meta-dot">·</span><span>${fechaCorta}</span>
+        </div>
       </div>
       ${detalle}
     </div>`;
   }
 
-  // ── Render fila par A/B ───────────────────────────
+  // ── Render fila par A/B — nuevo diseño card ───────
   function renderPairedRow(pA, pB) {
     const pairId   = `pair-${pA.orden}`;
     const isOpen   = _expandedId === pairId;
-    const worstEst = (pA._est.valor==='critico'||pB._est.valor==='critico') ? 'critico'
-                   : (pA._est.valor==='demorado'||pB._est.valor==='demorado') ? 'demorado' : 'ok';
-    const rowCls   = worstEst==='critico' ? 'ped-row--critico' : worstEst==='demorado' ? 'ped-row--demorado' : '';
-    // Color de fondo por el estado más temprano del par (el menos avanzado)
-    const estadoPrioridad = ['Cristales pedidos a lab','Armazón enviado p/calibrado','En laboratorio','Pendiente de retirar','Retirado'];
-    const prioA = estadoPrioridad.indexOf(pA.estado);
-    const prioB = estadoPrioridad.indexOf(pB.estado);
-    const estadoPar = prioA <= prioB ? pA.estado : pB.estado;
-    const estadoCls = estadoRowClass(estadoPar);
-
-    const urgDot   = (pA.urgente==='Si'||pB.urgente==='Si') ? '<span class="ped-row-urgente" title="Urgente">⚡</span>' : '';
-    const fechaCorta = new Date(pA.fecha_carga).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'});
+    const cfgA     = getCardConfig(pA);
+    const cfgB     = getCardConfig(pB);
+    const BORDER_PRIO = ['rojo','naranja','amarillo','indigo','azul','verde','gris'];
+    const prioA = BORDER_PRIO.indexOf(cfgA.borderCls);
+    const prioB = BORDER_PRIO.indexOf(cfgB.borderCls);
+    const borderCls = BORDER_PRIO[Math.min(prioA < 0 ? 99 : prioA, prioB < 0 ? 99 : prioB)] || 'gris';
+    const worstCfg = (prioA <= prioB ? prioA : prioB) === prioA ? cfgA : cfgB;
+    const urgente  = pA.urgente==='Si' || pB.urgente==='Si';
+    const dhMax    = Math.max(cfgA.dh, cfgB.dh);
+    const advertencia = cfgA.advertencia || cfgB.advertencia;
+    const fechaCorta  = new Date(pA.fecha_carga).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'});
     const ESTADOS  = ['Cristales pedidos a lab','Armazón enviado p/calibrado','En laboratorio','Pendiente de retirar','Retirado'];
+
+    const daysBadge = advertencia
+      ? `<span class="ped-warning-badge">⚠️ ${dhMax}dh</span>`
+      : `<span class="ped-days-badge">${dhMax}dh</span>`;
 
     const subRow = (p, color) => {
       const opts = ESTADOS.map(e=>`<option value="${e}"${e===p.estado?' selected':''}>${e}</option>`).join('');
       const scls = Pedidos.claseEstado(p.estado);
+      const pcfg = getCardConfig(p);
       return `<div class="ped-pair-sub ped-pair-sub--${color}">
         <div class="ped-pair-header">
           <span class="ped-pair-badge ped-pair-badge--${color}">${p.sufijo}</span>
+          <span class="ped-status-badge badge--${pcfg.badgeCls}" style="font-size:.6rem;padding:2px 8px">${pcfg.icono} ${pcfg.label}</span>
           ${p.laboratorio?`<span class="ped-row-lab">${esc(p.laboratorio)}</span>`:''}
-          ${p.tipo_lente?`<span class="ped-pair-lente">${esc(p.tipo_lente)}</span>`:''}
           <span class="ped-pair-spacer"></span>
-          <span class="est-inteligente ${p._est.clase}" style="font-size:.75rem">${p._est.texto}</span>
-          <span class="ped-pair-dias">${p._dias}d</span>
+          ${pcfg.advertencia?`<span class="ped-warning-badge">⚠️ ${pcfg.dh}dh</span>`:`<span class="ped-days-badge">${pcfg.dh}dh</span>`}
         </div>
         ${p.graduacion?`<div class="ped-pair-grad">${esc(p.graduacion).replace(/\|/g,' | ')}</div>`:''}
         ${p.observaciones?`<div class="ped-pair-obs">💬 ${esc(p.observaciones)}</div>`:''}
@@ -629,14 +707,22 @@ const App = (() => {
       </div>`;
     };
 
-    return `<div class="ped-row ped-row--pair ${rowCls} ${estadoCls}" data-pair-id="${pairId}" onclick="App.togglePedidoRow('${pairId}')">
-      <div class="ped-row-main">
-        <span class="ped-row-orden">#${esc(pA.orden)}</span>
-        ${urgDot}
-        <span class="ped-row-cliente">${esc(pA.cliente)}</span>
-        <span class="ped-pair-ab-badge">A · B</span>
-        <span class="ped-row-fecha">${fechaCorta}</span>
-        <span class="ped-row-arrow ${isOpen?'open':''}">›</span>
+    return `<div class="ped-row ped-card ped-card--${borderCls} ped-row--pair" data-pair-id="${pairId}" onclick="App.togglePedidoRow('${pairId}')">
+      <div class="ped-card-main">
+        <div class="ped-card-top-row">
+          <span class="ped-status-badge badge--${worstCfg.badgeCls}">${worstCfg.icono} ${worstCfg.label}</span>
+          <div class="ped-card-indicators">
+            ${urgente?'<span class="ped-urgente-chip">⚡ URGENTE</span>':''}
+            ${daysBadge}
+            <span class="ped-pair-ab-badge">A · B</span>
+            <span class="ped-row-arrow ${isOpen?'open':''}">›</span>
+          </div>
+        </div>
+        <div class="ped-card-cliente">${esc(pA.cliente)}</div>
+        <div class="ped-card-meta">
+          <span class="ped-card-orden">#${esc(pA.orden)}</span>
+          <span class="meta-dot">·</span><span>${fechaCorta}</span>
+        </div>
       </div>
       <div class="ped-row-detail ${isOpen?'':'hidden'}" onclick="event.stopPropagation()">
         ${subRow(pA,'azul')}
@@ -645,7 +731,8 @@ const App = (() => {
     </div>`;
   }
 
-  function renderSegPanel(id, pedidos) {
+  // ── Render panel de seguimiento con agrupación ────
+  function renderSegPanel(id, pedidos, conGrupos=false) {
     const el = document.getElementById(id); if (!el) return;
     if (!pedidos.length) {
       el.innerHTML=`<div class="empty-state">
@@ -654,7 +741,43 @@ const App = (() => {
       return;
     }
     const groups = groupPedidos(pedidos);
-    el.innerHTML=`<div class="ped-compact-list">${groups.map(g=>g.type==='pair'?renderPairedRow(g.a,g.b):renderCompactRow(g.p)).join('')}</div>`;
+
+    if (!conGrupos) {
+      el.innerHTML=`<div class="ped-compact-list">${groups.map(g=>g.type==='pair'?renderPairedRow(g.a,g.b):renderCompactRow(g.p)).join('')}</div>`;
+      attachInlineSelects(el);
+      return;
+    }
+
+    // Agrupación por categoría con encabezados
+    const CATS = [
+      { key:'advertencia', label:'⚠️ Requieren atención', color:'#DC2626' },
+      { key:'espera',      label:'⏳ En espera',           color:'#D97706' },
+      { key:'lab',         label:'🔵 En laboratorio',      color:'#034291' },
+      { key:'listo',       label:'✅ Listos para retirar', color:'#16A34A' },
+      { key:'retirado',    label:'✔ Retirados',            color:'#9CA3AF' },
+    ];
+    const buckets = {};
+    CATS.forEach(c => { buckets[c.key] = []; });
+
+    groups.forEach(g => {
+      const p = g.type==='pair' ? g.a : g.p;
+      const key = getCategoryKey(p);
+      if (buckets[key]) buckets[key].push(g);
+    });
+
+    let html = '<div class="ped-compact-list">';
+    CATS.forEach(cat => {
+      const items = buckets[cat.key];
+      if (!items.length) return;
+      html += `<div class="ped-group-header">
+        <span class="ped-group-dot" style="background:${cat.color}"></span>
+        <span>${cat.label}</span>
+        <span class="ped-group-count">${items.length}</span>
+      </div>`;
+      html += items.map(g => g.type==='pair' ? renderPairedRow(g.a,g.b) : renderCompactRow(g.p)).join('');
+    });
+    html += '</div>';
+    el.innerHTML = html;
     attachInlineSelects(el);
   }
 
