@@ -201,37 +201,32 @@ select.form-control { background-image:url("data:image/svg+xml,%3Csvg xmlns='htt
 .ped-row--demorado { box-shadow: inset 4px 0 0 #F59E0B; }
 
 /* ══════════════════════════════════════════════════
-   COLORES POR ESTADO DEL PEDIDO
+   PESTAÑA SUPERIOR POR ESTADO DEL PEDIDO
+   Fondo blanco + franja de color arriba de cada fila
    ══════════════════════════════════════════════════ */
-.ped-row--estado-cristales {
-  background: #EBF2FF;
-}
-.ped-row--estado-armazon {
-  background: #F0ECFF;
-}
-.ped-row--estado-lab {
-  background: #DBEAFE;
-}
-.ped-row--estado-retirar {
-  background: #FEF3C7;
-}
-.ped-row--estado-retirado {
-  background: #DCFCE7;
-}
+.ped-row--estado-cristales { border-top: 3px solid #9CA3AF; }   /* Gris        */
+.ped-row--estado-armazon   { border-top: 3px solid #6366F1; }   /* Índigo      */
+.ped-row--estado-lab       { border-top: 3px solid #034291; }   /* Azul OLVISIÓN */
+.ped-row--estado-retirar   { border-top: 3px solid #D97706; }   /* Ámbar       */
+.ped-row--estado-retirado  { border-top: 3px solid #16A34A; }   /* Verde       */
 
-/* Critico/demorado combinado: box-shadow sigue funcionando sobre cualquier bg */
-.ped-row--critico.ped-row--estado-cristales,
-.ped-row--critico.ped-row--estado-armazon,
-.ped-row--critico.ped-row--estado-lab,
-.ped-row--critico.ped-row--estado-retirar {
-  box-shadow: inset 4px 0 0 var(--rojo);
+/* La primera fila del grupo hereda border-radius del contenedor */
+.ped-compact-list .ped-row:first-child { border-top: none; }
+.ped-compact-list .ped-row:first-child.ped-row--estado-cristales::before,
+.ped-compact-list .ped-row:first-child.ped-row--estado-armazon::before,
+.ped-compact-list .ped-row:first-child.ped-row--estado-lab::before,
+.ped-compact-list .ped-row:first-child.ped-row--estado-retirar::before,
+.ped-compact-list .ped-row:first-child.ped-row--estado-retirado::before {
+  content: ''; display: block; height: 3px; margin: 0;
 }
-.ped-row--demorado.ped-row--estado-cristales,
-.ped-row--demorado.ped-row--estado-armazon,
-.ped-row--demorado.ped-row--estado-lab,
-.ped-row--demorado.ped-row--estado-retirar {
-  box-shadow: inset 4px 0 0 #F59E0B;
-}
+.ped-compact-list .ped-row:first-child.ped-row--estado-cristales::before { background: #9CA3AF; }
+.ped-compact-list .ped-row:first-child.ped-row--estado-armazon::before   { background: #6366F1; }
+.ped-compact-list .ped-row:first-child.ped-row--estado-lab::before       { background: #034291; }
+.ped-compact-list .ped-row:first-child.ped-row--estado-retirar::before   { background: #D97706; }
+.ped-compact-list .ped-row:first-child.ped-row--estado-retirado::before  { background: #16A34A; }
+
+/* Crítico y demorado: borde lateral izquierdo, compatible con franja superior */
+/* (box-shadow ya definido arriba en .ped-row--critico y .ped-row--demorado) */
 
 /* ── Fila principal ───────────────────────────────── */
 .ped-row-main {
