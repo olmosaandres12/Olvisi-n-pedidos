@@ -12,6 +12,7 @@ const App = (() => {
   let _pendingGuardar = null;
   let _detalleId      = null;
   let _expandedId     = null;
+  let _editingConfig  = null; // { type:'lab'|'marca'|'material'|'trat', id, valor }
 
   const hoy = new Date();
   let _mesActual = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
@@ -87,7 +88,6 @@ const App = (() => {
     });
   }
 
-  // Siguiente campo: Esf → Cil → Eje
   function getNextField(inputEl) {
     const id = inputEl.id;
     if (!id || !id.startsWith('g-')) return null;
@@ -99,7 +99,6 @@ const App = (() => {
     return null;
   }
 
-  // Campo del ojo opuesto (D↔I) del mismo tipo
   function getOppositeField(inputEl) {
     const id = inputEl.id;
     if (!id || !id.startsWith('g-')) return null;
@@ -110,7 +109,6 @@ const App = (() => {
     return document.getElementById(`g-${dc}-${type}-${ojoOpuesto}-${num}`);
   }
 
-  // Copia el valor actual a ambos ojos y cierra
   function copiarAmbosOjos() {
     if (!_numpadTarget || !_numpadRaw) return;
     const valor = (_numpadSign === '-' ? '-' : '+') + _numpadRaw;
@@ -212,10 +210,8 @@ const App = (() => {
     const lbl = document.getElementById('numpad-label'); if (lbl) lbl.textContent = label||'Valor';
     _numpadRenderDisplay();
     updateFieldIndicator(inputEl);
-    // Siguiente: visible solo si hay campo siguiente
     const sigBtn = document.getElementById('numpad-siguiente');
     if (sigBtn) sigBtn.classList.toggle('hidden', !_numpadNext);
-    // Ambos ojos: visible solo si el campo tiene ojo opuesto
     const ambBtn = document.getElementById('numpad-ambos');
     if (ambBtn) ambBtn.classList.toggle('hidden', !getOppositeField(inputEl));
     const vp = document.querySelector('meta[name=viewport]');
@@ -342,7 +338,7 @@ const App = (() => {
     showScreen('seguimiento');
   }
 
-  // ── CONFIG ────────────────────────────────────────
+  // ── CONFIG CACHE ──────────────────────────────────
   async function loadConfig() {
     try {
       const {data,error}=await window.supabaseClient.from('configuracion').select('*').eq('activo',true).order('orden');
@@ -487,7 +483,6 @@ const App = (() => {
   }
 
   // ── HELPERS DE COLOR POR ESTADO ───────────────────
-  // Devuelve la clase CSS de fondo según el estado del pedido
   function estadoRowClass(estado) {
     const map = {
       'Cristales pedidos a lab':      'ped-row--estado-cristales',
@@ -499,7 +494,7 @@ const App = (() => {
     return map[estado] || '';
   }
 
-  // ── DÍAS HÁBILES (lun-vie, sin sáb/dom) ──────────
+  // ── DÍAS HÁBILES (lun-vie) ────────────────────────
   function calcDiasHabiles(fecha) {
     if (!fecha) return 0;
     const inicio = new Date(fecha);
@@ -516,7 +511,6 @@ const App = (() => {
     return dias;
   }
 
-  // ── CONFIGURACIÓN DE CARD POR ESTADO ─────────────
   const CARD_ESTADO_MAP = {
     'Cristales pedidos a lab':     { badgeCls: 'amarillo', icono: '⏳', label: 'CRISTALES PEDIDOS',   borderCls: 'amarillo' },
     'Armazón enviado p/calibrado': { badgeCls: 'indigo',   icono: '📦', label: 'ARMAZÓN EN TRÁNSITO', borderCls: 'indigo'   },
@@ -530,13 +524,11 @@ const App = (() => {
     const advertencia = dh >= 5 && p.estado !== 'Retirado';
     const cfg = CARD_ESTADO_MAP[p.estado] || { badgeCls: 'gris', icono: '●', label: p.estado, borderCls: 'gris' };
     let borderCls = cfg.borderCls;
-    // Override borde: rojo si critico o 5+ días hábiles; naranja si demorado
     if (advertencia || p._est.valor === 'critico') borderCls = 'rojo';
     else if (p._est.valor === 'demorado') borderCls = 'naranja';
     return { ...cfg, dh, advertencia, borderCls };
   }
 
-  // Categoría para agrupación
   function getCategoryKey(p) {
     if (p.estado === 'Retirado') return 'retirado';
     const dh = calcDiasHabiles(p.fecha_pedido || p.fecha_carga);
@@ -547,18 +539,15 @@ const App = (() => {
     return 'lab';
   }
 
-  // Orden de prioridad para sort
   const CAT_ORDER = { advertencia: 0, espera: 1, lab: 2, listo: 3, retirado: 4 };
 
   function sortPorPrioridad(a, b) {
     const catA = CAT_ORDER[getCategoryKey(a)] ?? 9;
     const catB = CAT_ORDER[getCategoryKey(b)] ?? 9;
     if (catA !== catB) return catA - catB;
-    // Dentro de la misma categoría: más días primero
     const dhA = calcDiasHabiles(a.fecha_pedido || a.fecha_carga);
     const dhB = calcDiasHabiles(b.fecha_pedido || b.fecha_carga);
     if (dhB !== dhA) return dhB - dhA;
-    // Desempate: más reciente primero
     return new Date(b.fecha_carga) - new Date(a.fecha_carga);
   }
 
@@ -572,7 +561,6 @@ const App = (() => {
       document.getElementById('seg-count-lab').textContent=enLab.length;
       document.getElementById('seg-count-retirar').textContent=retirar.length;
 
-      // Orden por prioridad (advertencia > espera > lab)
       renderSegPanel('seg-content-lab',     enLab.sort(sortPorPrioridad),   true);
       renderSegPanel('seg-content-retirar', retirar.sort(sortPorPrioridad), false);
 
@@ -589,7 +577,6 @@ const App = (() => {
     return (ord[a._est.valor]??2)-(ord[b._est.valor]??2)||b._dias-a._dias;
   }
 
-  // ── Agrupador de pares A/B ────────────────────────
   function groupPedidos(list) {
     const result = [], seen = new Set();
     for (const p of list) {
@@ -606,7 +593,6 @@ const App = (() => {
     return result;
   }
 
-  // ── Render fila compacta — nuevo diseño card ──────
   function renderCompactRow(p) {
     const sufijo    = p.sufijo ? `-${p.sufijo}` : '';
     const isOpen    = _expandedId === p.id;
@@ -664,7 +650,6 @@ const App = (() => {
     </div>`;
   }
 
-  // ── Render fila par A/B — nuevo diseño card ───────
   function renderPairedRow(pA, pB) {
     const pairId   = `pair-${pA.orden}`;
     const isOpen   = _expandedId === pairId;
@@ -731,7 +716,6 @@ const App = (() => {
     </div>`;
   }
 
-  // ── Render panel de seguimiento con agrupación ────
   function renderSegPanel(id, pedidos, conGrupos=false) {
     const el = document.getElementById(id); if (!el) return;
     if (!pedidos.length) {
@@ -748,7 +732,6 @@ const App = (() => {
       return;
     }
 
-    // Agrupación por categoría con encabezados
     const CATS = [
       { key:'advertencia', label:'⚠️ Requieren atención', color:'#DC2626' },
       { key:'espera',      label:'⏳ En espera',           color:'#D97706' },
@@ -849,7 +832,6 @@ const App = (() => {
         <h3>Sin pedidos</h3><p>No hay pedidos en ${mesLabel(_mesActual).toLowerCase()}</p></div>`;
       return;
     }
-    // Más reciente primero
     const sorted=[...filtered].sort((a,b)=>new Date(b.fecha_carga)-new Date(a.fecha_carga));
     const groups=groupPedidos(sorted);
     container.innerHTML=`<div class="ped-compact-list">${groups.map(g=>g.type==='pair'?renderPairedRow(g.a,g.b):renderCompactRow(g.p)).join('')}</div>`;
@@ -1066,35 +1048,229 @@ const App = (() => {
     } catch{}
   }
 
-  // ── CONFIG ────────────────────────────────────────
+  // ── CONFIG SCREEN ─────────────────────────────────
   async function loadConfigScreen() {
-    await loadConfig(); renderConfigLabs(); renderConfigMarcas(); renderConfigMateriales(); loadConfigTratamientos();
+    _editingConfig = null;
+    await loadConfig();
+    renderConfigLabs();
+    renderConfigMarcas();
+    renderConfigMateriales();
+    loadConfigTratamientos();
   }
+
+  // ─── Helpers de edición inline ────────────────────
+  // Renderiza un item en modo normal (lectura)
+  function _configItemNormal(label, onEdit, onDelete) {
+    return `<div class="config-item">
+      <span class="config-item-label">${label}</span>
+      <div class="config-item-actions">
+        <button class="btn btn-secondary btn-sm config-edit-btn" onclick="${onEdit}">✏️</button>
+        <button class="btn btn-danger btn-sm" onclick="${onDelete}">Eliminar</button>
+      </div>
+    </div>`;
+  }
+
+  // Renderiza un item en modo edición inline
+  function _configItemEditing(inputId, onSave, onCancel, currentVal) {
+    return `<div class="config-item config-item--editing">
+      <input type="text" id="${inputId}" class="form-control config-edit-input" value="${esc(currentVal)}" style="flex:1;min-width:0">
+      <div class="config-item-actions">
+        <button class="btn btn-primary btn-sm" onclick="${onSave}">Guardar</button>
+        <button class="btn btn-secondary btn-sm" onclick="${onCancel}">✕</button>
+      </div>
+    </div>`;
+  }
+
+  function _focusConfigInput(id) {
+    setTimeout(() => {
+      const inp = document.getElementById(id);
+      if (inp) { inp.focus(); inp.select(); }
+    }, 30);
+  }
+
+  // ─── Laboratorios ─────────────────────────────────
   function renderConfigLabs() {
-    const el=document.getElementById('config-labs-list'); if (!el) return;
-    el.innerHTML=_configCache.laboratorios.length?_configCache.laboratorios.map(lab=>`<div class="config-item"><span>${esc(lab)}</span><button class="btn btn-danger btn-sm" onclick="App.deleteLab('${esc(lab)}')">Eliminar</button></div>`).join(''):'<p style="color:var(--gris-texto);font-size:.85rem;padding:8px 0">Sin laboratorios</p>';
+    const el = document.getElementById('config-labs-list'); if (!el) return;
+    if (!_configCache.laboratorios.length) {
+      el.innerHTML = '<p style="color:var(--gris-texto);font-size:.85rem;padding:8px 0">Sin laboratorios</p>';
+      return;
+    }
+    el.innerHTML = _configCache.laboratorios.map(lab => {
+      const isEditing = _editingConfig?.type === 'lab' && _editingConfig?.valor === lab;
+      if (isEditing) return _configItemEditing('cfg-edit-lab', `App.saveConfigLab('${esc(lab)}')`, `App.cancelConfigEdit()`, lab);
+      return _configItemNormal(esc(lab), `App.startEditLab('${esc(lab)}')`, `App.deleteLab('${esc(lab)}')`);
+    }).join('');
+    if (_editingConfig?.type === 'lab') _focusConfigInput('cfg-edit-lab');
   }
+
+  function startEditLab(valor) {
+    _editingConfig = { type: 'lab', valor };
+    renderConfigLabs();
+  }
+
+  async function saveConfigLab(oldValor) {
+    const newValor = document.getElementById('cfg-edit-lab')?.value.trim();
+    if (!newValor) return;
+    if (newValor === oldValor) { cancelConfigEdit(); return; }
+    try {
+      const { error } = await window.supabaseClient.from('configuracion')
+        .update({ valor: newValor })
+        .eq('tipo', 'laboratorio')
+        .eq('valor', oldValor);
+      if (error) throw error;
+      _editingConfig = null;
+      await loadConfig(); renderConfigLabs(); buildBloqueFields(1); buildBloqueFields(2);
+      toast('Laboratorio actualizado', 'success');
+    } catch(e) { toast('Error: ' + e.message, 'error'); }
+  }
+
+  async function addLab() {
+    const i=document.getElementById('new-lab-input'), v=i.value.trim(); if (!v) return;
+    try { await window.supabaseClient.from('configuracion').insert({tipo:'laboratorio',valor:v,orden:99}); i.value=''; await loadConfig(); renderConfigLabs(); buildBloqueFields(1); buildBloqueFields(2); toast('Laboratorio agregado','success'); } catch(e){toast('Error: '+e.message,'error');}
+  }
+
+  async function deleteLab(v) {
+    if (!confirm(`¿Eliminar laboratorio "${v}"?`)) return;
+    try { await window.supabaseClient.from('configuracion').delete().eq('tipo','laboratorio').eq('valor',v); await loadConfig(); renderConfigLabs(); buildBloqueFields(1); buildBloqueFields(2); toast('Laboratorio eliminado','success'); } catch(e){toast('Error: '+e.message,'error');}
+  }
+
+  // ─── Marcas ───────────────────────────────────────
   function renderConfigMarcas() {
-    const el=document.getElementById('config-marcas-list'); if (!el) return;
-    el.innerHTML=_configCache.marcas.length?_configCache.marcas.map(m=>`<div class="config-item"><span>${esc(m.valor)}</span><button class="btn btn-danger btn-sm" onclick="App.deleteMarca(${m.id})">Eliminar</button></div>`).join(''):'<p style="color:var(--gris-texto);font-size:.85rem;padding:8px 0">Sin marcas</p>';
+    const el = document.getElementById('config-marcas-list'); if (!el) return;
+    if (!_configCache.marcas.length) {
+      el.innerHTML = '<p style="color:var(--gris-texto);font-size:.85rem;padding:8px 0">Sin marcas</p>';
+      return;
+    }
+    el.innerHTML = _configCache.marcas.map(m => {
+      const isEditing = _editingConfig?.type === 'marca' && _editingConfig?.id === m.id;
+      if (isEditing) return _configItemEditing('cfg-edit-marca', `App.saveConfigMarca(${m.id})`, `App.cancelConfigEdit()`, m.valor);
+      return _configItemNormal(esc(m.valor), `App.startEditMarca(${m.id},'${esc(m.valor)}')`, `App.deleteMarca(${m.id})`);
+    }).join('');
+    if (_editingConfig?.type === 'marca') _focusConfigInput('cfg-edit-marca');
   }
+
+  function startEditMarca(id, valor) {
+    _editingConfig = { type: 'marca', id, valor };
+    renderConfigMarcas();
+  }
+
+  async function saveConfigMarca(id) {
+    const newValor = document.getElementById('cfg-edit-marca')?.value.trim();
+    if (!newValor) return;
+    try {
+      const { error } = await window.supabaseClient.from('configuracion').update({ valor: newValor }).eq('id', id);
+      if (error) throw error;
+      _editingConfig = null;
+      await loadConfig(); renderConfigMarcas(); buildBloqueFields(1); buildBloqueFields(2);
+      toast('Marca actualizada', 'success');
+    } catch(e) { toast('Error: ' + e.message, 'error'); }
+  }
+
+  async function addMarca() {
+    const i=document.getElementById('new-marca-input'), v=i.value.trim(); if (!v) return;
+    try { await window.supabaseClient.from('configuracion').insert({tipo:'marca',categoria:'armazon',valor:v,orden:99}); i.value=''; await loadConfig(); renderConfigMarcas(); buildBloqueFields(1); buildBloqueFields(2); toast('Marca agregada','success'); } catch(e){toast('Error: '+e.message,'error');}
+  }
+
+  async function deleteMarca(id) {
+    if (!confirm('¿Eliminar esta marca?')) return;
+    try { await window.supabaseClient.from('configuracion').delete().eq('id',id); await loadConfig(); renderConfigMarcas(); buildBloqueFields(1); buildBloqueFields(2); toast('Marca eliminada','success'); } catch(e){toast('Error: '+e.message,'error');}
+  }
+
+  // ─── Materiales ───────────────────────────────────
   function renderConfigMateriales() {
-    const el=document.getElementById('config-materiales-list'); if (!el) return;
-    el.innerHTML=_configCache.materiales.length?_configCache.materiales.map(m=>`<div class="config-item"><span>${esc(m.valor)}</span><button class="btn btn-danger btn-sm" onclick="App.deleteMaterial(${m.id})">Eliminar</button></div>`).join(''):'<p style="color:var(--gris-texto);font-size:.85rem;padding:8px 0">Sin materiales</p>';
+    const el = document.getElementById('config-materiales-list'); if (!el) return;
+    if (!_configCache.materiales.length) {
+      el.innerHTML = '<p style="color:var(--gris-texto);font-size:.85rem;padding:8px 0">Sin materiales</p>';
+      return;
+    }
+    el.innerHTML = _configCache.materiales.map(m => {
+      const isEditing = _editingConfig?.type === 'material' && _editingConfig?.id === m.id;
+      if (isEditing) return _configItemEditing('cfg-edit-material', `App.saveConfigMaterial(${m.id})`, `App.cancelConfigEdit()`, m.valor);
+      return _configItemNormal(esc(m.valor), `App.startEditMaterial(${m.id},'${esc(m.valor)}')`, `App.deleteMaterial(${m.id})`);
+    }).join('');
+    if (_editingConfig?.type === 'material') _focusConfigInput('cfg-edit-material');
   }
+
+  function startEditMaterial(id, valor) {
+    _editingConfig = { type: 'material', id, valor };
+    renderConfigMateriales();
+  }
+
+  async function saveConfigMaterial(id) {
+    const newValor = document.getElementById('cfg-edit-material')?.value.trim();
+    if (!newValor) return;
+    try {
+      const { error } = await window.supabaseClient.from('configuracion').update({ valor: newValor }).eq('id', id);
+      if (error) throw error;
+      _editingConfig = null;
+      await loadConfig(); renderConfigMateriales(); buildBloqueFields(1); buildBloqueFields(2);
+      toast('Material actualizado', 'success');
+    } catch(e) { toast('Error: ' + e.message, 'error'); }
+  }
+
+  async function addMaterial() {
+    const i=document.getElementById('new-material-input'), v=i.value.trim(); if (!v) return;
+    try { await window.supabaseClient.from('configuracion').insert({tipo:'material',categoria:'armazon',valor:v,orden:99}); i.value=''; await loadConfig(); renderConfigMateriales(); buildBloqueFields(1); buildBloqueFields(2); toast('Material agregado','success'); } catch(e){toast('Error: '+e.message,'error');}
+  }
+
+  async function deleteMaterial(id) {
+    if (!confirm('¿Eliminar este material?')) return;
+    try { await window.supabaseClient.from('configuracion').delete().eq('id',id); await loadConfig(); renderConfigMateriales(); buildBloqueFields(1); buildBloqueFields(2); toast('Material eliminado','success'); } catch(e){toast('Error: '+e.message,'error');}
+  }
+
+  // ─── Tratamientos ─────────────────────────────────
   async function loadConfigTratamientos() {
-    const lente=document.getElementById('config-lente-select')?.value, el=document.getElementById('config-trat-list'); if (!el||!lente) return;
-    const lista=_configCache.tratamientos[lente]||[];
-    el.innerHTML=lista.length?lista.map(t=>`<div class="config-item"><span>${esc(t.valor)}</span><button class="btn btn-danger btn-sm" onclick="App.deleteTratamiento(${t.id})">Eliminar</button></div>`).join(''):'<p style="color:var(--gris-texto);font-size:.85rem;padding:8px 0">Sin tratamientos</p>';
+    const lente = document.getElementById('config-lente-select')?.value;
+    const el    = document.getElementById('config-trat-list');
+    if (!el || !lente) return;
+    const lista = _configCache.tratamientos[lente] || [];
+    if (!lista.length) {
+      el.innerHTML = '<p style="color:var(--gris-texto);font-size:.85rem;padding:8px 0">Sin tratamientos</p>';
+      return;
+    }
+    el.innerHTML = lista.map(t => {
+      const isEditing = _editingConfig?.type === 'trat' && _editingConfig?.id === t.id;
+      if (isEditing) return _configItemEditing('cfg-edit-trat', `App.saveConfigTrat(${t.id})`, `App.cancelConfigEdit()`, t.valor);
+      return _configItemNormal(esc(t.valor), `App.startEditTrat(${t.id},'${esc(t.valor)}')`, `App.deleteTratamiento(${t.id})`);
+    }).join('');
+    if (_editingConfig?.type === 'trat') _focusConfigInput('cfg-edit-trat');
   }
-  async function addLab(){const i=document.getElementById('new-lab-input'),v=i.value.trim();if(!v)return;try{await window.supabaseClient.from('configuracion').insert({tipo:'laboratorio',valor:v,orden:99});i.value='';await loadConfig();renderConfigLabs();buildBloqueFields(1);buildBloqueFields(2);toast('Laboratorio agregado','success');}catch(e){toast('Error: '+e.message,'error');}}
-  async function deleteLab(v){if(!confirm(`¿Eliminar laboratorio "${v}"?`))return;try{await window.supabaseClient.from('configuracion').delete().eq('tipo','laboratorio').eq('valor',v);await loadConfig();renderConfigLabs();buildBloqueFields(1);buildBloqueFields(2);toast('Laboratorio eliminado','success');}catch(e){toast('Error: '+e.message,'error');}}
-  async function addMarca(){const i=document.getElementById('new-marca-input'),v=i.value.trim();if(!v)return;try{await window.supabaseClient.from('configuracion').insert({tipo:'marca',categoria:'armazon',valor:v,orden:99});i.value='';await loadConfig();renderConfigMarcas();buildBloqueFields(1);buildBloqueFields(2);toast('Marca agregada','success');}catch(e){toast('Error: '+e.message,'error');}}
-  async function deleteMarca(id){if(!confirm('¿Eliminar esta marca?'))return;try{await window.supabaseClient.from('configuracion').delete().eq('id',id);await loadConfig();renderConfigMarcas();buildBloqueFields(1);buildBloqueFields(2);toast('Marca eliminada','success');}catch(e){toast('Error: '+e.message,'error');}}
-  async function addMaterial(){const i=document.getElementById('new-material-input'),v=i.value.trim();if(!v)return;try{await window.supabaseClient.from('configuracion').insert({tipo:'material',categoria:'armazon',valor:v,orden:99});i.value='';await loadConfig();renderConfigMateriales();buildBloqueFields(1);buildBloqueFields(2);toast('Material agregado','success');}catch(e){toast('Error: '+e.message,'error');}}
-  async function deleteMaterial(id){if(!confirm('¿Eliminar este material?'))return;try{await window.supabaseClient.from('configuracion').delete().eq('id',id);await loadConfig();renderConfigMateriales();buildBloqueFields(1);buildBloqueFields(2);toast('Material eliminado','success');}catch(e){toast('Error: '+e.message,'error');}}
-  async function addTratamiento(){const lente=document.getElementById('config-lente-select')?.value,i=document.getElementById('new-trat-input'),v=i.value.trim();if(!v||!lente)return;try{await window.supabaseClient.from('configuracion').insert({tipo:'tratamiento',categoria:lente,valor:v,orden:99});i.value='';await loadConfig();loadConfigTratamientos();toast('Tratamiento agregado','success');}catch(e){toast('Error: '+e.message,'error');}}
-  async function deleteTratamiento(id){if(!confirm('¿Eliminar este tratamiento?'))return;try{await window.supabaseClient.from('configuracion').delete().eq('id',id);await loadConfig();loadConfigTratamientos();toast('Tratamiento eliminado','success');}catch(e){toast('Error: '+e.message,'error');}}
+
+  function startEditTrat(id, valor) {
+    _editingConfig = { type: 'trat', id, valor };
+    loadConfigTratamientos();
+  }
+
+  async function saveConfigTrat(id) {
+    const newValor = document.getElementById('cfg-edit-trat')?.value.trim();
+    if (!newValor) return;
+    try {
+      const { error } = await window.supabaseClient.from('configuracion').update({ valor: newValor }).eq('id', id);
+      if (error) throw error;
+      _editingConfig = null;
+      await loadConfig(); loadConfigTratamientos();
+      toast('Tratamiento actualizado', 'success');
+    } catch(e) { toast('Error: ' + e.message, 'error'); }
+  }
+
+  async function addTratamiento() {
+    const lente=document.getElementById('config-lente-select')?.value, i=document.getElementById('new-trat-input'), v=i.value.trim(); if (!v||!lente) return;
+    try { await window.supabaseClient.from('configuracion').insert({tipo:'tratamiento',categoria:lente,valor:v,orden:99}); i.value=''; await loadConfig(); loadConfigTratamientos(); toast('Tratamiento agregado','success'); } catch(e){toast('Error: '+e.message,'error');}
+  }
+
+  async function deleteTratamiento(id) {
+    if (!confirm('¿Eliminar este tratamiento?')) return;
+    try { await window.supabaseClient.from('configuracion').delete().eq('id',id); await loadConfig(); loadConfigTratamientos(); toast('Tratamiento eliminado','success'); } catch(e){toast('Error: '+e.message,'error');}
+  }
+
+  // Cancela cualquier edición activa
+  function cancelConfigEdit() {
+    _editingConfig = null;
+    renderConfigLabs();
+    renderConfigMarcas();
+    renderConfigMateriales();
+    loadConfigTratamientos();
+  }
 
   // ── FORM NUEVO PEDIDO ─────────────────────────────
   function getGraduacion(num) {
@@ -1263,7 +1439,11 @@ const App = (() => {
     switchEstadoTab, switchSegTab,
     onLenteChange, setDistancia, onArmazonTipoChange,
     loadConfigScreen, loadConfigTratamientos,
-    addLab, deleteLab, addMarca, deleteMarca, addMaterial, deleteMaterial, addTratamiento, deleteTratamiento,
+    addLab, deleteLab, startEditLab, saveConfigLab,
+    addMarca, deleteMarca, startEditMarca, saveConfigMarca,
+    addMaterial, deleteMaterial, startEditMaterial, saveConfigMaterial,
+    addTratamiento, deleteTratamiento, startEditTrat, saveConfigTrat,
+    cancelConfigEdit,
     guardarEdicion, eliminarPedido, activarNotificaciones,
     togglePedidoRow, mesPrev, mesNext,
     _abrirDetalleRapido,
