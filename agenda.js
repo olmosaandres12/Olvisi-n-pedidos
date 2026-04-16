@@ -19,7 +19,7 @@ async function loadClientes(busqueda = '') {
   const listEl = document.getElementById('agenda-list');
   listEl.innerHTML = '<div class="loading-state"><div class="spinner"></div>Cargando...</div>';
 
-  let query = supabase
+  let query = window.supabaseClient
     .from('clientes')
     .select('*')
     .order('apellido', { ascending: true })
@@ -48,7 +48,7 @@ async function loadClientes(busqueda = '') {
 }
 
 async function loadObrasSocialesAgenda() {
-  const { data } = await supabase
+  const { data } = await window.supabaseClient
     .from('configuracion')
     .select('valor')
     .eq('tipo', 'obra_social')
@@ -57,7 +57,7 @@ async function loadObrasSocialesAgenda() {
 }
 
 async function loadMedicosUnicos() {
-  const { data } = await supabase
+  const { data } = await window.supabaseClient
     .from('clientes')
     .select('medico')
     .not('medico', 'is', null)
@@ -70,7 +70,7 @@ async function loadMedicosUnicos() {
 }
 
 async function getPedidosDeCliente(clienteId) {
-  const { data } = await supabase
+  const { data } = await window.supabaseClient
     .from('pedidos')
     .select('id, orden, sufijo, estado, laboratorio, tipo_lente, fecha_carga, fecha_retiro')
     .eq('cliente_id', clienteId)
@@ -412,9 +412,9 @@ async function guardarCliente(e) {
 
   let error;
   if (clienteId) {
-    ({ error } = await supabase.from('clientes').update(datos).eq('id', clienteId));
+    ({ error } = await window.supabaseClient.from('clientes').update(datos).eq('id', clienteId));
   } else {
-    ({ error } = await supabase.from('clientes').insert([datos]));
+    ({ error } = await window.supabaseClient.from('clientes').insert([datos]));
   }
 
   if (error) {
@@ -450,7 +450,7 @@ async function confirmarEliminarCliente(clienteId, nombreCompleto) {
 }
 
 async function eliminarCliente(clienteId) {
-  const { error } = await supabase.from('clientes').delete().eq('id', clienteId);
+  const { error } = await window.supabaseClient.from('clientes').delete().eq('id', clienteId);
   if (error) { showToast('Error al eliminar el cliente.', 'error'); return; }
 
   showToast('Cliente eliminado.', 'success');
