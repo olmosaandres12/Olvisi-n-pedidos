@@ -1,145 +1,233 @@
 // ============================================================
-// APP.JS — Navegación, sesión, UI global — OLVISIÓN
+// APP.JS — OLVISIÓN (compatible con app.html original)
 // ============================================================
 
-let currentPerfil = null;
-const _sectionInited = {};
+const App = (() => {
 
-// ─── INIT ─────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', async () => {
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js').catch(() => {});
-  }
+  let _screenActual = 'seguimiento';
 
-  try {
+  // ─── INIT ───────────────────────────────────────────────────
+  async function init() {
     const session = await Auth.init();
     if (!session) return;
 
-    currentPerfil = {
-      nombre: Auth.getNombre(),
-      rol:    Auth.getRol(),
-      id:     Auth.getUserId(),
-    };
+    const nombre = Auth.getNombre();
+    const rol    = Auth.getRol();
 
-    setupUserUI(currentPerfil);
+    // Header usuario
+    const headerUser = document.getElementById('header-user');
+    if (headerUser) headerUser.textContent = nombre;
 
+    // Mostrar botones admin
+    if (rol === 'admin') {
+      document.querySelectorAll('#nav-panel, #nav-config').forEach(el => el.classList.remove('hidden'));
+    }
+
+    // Logo vuelve a inicio
+    document.getElementById('logo-home-btn')?.addEventListener('click', () => {
+      showScreen(rol === 'admin' ? 'panel' : 'seguimiento');
+    });
+
+    // Logout
+    document.getElementById('btn-logout')?.addEventListener('click', () => Auth.logout());
+
+    // Ocultar loading, mostrar app
+    document.getElementById('loading-overlay').style.display = 'none';
+    const layout = document.getElementById('app-layout');
+    layout.style.display = 'flex';
+
+    // Cargar datos
     await Promise.all([
-      cargarConfiguracion(),
-      loadPedidos(),
+      typeof cargarConfiguracion === 'function' ? cargarConfiguracion() : Promise.resolve(),
+      typeof loadPedidos         === 'function' ? loadPedidos()         : Promise.resolve(),
     ]);
 
-    showSection(Auth.isAdmin() ? 'panel' : 'pedidos');
-    setupRealtime();
-  } catch(err) {
-    console.error('Error en init de app:', err);
-  }
-});
+    // Pantalla inicial
+    showScreen(rol === 'admin' ? 'panel' : 'seguimiento');
 
-// ─── UI USUARIO ───────────────────────────────────────────────
-function setupUserUI(perfil) {
-  const nombre = perfil.nombre || 'Usuario';
+    // Realtime
+    window.supabaseClient.channel('olvision-rt')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, () => {
+        if (typeof loadPedidos === 'function') loadPedidos();
+        _actualizarBadge();
+      })
+      .subscribe();
 
-  const nameEl = document.getElementById('user-name');
-  if (nameEl) nameEl.textContent = nombre;
-
-  const avatarEl = document.getElementById('user-avatar');
-  if (avatarEl) {
-    const colores = { 'Andrés': '#034291', 'Sandra': '#7C3AED', 'Valentina': '#10B981' };
-    avatarEl.style.background = colores[nombre] || '#034291';
-    avatarEl.textContent = nombre[0].toUpperCase();
+    // Agenda
+    if (typeof initAgenda === 'function') initAgenda();
   }
 
-  if (perfil.rol === 'admin') {
-    document.querySelectorAll('.admin-only').forEach(el => el.classList.remove('hidden'));
-  }
-}
+  // ─── NAVEGACIÓN ─────────────────────────────────────────────
+  function showScreen(name) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
 
-// ─── NAVEGACIÓN ───────────────────────────────────────────────
-function showSection(nombre) {
-  document.querySelectorAll('.section').forEach(s => s.classList.add('hidden'));
-  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    const screen = document.getElementById('screen-' + name);
+    if (screen) screen.classList.add('active');
 
-  const section = document.getElementById('section-' + nombre);
-  if (section) section.classList.remove('hidden');
+    const navBtn = document.getElementById('nav-' + name);
+    if (navBtn) navBtn.classList.add('active');
 
-  const navBtn = document.getElementById('nav-' + nombre);
-  if (navBtn) navBtn.classList.add('active');
+    _screenActual = name;
+    window.scrollTo({ top: 0, behavior: 'instant' });
 
-  window.scrollTo({ top: 0, behavior: 'instant' });
+    // Ocultar FAB en agenda (tiene su propio)
+    const fab = document.getElementById('fab-nuevo-pedido');
+    if (fab) fab.style.display = name === 'agenda' ? 'none' : 'flex';
 
-  if (!_sectionInited[nombre]) {
-    _sectionInited[nombre] = true;
-    if (nombre === 'panel')     initPanel();
-    if (nombre === 'historial') initHistorial();
-    if (nombre === 'agenda')    initAgenda();
-    if (nombre === 'config')    initConfig();
-  } else {
-    if (nombre === 'panel') loadPanel();
+    // Inicializar autocomplete de cliente en nuevo pedido
+    if (name === 'inicio' && typeof initClienteAutocompletePedido === 'function') {
+      setTimeout(initClienteAutocompletePedido, 50);
+    }
   }
 
-  if (nombre === 'nuevo') {
-    setTimeout(() => initClienteAutocompletePedido(), 50);
+  // ─── TABS SEGUIMIENTO ────────────────────────────────────────
+  function switchSegTab(tab) {
+    document.querySelectorAll('.seg-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+    document.getElementById('seg-content-lab')?.classList.toggle('hidden', tab !== 'lab');
+    document.getElementById('seg-content-retirar')?.classList.toggle('hidden', tab !== 'retirar');
   }
-}
 
-// ─── LOGOUT ───────────────────────────────────────────────────
-async function logout() {
-  await Auth.logout();
-}
-
-// ─── REALTIME ─────────────────────────────────────────────────
-function setupRealtime() {
-  window.supabaseClient.channel('olvision-changes')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, () => {
-      loadPedidos();
-      actualizarBadgeCriticos();
-    })
-    .subscribe();
-}
-
-// ─── BADGE CRÍTICOS ───────────────────────────────────────────
-function actualizarBadgeCriticos() {
-  const badge = document.getElementById('badge-criticos');
-  if (!badge) return;
-  const criticos = (window._pedidosActivos || []).filter(p => calcEstadoInteligente(p) === 'critico');
-  if (criticos.length > 0) {
-    badge.textContent = criticos.length;
-    badge.classList.remove('hidden');
-  } else {
-    badge.classList.add('hidden');
+  // ─── TABS ESTADO HISTORIAL ───────────────────────────────────
+  function switchEstadoTab(estado) {
+    document.querySelectorAll('.estado-tab').forEach(b => {
+      b.classList.toggle('active', b.dataset.estado === estado);
+    });
+    if (typeof filtrarPorEstado === 'function') filtrarPorEstado(estado);
   }
-}
 
-// ─── TOAST ────────────────────────────────────────────────────
-function showToast(mensaje, tipo) {
-  tipo = tipo || 'success';
-  const container = document.getElementById('toast-container');
-  if (!container) return;
-  const toast = document.createElement('div');
-  toast.className = 'toast toast-' + tipo;
-  toast.textContent = mensaje;
-  container.appendChild(toast);
-  requestAnimationFrame(() => requestAnimationFrame(() => toast.classList.add('toast-visible')));
-  setTimeout(() => {
-    toast.classList.remove('toast-visible');
-    setTimeout(() => toast.remove(), 320);
-  }, 3200);
-}
+  // ─── CONFIG ──────────────────────────────────────────────────
+  async function _addConfigItem(tipo, inputId) {
+    const input = document.getElementById(inputId);
+    const valor = input?.value?.trim();
+    if (!valor) return;
+    const { data: max } = await window.supabaseClient.from('configuracion').select('orden').eq('tipo', tipo).order('orden', { ascending: false }).limit(1);
+    const orden = max?.length ? max[0].orden + 1 : 1;
+    const { error } = await window.supabaseClient.from('configuracion').insert([{ tipo, valor, orden }]);
+    if (error) { showToast('Error al agregar.', 'error'); return; }
+    input.value = '';
+    showToast('Agregado correctamente.');
+    if (typeof cargarConfiguracion === 'function') await cargarConfiguracion();
+    loadConfigScreen();
+  }
 
-// ─── CONFIRM MODAL ────────────────────────────────────────────
+  function addLab()        { _addConfigItem('laboratorio', 'new-lab-input'); }
+  function addMarca()      { _addConfigItem('marca', 'new-marca-input'); }
+  function addMaterial()   { _addConfigItem('material', 'new-material-input'); }
+  function addObraSocial() { _addConfigItem('obra_social', 'new-os-input'); }
+
+  async function addTratamiento() {
+    const lente = document.getElementById('config-lente-select')?.value;
+    if (!lente) { showToast('Seleccioná un tipo de lente primero.', 'error'); return; }
+    const input = document.getElementById('new-trat-input');
+    const valor = input?.value?.trim();
+    if (!valor) return;
+    const { data: max } = await window.supabaseClient.from('configuracion').select('orden').eq('tipo', 'tratamiento').eq('subtipo', lente).order('orden', { ascending: false }).limit(1);
+    const orden = max?.length ? max[0].orden + 1 : 1;
+    const { error } = await window.supabaseClient.from('configuracion').insert([{ tipo: 'tratamiento', subtipo: lente, valor, orden }]);
+    if (error) { showToast('Error al agregar.', 'error'); return; }
+    input.value = '';
+    showToast('Tratamiento agregado.');
+    loadConfigTratamientos();
+  }
+
+  async function loadConfigTratamientos() {
+    const lente = document.getElementById('config-lente-select')?.value;
+    const list  = document.getElementById('config-trat-list');
+    if (!list) return;
+    if (!lente) { list.innerHTML = ''; return; }
+    const { data } = await window.supabaseClient.from('configuracion').select('*').eq('tipo', 'tratamiento').eq('subtipo', lente).order('orden');
+    list.innerHTML = (data || []).map(item => `
+      <div class="config-item">
+        <span>${item.valor}</span>
+        <button class="config-item-del" onclick="App._delConfigItem(${item.id})">✕</button>
+      </div>`).join('');
+  }
+
+  async function _delConfigItem(id) {
+    if (!confirm('¿Eliminar este elemento?')) return;
+    await window.supabaseClient.from('configuracion').delete().eq('id', id);
+    showToast('Eliminado.');
+    if (typeof cargarConfiguracion === 'function') await cargarConfiguracion();
+    loadConfigScreen();
+  }
+
+  async function loadConfigScreen() {
+    const tipos = [
+      { tipo: 'laboratorio', listId: 'config-labs-list' },
+      { tipo: 'marca',       listId: 'config-marcas-list' },
+      { tipo: 'material',    listId: 'config-materiales-list' },
+      { tipo: 'obra_social', listId: 'config-os-list' },
+    ];
+    for (const { tipo, listId } of tipos) {
+      const { data } = await window.supabaseClient.from('configuracion').select('*').eq('tipo', tipo).order('orden');
+      const el = document.getElementById(listId);
+      if (!el) continue;
+      el.innerHTML = (data || []).map(item => `
+        <div class="config-item">
+          <span>${item.valor}</span>
+          <button class="config-item-del" onclick="App._delConfigItem(${item.id})">✕</button>
+        </div>`).join('');
+    }
+    loadConfigTratamientos();
+  }
+
+  async function activarNotificaciones() {
+    const statusEl = document.getElementById('notif-status');
+    if (!('Notification' in window)) { if (statusEl) statusEl.textContent = 'Este navegador no soporta notificaciones.'; return; }
+    const perm = await Notification.requestPermission();
+    if (statusEl) statusEl.textContent = perm === 'granted' ? '✅ Notificaciones activadas.' : '❌ Permiso denegado.';
+  }
+
+  // ─── BADGE CRÍTICOS ──────────────────────────────────────────
+  function _actualizarBadge() {
+    const badge = document.getElementById('criticos-badge');
+    if (!badge || typeof calcEstadoInteligente !== 'function') return;
+    const n = (window._pedidosCache || []).filter(p => calcEstadoInteligente(p) === 'critico').length;
+    badge.textContent = n;
+    badge.classList.toggle('hidden', n === 0);
+  }
+
+  // ─── TOAST ───────────────────────────────────────────────────
+  function showToast(msg, tipo) {
+    tipo = tipo || 'success';
+    const c = document.getElementById('toast-container');
+    if (!c) return;
+    const t = document.createElement('div');
+    t.className = 'toast toast-' + tipo;
+    t.textContent = msg;
+    c.appendChild(t);
+    requestAnimationFrame(() => requestAnimationFrame(() => t.classList.add('toast-visible')));
+    setTimeout(() => { t.classList.remove('toast-visible'); setTimeout(() => t.remove(), 320); }, 3200);
+  }
+
+  // ─── INIT ON DOM READY ───────────────────────────────────────
+  document.addEventListener('DOMContentLoaded', init);
+
+  return {
+    showScreen, switchSegTab, switchEstadoTab,
+    addLab, addMarca, addMaterial, addTratamiento, addObraSocial,
+    loadConfigTratamientos, loadConfigScreen, activarNotificaciones,
+    _delConfigItem, showToast, _actualizarBadge,
+  };
+
+})();
+
+// Alias global para que pedidos.js, panel.js, agenda.js puedan llamar showToast
+function showToast(msg, tipo) { App.showToast(msg, tipo); }
 function mostrarConfirm(titulo, cuerpo, onConfirm) {
-  document.getElementById('confirm-title').textContent = titulo;
-  document.getElementById('confirm-body').innerHTML   = cuerpo;
-  document.getElementById('confirm-overlay').classList.remove('hidden');
-  const btnOk = document.getElementById('confirm-ok');
-  const btnOkNuevo = btnOk.cloneNode(true);
-  btnOk.parentNode.replaceChild(btnOkNuevo, btnOk);
-  btnOkNuevo.addEventListener('click', () => { cerrarConfirm(); onConfirm(); });
+  document.getElementById('confirm-modal')?.classList.remove('hidden');
+  const titleEl = document.getElementById('modal-body-content')?.previousElementSibling;
+  const bodyEl  = document.getElementById('modal-body-content');
+  const okBtn   = document.getElementById('modal-confirm-btn');
+  const cancelBtn = document.getElementById('modal-cancel-btn');
+  const closeBtn  = document.getElementById('modal-close-btn');
+  if (bodyEl) bodyEl.innerHTML = cuerpo;
+  const cerrar = () => document.getElementById('confirm-modal')?.classList.add('hidden');
+  const okNuevo = okBtn.cloneNode(true);
+  okBtn.parentNode.replaceChild(okNuevo, okBtn);
+  okNuevo.addEventListener('click', () => { cerrar(); onConfirm(); });
+  cancelBtn?.addEventListener('click', cerrar, { once: true });
+  closeBtn?.addEventListener('click', cerrar,  { once: true });
 }
-
-function cerrarConfirm() {
-  document.getElementById('confirm-overlay').classList.add('hidden');
-}
-
-function getPerfil() { return currentPerfil; }
-function esAdmin()   { return currentPerfil?.rol === 'admin'; }
+function esAdmin() { return Auth.isAdmin(); }
