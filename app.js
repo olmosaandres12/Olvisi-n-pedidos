@@ -2,9 +2,6 @@
 // APP.JS — Navegación, sesión, UI global — OLVISIÓN
 // ============================================================
 
-// Alias para que pedidos.js, panel.js y agenda.js usen `supabase`
-const supabase = window.supabaseClient;
-
 let currentPerfil = null;
 const _sectionInited = {};
 
@@ -14,24 +11,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
 
-  const session = await Auth.init();
-  if (!session) return;
+  try {
+    const session = await Auth.init();
+    if (!session) return;
 
-  currentPerfil = {
-    nombre: Auth.getNombre(),
-    rol:    Auth.getRol(),
-    id:     Auth.getUserId(),
-  };
+    currentPerfil = {
+      nombre: Auth.getNombre(),
+      rol:    Auth.getRol(),
+      id:     Auth.getUserId(),
+    };
 
-  setupUserUI(currentPerfil);
+    setupUserUI(currentPerfil);
 
-  await Promise.all([
-    cargarConfiguracion(),
-    loadPedidos(),
-  ]);
+    await Promise.all([
+      cargarConfiguracion(),
+      loadPedidos(),
+    ]);
 
-  showSection(Auth.isAdmin() ? 'panel' : 'pedidos');
-  setupRealtime();
+    showSection(Auth.isAdmin() ? 'panel' : 'pedidos');
+    setupRealtime();
+  } catch(err) {
+    console.error('Error en init de app:', err);
+  }
 });
 
 // ─── UI USUARIO ───────────────────────────────────────────────
