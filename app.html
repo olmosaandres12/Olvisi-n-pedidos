@@ -502,6 +502,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
     window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    var supabase = window.supabaseClient; // global para pedidos.js, panel.js, agenda.js
   </script>
   <script src="auth.js"></script>
   <script src="pedidos.js"></script>
