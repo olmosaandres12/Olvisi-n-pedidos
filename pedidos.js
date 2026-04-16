@@ -20,7 +20,7 @@ let _numpadValor    = '';
 
 // ─── CONFIG DINÁMICA ──────────────────────────────────────────
 async function cargarConfiguracion() {
-  const { data } = await supabase
+  const { data } = await window.supabaseClient
     .from('configuracion')
     .select('tipo, valor, orden')
     .order('orden', { ascending: true });
@@ -123,7 +123,7 @@ function calcDiasTotales(pedido) {
 
 // ─── CARGA DE PEDIDOS ─────────────────────────────────────────
 async function loadPedidos() {
-  const { data, error } = await supabase
+  const { data, error } = await window.supabaseClient
     .from('pedidos')
     .select('*')
     .neq('estado', 'Retirado')
@@ -375,7 +375,7 @@ async function cambiarEstado(pedidoId, nuevoEstado, event) {
   const update = { estado: nuevoEstado };
   if (nuevoEstado === 'Retirado') update.fecha_retiro = new Date().toISOString();
 
-  const { error } = await supabase
+  const { error } = await window.supabaseClient
     .from('pedidos').update(update).eq('id', pedidoId);
 
   if (error) {
@@ -398,7 +398,7 @@ async function abrirPedidoSheet(pedidoId) {
   sheet.classList.remove('hidden');
   requestAnimationFrame(() => sheet.classList.add('sheet-open'));
 
-  const { data: pedido, error } = await supabase
+  const { data: pedido, error } = await window.supabaseClient
     .from('pedidos').select('*').eq('id', pedidoId).single();
 
   if (error || !pedido) {
@@ -501,7 +501,7 @@ function confirmarEliminarPedido(pedidoId) {
 }
 
 async function eliminarPedido(pedidoId) {
-  const { error } = await supabase.from('pedidos').delete().eq('id', pedidoId);
+  const { error } = await window.supabaseClient.from('pedidos').delete().eq('id', pedidoId);
   if (error) { showToast('Error al eliminar.', 'error'); return; }
   showToast('Pedido eliminado.');
   cerrarPedidoSheet();
@@ -577,7 +577,7 @@ async function submitNuevoPedido(event) {
   // Verificar duplicado
   const sufijosABuscar = dosAnteojos ? ['A', 'B'] : [null];
   for (const sufijo of sufijosABuscar) {
-    let q = supabase.from('pedidos').select('id').eq('orden', orden);
+    let q = window.supabaseClient.from('pedidos').select('id').eq('orden', orden);
     if (sufijo) q = q.eq('sufijo', sufijo);
     else q = q.is('sufijo', null);
     const { data: dup } = await q;
@@ -622,7 +622,7 @@ async function submitNuevoPedido(event) {
     'Confirmar pedido',
     `<strong>${cliente}</strong><br>Orden: ${orden}<br>Lab: ${labA}${dosAnteojos ? '<br><em>(2 anteojos)</em>' : ''}`,
     async () => {
-      const { error } = await supabase.from('pedidos').insert(pedidosAInsertar);
+      const { error } = await window.supabaseClient.from('pedidos').insert(pedidosAInsertar);
       if (error) {
         showToast('Error al guardar el pedido.', 'error');
         btn.disabled = false;
@@ -878,7 +878,7 @@ async function loadHistorial() {
   const inicio = new Date(año, mes, 1).toISOString();
   const fin    = new Date(año, mes + 1, 0, 23, 59, 59).toISOString();
 
-  const { data, error } = await supabase
+  const { data, error } = await window.supabaseClient
     .from('pedidos')
     .select('*')
     .gte('fecha_carga', inicio)
@@ -944,7 +944,7 @@ async function loadConfigPanel() {
   const container = document.getElementById('config-content');
   if (!container) return;
 
-  const { data } = await supabase
+  const { data } = await window.supabaseClient
     .from('configuracion')
     .select('*')
     .order('tipo')
@@ -986,11 +986,11 @@ async function agregarConfigItem(tipo) {
   const valor = prompt(`Nuevo valor para ${tipo}:`);
   if (!valor || !valor.trim()) return;
 
-  const { data: existentes } = await supabase
+  const { data: existentes } = await window.supabaseClient
     .from('configuracion').select('orden').eq('tipo', tipo).order('orden', { ascending: false }).limit(1);
   const orden = existentes?.length ? existentes[0].orden + 1 : 1;
 
-  const { error } = await supabase.from('configuracion').insert([{ tipo, valor: valor.trim(), orden }]);
+  const { error } = await window.supabaseClient.from('configuracion').insert([{ tipo, valor: valor.trim(), orden }]);
   if (error) { showToast('Error al agregar.', 'error'); return; }
 
   showToast('Agregado correctamente.');
@@ -1000,7 +1000,7 @@ async function agregarConfigItem(tipo) {
 
 async function eliminarConfigItem(id, tipo) {
   if (!confirm('¿Eliminar este elemento?')) return;
-  const { error } = await supabase.from('configuracion').delete().eq('id', id);
+  const { error } = await window.supabaseClient.from('configuracion').delete().eq('id', id);
   if (error) { showToast('Error al eliminar.', 'error'); return; }
   showToast('Eliminado.');
   await cargarConfiguracion();
