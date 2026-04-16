@@ -1,10 +1,11 @@
 // ============================================================
-// APP.JS — OLVISIÓN (compatible con app.html original)
+// APP.JS — OLVISIÓN
 // ============================================================
 
 const App = (() => {
 
   let _screenActual = 'seguimiento';
+  let _inited = {};
 
   // ─── INIT ───────────────────────────────────────────────────
   async function init() {
@@ -14,47 +15,37 @@ const App = (() => {
     const nombre = Auth.getNombre();
     const rol    = Auth.getRol();
 
-    // Header usuario
     const headerUser = document.getElementById('header-user');
     if (headerUser) headerUser.textContent = nombre;
 
-    // Mostrar botones admin
     if (rol === 'admin') {
       document.querySelectorAll('#nav-panel, #nav-config').forEach(el => el.classList.remove('hidden'));
     }
 
-    // Logo vuelve a inicio
     document.getElementById('logo-home-btn')?.addEventListener('click', () => {
       showScreen(rol === 'admin' ? 'panel' : 'seguimiento');
     });
 
-    // Logout
     document.getElementById('btn-logout')?.addEventListener('click', () => Auth.logout());
 
-    // Ocultar loading, mostrar app
     document.getElementById('loading-overlay').style.display = 'none';
-    const layout = document.getElementById('app-layout');
-    layout.style.display = 'flex';
+    document.getElementById('app-layout').style.display = 'flex';
 
-    // Cargar datos
     await Promise.all([
       typeof cargarConfiguracion === 'function' ? cargarConfiguracion() : Promise.resolve(),
       typeof loadPedidos         === 'function' ? loadPedidos()         : Promise.resolve(),
     ]);
 
-    // Pantalla inicial
+    if (typeof initAgenda === 'function') initAgenda();
+
     showScreen(rol === 'admin' ? 'panel' : 'seguimiento');
 
-    // Realtime
     window.supabaseClient.channel('olvision-rt')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, () => {
         if (typeof loadPedidos === 'function') loadPedidos();
         _actualizarBadge();
       })
       .subscribe();
-
-    // Agenda
-    if (typeof initAgenda === 'function') initAgenda();
   }
 
   // ─── NAVEGACIÓN ─────────────────────────────────────────────
@@ -71,24 +62,41 @@ const App = (() => {
     _screenActual = name;
     window.scrollTo({ top: 0, behavior: 'instant' });
 
-    // Ocultar FAB en agenda (tiene su propio)
     const fab = document.getElementById('fab-nuevo-pedido');
     if (fab) fab.style.display = name === 'agenda' ? 'none' : 'flex';
 
-    // Inicializar autocomplete de cliente en nuevo pedido
-    if (name === 'inicio' && typeof initClienteAutocompletePedido === 'function') {
-      setTimeout(initClienteAutocompletePedido, 50);
+    // Inicializar secciones la primera vez
+    if (name === 'panel' && typeof Panel !== 'undefined') {
+      Panel.render();
+    }
+
+    if (name === 'pedidos' && !_inited.pedidos) {
+      _inited.pedidos = true;
+      if (typeof initHistorial === 'function') initHistorial();
+    } else if (name === 'pedidos') {
+      // Recargar al volver
+      if (typeof _loadHistorial === 'function') _loadHistorial();
+    }
+
+    if (name === 'config' && !_inited.config) {
+      _inited.config = true;
+      loadConfigScreen();
+    }
+
+    if (name === 'inicio') {
+      setTimeout(() => {
+        if (typeof initClienteAutocompletePedido === 'function') initClienteAutocompletePedido();
+      }, 50);
     }
   }
 
-  // ─── TABS SEGUIMIENTO ────────────────────────────────────────
+  // ─── TABS ────────────────────────────────────────────────────
   function switchSegTab(tab) {
     document.querySelectorAll('.seg-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
     document.getElementById('seg-content-lab')?.classList.toggle('hidden', tab !== 'lab');
     document.getElementById('seg-content-retirar')?.classList.toggle('hidden', tab !== 'retirar');
   }
 
-  // ─── TABS ESTADO HISTORIAL ───────────────────────────────────
   function switchEstadoTab(estado) {
     document.querySelectorAll('.estado-tab').forEach(b => {
       b.classList.toggle('active', b.dataset.estado === estado);
@@ -112,8 +120,8 @@ const App = (() => {
   }
 
   function addLab()        { _addConfigItem('laboratorio', 'new-lab-input'); }
-  function addMarca()      { _addConfigItem('marca', 'new-marca-input'); }
-  function addMaterial()   { _addConfigItem('material', 'new-material-input'); }
+  function addMarca()      { _addConfigItem('marca',       'new-marca-input'); }
+  function addMaterial()   { _addConfigItem('material',    'new-material-input'); }
   function addObraSocial() { _addConfigItem('obra_social', 'new-os-input'); }
 
   async function addTratamiento() {
@@ -179,7 +187,7 @@ const App = (() => {
     if (statusEl) statusEl.textContent = perm === 'granted' ? '✅ Notificaciones activadas.' : '❌ Permiso denegado.';
   }
 
-  // ─── BADGE CRÍTICOS ──────────────────────────────────────────
+  // ─── BADGE ───────────────────────────────────────────────────
   function _actualizarBadge() {
     const badge = document.getElementById('criticos-badge');
     if (!badge || typeof calcEstadoInteligente !== 'function') return;
@@ -201,7 +209,6 @@ const App = (() => {
     setTimeout(() => { t.classList.remove('toast-visible'); setTimeout(() => t.remove(), 320); }, 3200);
   }
 
-  // ─── INIT ON DOM READY ───────────────────────────────────────
   document.addEventListener('DOMContentLoaded', init);
 
   return {
@@ -210,24 +217,8 @@ const App = (() => {
     loadConfigTratamientos, loadConfigScreen, activarNotificaciones,
     _delConfigItem, showToast, _actualizarBadge,
   };
-
 })();
 
-// Alias global para que pedidos.js, panel.js, agenda.js puedan llamar showToast
+// Globales que usan panel.js, pedidos.js, agenda.js
 function showToast(msg, tipo) { App.showToast(msg, tipo); }
-function mostrarConfirm(titulo, cuerpo, onConfirm) {
-  document.getElementById('confirm-modal')?.classList.remove('hidden');
-  const titleEl = document.getElementById('modal-body-content')?.previousElementSibling;
-  const bodyEl  = document.getElementById('modal-body-content');
-  const okBtn   = document.getElementById('modal-confirm-btn');
-  const cancelBtn = document.getElementById('modal-cancel-btn');
-  const closeBtn  = document.getElementById('modal-close-btn');
-  if (bodyEl) bodyEl.innerHTML = cuerpo;
-  const cerrar = () => document.getElementById('confirm-modal')?.classList.add('hidden');
-  const okNuevo = okBtn.cloneNode(true);
-  okBtn.parentNode.replaceChild(okNuevo, okBtn);
-  okNuevo.addEventListener('click', () => { cerrar(); onConfirm(); });
-  cancelBtn?.addEventListener('click', cerrar, { once: true });
-  closeBtn?.addEventListener('click', cerrar,  { once: true });
-}
 function esAdmin() { return Auth.isAdmin(); }
