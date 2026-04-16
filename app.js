@@ -2,6 +2,9 @@
 // APP.JS — Navegación, sesión, UI global — OLVISIÓN
 // ============================================================
 
+// Inicializar cliente Supabase (usa las credenciales de config.js)
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
 let currentUser   = null;
 let currentPerfil = null;
 
