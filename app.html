@@ -3,511 +3,503 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>OLVISIÓN — Pedidos</title>
-  <link rel="stylesheet" href="style.css">
-  <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#034291">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="OLVISIÓN">
-  <link rel="apple-touch-icon" href="logo.png">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#034291">
+  <title>OLVISIÓN — Pedidos</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/logo.png">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    #app-layout { display:none;flex-direction:column;min-height:100dvh; }
+
+    #fab-nuevo-pedido { position:fixed;bottom:calc(var(--nav-h) + env(safe-area-inset-bottom) + 16px);right:20px;z-index:490;width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#0550B4,#034291);color:#fff;font-size:1.6rem;font-weight:300;box-shadow:0 4px 18px rgba(3,66,145,.45);display:flex;align-items:center;justify-content:center;border:none;cursor:pointer;transition:transform .2s cubic-bezier(.34,1.56,.64,1); }
+    #fab-nuevo-pedido:hover { transform:scale(1.08); }
+    #fab-nuevo-pedido:active { transform:scale(.95); }
+    @media(min-width:768px){ #fab-nuevo-pedido{bottom:32px;right:40px;} }
+
+    /* Modales */
+    .detalle-overlay,.edit-overlay,.confirm-overlay { position:fixed;inset:0;z-index:7000;background:rgba(2,41,102,.5);backdrop-filter:blur(4px);display:flex;align-items:flex-end;justify-content:center;animation:fadeIn .2s ease; }
+    .confirm-overlay { z-index:8000; }
+    .detalle-overlay.hidden,.edit-overlay.hidden,.confirm-overlay.hidden { display:none; }
+    .detalle-sheet,.edit-sheet,.confirm-sheet { background:#fff;border-radius:20px 20px 0 0;width:100%;max-width:560px;max-height:90dvh;display:flex;flex-direction:column;animation:slideSheet .3s ease;overflow:hidden; }
+    @media(min-width:768px){ .detalle-overlay,.edit-overlay,.confirm-overlay{align-items:center;} .detalle-sheet,.edit-sheet,.confirm-sheet{border-radius:20px;max-height:85dvh;} }
+
+    .detalle-header,.edit-header,.confirm-header { display:flex;align-items:center;justify-content:space-between;padding:18px 18px 14px;border-bottom:1.5px solid var(--gris-borde);flex-shrink:0; }
+    .detalle-orden { font-family:var(--font-mono);font-size:1rem;font-weight:700;color:var(--azul); }
+    .detalle-header-actions { display:flex;align-items:center;gap:8px; }
+    .edit-title,.confirm-title { font-size:1rem;font-weight:700;color:var(--azul); }
+    .detalle-body { flex:1;overflow-y:auto;padding:0 18px 24px; }
+    .edit-body-scroll { flex:1;overflow-y:auto;padding:16px 18px 24px; }
+    .confirm-body { flex:1;overflow-y:auto;padding:16px 18px; }
+    .confirm-footer { padding:14px 18px 20px;display:flex;gap:10px;flex-shrink:0;border-top:1px solid var(--gris-borde); }
+    .confirm-footer .btn { flex:1; }
+
+    .btn-editar-detalle { padding:7px 14px;border-radius:8px;background:var(--azul-light);color:var(--azul);font-size:.8rem;font-weight:600;border:1px solid #BFD4F5;cursor:pointer; }
+    .btn-eliminar-detalle { width:32px;height:32px;border-radius:50%;background:var(--rojo-bg);color:var(--rojo);border:1px solid var(--rojo-borde);display:flex;align-items:center;justify-content:center;font-size:.95rem;cursor:pointer; }
+    .btn-cerrar-x { width:32px;height:32px;border-radius:50%;background:var(--gris-bg);color:var(--gris-texto);display:flex;align-items:center;justify-content:center;font-size:1rem;cursor:pointer; }
+
+    .detalle-seccion { margin-top:20px; }
+    .detalle-seccion-title { font-size:.72rem;font-weight:700;color:var(--azul);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;display:flex;align-items:center;gap:8px; }
+    .detalle-seccion-title::after { content:'';flex:1;height:1px;background:var(--gris-borde); }
+    .detalle-row { display:flex;justify-content:space-between;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--gris-bg);gap:16px; }
+    .detalle-row:last-child { border-bottom:none; }
+    .detalle-label { font-size:.8rem;color:var(--gris-texto);flex-shrink:0; }
+    .detalle-valor { font-size:.9rem;font-weight:500;text-align:right; }
+    .detalle-grad { font-family:var(--font-mono);font-size:.82rem;color:var(--gris-dark);margin-top:4px;line-height:1.8;background:var(--gris-bg);padding:8px 10px;border-radius:8px;width:100%; }
+
+    .edit-save-btn { width:100%;padding:15px;background:linear-gradient(135deg,#0550B4,#034291);color:#fff;border:none;border-radius:var(--radius);font-size:1rem;font-weight:700;cursor:pointer;margin-top:8px; }
+    .btn-confirmar-guardar { background:linear-gradient(135deg,#0550B4,#034291) !important; }
+    .modal-row { display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--gris-bg);font-size:.875rem;gap:12px; }
+    .modal-row:last-child { border-bottom:none; }
+    .modal-label { color:var(--gris-texto);font-size:.8rem;flex-shrink:0; }
+    .modal-value { font-weight:500;text-align:right; }
+
+    /* Numpad */
+    #numpad-overlay { position:fixed;inset:0;z-index:9000;background:rgba(2,41,102,.45);backdrop-filter:blur(6px);display:none;align-items:flex-end;justify-content:center;opacity:0;transition:opacity .25s ease; }
+    #numpad-overlay.np-visible { opacity:1; }
+    #numpad-sheet { background:#FAFBFD;border-radius:22px 22px 0 0;width:100%;max-width:400px;padding:0 0 max(24px,env(safe-area-inset-bottom)) 0;transform:translateY(30px);transition:transform .3s cubic-bezier(.34,1.56,.64,1);box-shadow:0 -8px 40px rgba(3,66,145,.15); }
+    #numpad-overlay.np-visible #numpad-sheet { transform:translateY(0); }
+    .np-drag-bar { width:36px;height:4px;border-radius:2px;background:#D1D5DB;margin:10px auto 0; }
+    .np-header { display:flex;align-items:center;justify-content:space-between;padding:10px 18px 8px; }
+    #numpad-label { font-size:.85rem;font-weight:600;color:var(--azul); }
+    #numpad-close { width:28px;height:28px;border-radius:50%;background:var(--gris-bg);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.85rem;color:var(--gris-texto); }
+    #numpad-display { margin:2px 16px 10px;background:#fff;border:2px solid var(--azul-mid);border-radius:14px;padding:12px 18px;font-size:2rem;font-weight:700;font-family:var(--font-mono);color:var(--gris-dark);min-height:62px;display:flex;align-items:center;justify-content:flex-end; }
+    .np-placeholder{color:#C9D0DC;font-weight:400;} .np-cursor{display:inline-block;width:2px;height:28px;background:var(--azul);border-radius:1px;margin-left:3px;animation:blink 1s step-end infinite;} @keyframes blink{50%{opacity:0;}}
+    .np-sign{font-size:1.5rem;margin-right:4px;font-weight:800;}
+    #numpad-display.np-shake{animation:npShake .35s ease;} @keyframes npShake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+    #numpad-display.np-confirmed{border-color:var(--verde);}
+    .np-step-row{display:flex;gap:10px;padding:0 12px 8px;}
+    .np-step-btn{flex:1;padding:11px 0;border-radius:12px;border:none;cursor:pointer;font-size:.95rem;font-weight:800;display:flex;align-items:center;justify-content:center;gap:5px;user-select:none;-webkit-user-select:none;}
+    .np-step-btn:active{transform:scale(.93);}
+    #numpad-step-minus{background:linear-gradient(135deg,#FAEEDA,#F7D9C0);color:var(--np-minus-color);}
+    #numpad-step-plus{background:linear-gradient(135deg,#E6F1FB,#CCE4F9);color:var(--np-plus-color);}
+    .np-step-label{font-size:.7rem;font-weight:500;opacity:.75;}
+    .np-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:0 12px 6px;}
+    .numpad-key{border:none;cursor:pointer;border-radius:10px;height:44px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;font-weight:600;user-select:none;-webkit-user-select:none;}
+    .numpad-key:active{transform:scale(.87);}
+    .numpad-key[data-val]{background:#F0F4FF;color:#1E3A6E;}
+    #numpad-sign{background:linear-gradient(135deg,#E6F1FB,#CCE4F9);color:var(--np-plus-color);font-size:1.2rem;}
+    #numpad-dot{background:#F0F4FF;color:#1E3A6E;font-size:1.3rem;}
+    #numpad-del{background:#FEF3C7;color:#92400E;}
+    #numpad-clear{background:#FCEBEB;color:#A32D2D;font-size:.75rem;font-weight:700;}
+    #numpad-ok{margin:6px 12px 0;width:calc(100% - 24px);padding:14px;border:none;border-radius:14px;cursor:pointer;background:linear-gradient(135deg,#0550B4,#034291);color:#fff;font-size:1rem;font-weight:700;box-shadow:0 4px 16px rgba(3,66,145,.35);}
+    #numpad-ok.np-btn-disabled{opacity:.4;cursor:default;pointer-events:none;}
+
+    /* Agenda */
+    .agenda-search-wrap { padding:12px 16px 6px; }
+    .agenda-search-input { width:100%;padding:10px 14px;border-radius:12px;border:1.5px solid var(--gris-borde);font-size:.95rem;background:var(--gris-bg);outline:none; }
+    .agenda-search-input:focus { border-color:var(--azul-mid);background:#fff; }
+    .agenda-contador { font-size:.78rem;color:var(--gris-texto);padding:4px 16px 2px; }
+    .agenda-letra { font-size:.72rem;font-weight:700;color:var(--azul);text-transform:uppercase;letter-spacing:.08em;background:var(--azul-light);padding:4px 16px; }
+    .agenda-card { display:flex;align-items:center;gap:12px;padding:13px 16px;border-bottom:1px solid var(--gris-bg);cursor:pointer;transition:background .1s; }
+    .agenda-card:active { background:var(--azul-light); }
+    .agenda-avatar { width:40px;height:40px;border-radius:50%;background:var(--azul);color:#fff;font-size:.95rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0; }
+    .agenda-info { flex:1;min-width:0; }
+    .agenda-nombre { font-size:.95rem;font-weight:600;color:var(--gris-dark); }
+    .agenda-tel { font-size:.82rem;color:var(--gris-texto);margin-top:1px; }
+    .agenda-tags { display:flex;gap:5px;flex-wrap:wrap;margin-top:3px; }
+    .agenda-tag { font-size:.72rem;background:var(--azul-light);color:var(--azul);border-radius:4px;padding:2px 6px; }
+    .agenda-tag-verde { background:#F0FDF4;color:#15803D; }
+    .agenda-chevron { color:var(--gris-borde);font-size:1.2rem; }
+    .agenda-fab { position:fixed;bottom:calc(var(--nav-h) + env(safe-area-inset-bottom) + 16px);right:20px;z-index:490;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#0550B4,#034291);color:#fff;font-size:1.5rem;border:none;box-shadow:0 4px 18px rgba(3,66,145,.4);display:flex;align-items:center;justify-content:center;cursor:pointer; }
+
+    /* Sheet cliente */
+    .cliente-sheet-overlay { position:fixed;inset:0;z-index:7000;background:rgba(2,41,102,.5);backdrop-filter:blur(4px); }
+    .cliente-sheet-overlay.hidden { display:none; }
+    .cliente-sheet { position:fixed;bottom:0;left:0;right:0;z-index:7001;background:#fff;border-radius:20px 20px 0 0;max-height:92dvh;overflow-y:auto;transform:translateY(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);max-width:560px;margin:0 auto; }
+    .cliente-sheet.sheet-open { transform:translateY(0); }
+    .ficha-drag { width:36px;height:4px;border-radius:2px;background:#D1D5DB;margin:10px auto 4px; }
+    .ficha-top { display:flex;align-items:center;gap:14px;padding:12px 18px 14px;border-bottom:1.5px solid var(--gris-borde); }
+    .ficha-avatar-lg { width:50px;height:50px;border-radius:50%;background:var(--azul);color:#fff;font-size:1.2rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0; }
+    .ficha-nombre-lg { font-size:1.1rem;font-weight:700;color:var(--gris-dark); }
+    .ficha-desde { font-size:.78rem;color:var(--gris-texto);margin-top:2px; }
+    .ficha-datos { padding:14px 18px 0; }
+    .ficha-fila { display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid var(--gris-bg); }
+    .ficha-fila:last-child { border-bottom:none; }
+    .ficha-icono { font-size:1rem;width:22px;text-align:center;flex-shrink:0;margin-top:1px; }
+    .ficha-txt { flex:1; }
+    .ficha-lbl { font-size:.72rem;color:var(--gris-texto);text-transform:uppercase;letter-spacing:.04em; }
+    .ficha-val { font-size:.9rem;color:var(--gris-dark);margin-top:1px; }
+    .ficha-acciones { display:flex;gap:8px;flex-wrap:wrap;padding:14px 18px; }
+    .ficha-acciones .btn { flex:1;min-width:80px;font-size:.82rem;padding:10px 8px;text-align:center;text-decoration:none; }
+    .ficha-pedidos-titulo { font-size:.72rem;font-weight:700;color:var(--azul);text-transform:uppercase;letter-spacing:.08em;padding:0 18px 10px;display:flex;align-items:center;gap:8px; }
+    .ficha-pedidos-titulo::after { content:'';flex:1;height:1px;background:var(--gris-borde); }
+    .ficha-ped-row { display:flex;align-items:flex-start;gap:10px;padding:10px 18px;border-bottom:1px solid var(--gris-bg); }
+    .ficha-ped-row:last-child { border-bottom:none; }
+    .ficha-ped-dot { width:9px;height:9px;border-radius:50%;flex-shrink:0;margin-top:4px; }
+    .ficha-ped-info { flex:1; }
+    .ficha-ped-orden { font-size:.9rem;font-weight:600;color:var(--gris-dark); }
+    .ficha-ped-lab { font-size:.78rem;color:var(--gris-texto);margin-top:1px; }
+    .ficha-ped-meta { text-align:right; }
+    .ficha-ped-estado { font-size:.78rem;font-weight:600; }
+    .ficha-ped-fecha { font-size:.72rem;color:var(--gris-texto);margin-top:2px; }
+    .ficha-sin-ped { font-size:.85rem;color:var(--gris-texto);text-align:center;padding:20px; }
+
+    /* Form cliente sheet */
+    .form-sheet-titulo { font-size:1rem;font-weight:700;color:var(--azul); }
+    .form-seccion-label { font-size:.72rem;font-weight:700;color:var(--gris-texto);text-transform:uppercase;letter-spacing:.06em;padding:14px 0 6px;border-top:1px solid var(--gris-bg);margin-top:6px; }
+    .form-seccion-label:first-child { border-top:none;margin-top:0; }
+    .autocomplete-wrap { position:relative; }
+    .sugerencias-dropdown { position:absolute;top:calc(100% + 4px);left:0;right:0;background:#fff;border:1.5px solid var(--gris-borde);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.1);z-index:200;overflow:hidden;max-height:220px;overflow-y:auto; }
+    .sug-item { padding:11px 14px;font-size:.9rem;color:var(--gris-dark);border-bottom:1px solid var(--gris-bg);cursor:pointer;display:flex;justify-content:space-between;align-items:center; }
+    .sug-item:last-child { border-bottom:none; }
+    .sug-item:active { background:var(--azul-light); }
+    .sug-tel { font-size:.78rem;color:var(--gris-texto); }
+    .sug-nuevo { color:var(--azul);font-weight:600;background:var(--azul-light); }
+    .cliente-chip { display:flex;align-items:center;gap:8px;background:var(--azul-light);border:1.5px solid #BFD4F5;border-radius:8px;padding:7px 12px;font-size:.85rem;color:var(--azul);font-weight:600;margin-top:6px; }
+    .chip-clear { background:none;border:none;color:var(--azul);font-size:.95rem;cursor:pointer;opacity:.6;padding:0; }
+
+    @keyframes fadeIn   { from{opacity:0} to{opacity:1} }
+    @keyframes slideSheet { from{transform:translateY(60px);opacity:0} to{transform:translateY(0);opacity:1} }
+  </style>
 </head>
 <body>
 
-  <!-- ░░ HEADER ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ -->
-  <header id="app-header">
-    <div class="header-brand">
-      <img src="logo-white.png" class="header-logo" alt="OLVISIÓN">
-    </div>
-    <div class="header-user">
-      <div id="user-avatar" class="avatar-small"></div>
-      <span id="user-name" class="header-username"></span>
-      <button class="btn-logout" onclick="logout()">Salir</button>
+<div id="loading-overlay">
+  <div class="loading-logo">OL<span>VI</span>SIÓN</div>
+  <div class="spinner-ring"></div>
+</div>
+
+<div id="app-layout" class="app-layout">
+
+  <header class="app-header">
+    <button id="logo-home-btn" class="app-header-logo-btn" aria-label="Inicio">
+      <img src="logo-white.png" alt="OLVISIÓN" class="app-header-logo-img"
+           onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+      <span class="app-header-logo-text" style="display:none">OL<span>VI</span>SIÓN</span>
+    </button>
+    <div class="header-actions">
+      <span id="header-user" class="header-user"></span>
+      <button id="btn-logout" class="btn-logout">Salir</button>
     </div>
   </header>
 
-  <!-- ░░ MAIN ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ -->
-  <main id="main-content">
+  <main class="app-content">
 
-    <!-- ── PANEL (admin) ───────────────────────────────────────── -->
-    <section id="section-panel" class="section hidden">
-      <div class="section-top">
-        <h1 class="section-title">Panel</h1>
-        <div class="panel-mes-nav">
-          <button class="btn-mes" onclick="panelMesAnterior()">‹</button>
-          <span id="panel-mes-label" class="mes-label"></span>
-          <button class="btn-mes" onclick="panelMesSiguiente()">›</button>
+    <!-- ═══ SEGUIMIENTO ═══ -->
+    <section id="screen-seguimiento" class="screen">
+      <div class="section-header">
+        <div><h1 class="section-title">Estado</h1><p class="section-subtitle">Pedidos activos en laboratorio</p></div>
+      </div>
+      <div class="seg-tabs">
+        <button class="seg-tab active" data-tab="lab" onclick="App.switchSegTab('lab')">
+          En laboratorio <span class="seg-tab-count" id="seg-count-lab">0</span>
+        </button>
+        <button class="seg-tab" data-tab="retirar" onclick="App.switchSegTab('retirar')">
+          Para retirar <span class="seg-tab-count" id="seg-count-retirar">0</span>
+        </button>
+      </div>
+      <div id="seg-content-lab" class="seg-panel">
+        <div style="border-radius:12px;overflow:hidden;border:1.5px solid var(--gris-borde)">
+          <div class="skeleton-card skeleton"></div>
+          <div class="skeleton-card skeleton" style="margin-top:1px;opacity:.6"></div>
         </div>
       </div>
-      <div id="panel-content"></div>
+      <div id="seg-content-retirar" class="seg-panel hidden"></div>
     </section>
 
-    <!-- ── PEDIDOS ─────────────────────────────────────────────── -->
-    <section id="section-pedidos" class="section hidden">
-      <div class="section-top">
-        <h1 class="section-title">Pedidos</h1>
+    <!-- ═══ NUEVO PEDIDO ═══ -->
+    <section id="screen-inicio" class="screen">
+      <div class="section-header">
+        <div><h1 class="section-title">Nuevo pedido</h1><p class="section-subtitle">Completá los datos del pedido</p></div>
       </div>
-      <div class="search-bar-wrapper">
-        <input type="search" id="search-pedidos"
-               placeholder="Buscar cliente u orden..."
-               oninput="filtrarPedidos(this.value)"
-               autocomplete="off">
-      </div>
-      <div id="pedidos-tabs" class="estado-tabs"></div>
-      <div id="pedidos-list" class="pedidos-container"></div>
-    </section>
-
-    <!-- ── NUEVO PEDIDO ────────────────────────────────────────── -->
-    <section id="section-nuevo" class="section hidden">
-      <div class="section-top">
-        <h1 class="section-title">Nuevo pedido</h1>
-      </div>
-
-      <form id="form-nuevo-pedido" onsubmit="submitNuevoPedido(event)" autocomplete="off" novalidate>
-
-        <!-- CLIENTE -->
-        <div class="card-form">
-          <div class="card-form-title">Cliente</div>
-
+      <form id="form-nuevo-pedido" novalidate>
+        <div class="form-section">
+          <div class="form-section-title">Cliente</div>
+          <!-- Buscador de cliente agenda -->
           <div class="form-group">
             <label class="form-label">Buscar cliente existente</label>
-            <div class="cliente-search-wrapper">
-              <input type="text" id="cliente-search-input"
-                     placeholder="Nombre, apellido o teléfono..."
-                     oninput="onClienteSearchInput(this.value)"
-                     autocomplete="off">
-              <div id="cliente-suggestions" class="suggestions-dropdown hidden"></div>
+            <div class="autocomplete-wrap">
+              <input type="text" id="cliente-search-input" class="form-control"
+                     placeholder="Nombre, apellido o teléfono…"
+                     oninput="onClienteSearchInput(this.value)" autocomplete="off">
+              <div id="cliente-suggestions" class="sugerencias-dropdown hidden"></div>
             </div>
             <div id="cliente-seleccionado" class="cliente-chip hidden">
               <span id="cliente-chip-nombre"></span>
               <button type="button" class="chip-clear" onclick="limpiarClienteSeleccionado()">✕</button>
             </div>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Nombre del cliente *</label>
-            <input type="text" id="campo-cliente" required
-                   placeholder="O escribí el nombre directamente">
             <input type="hidden" id="campo-cliente-id">
           </div>
-
           <div class="form-group">
-            <label class="form-label">Número de orden *</label>
-            <input type="text" id="campo-orden" required
-                   placeholder="Ej: 12345" inputmode="numeric">
+            <label class="form-label required" for="f-cliente">Nombre del cliente</label>
+            <input type="text" id="f-cliente" class="form-control" placeholder="Apellido, Nombre" autocomplete="off">
+            <div class="form-error" id="err-cliente">Campo obligatorio</div>
           </div>
-
-          <div class="form-group toggle-row">
-            <label class="form-label">Urgente</label>
-            <label class="switch">
-              <input type="checkbox" id="campo-urgente">
-              <span class="slider slider-urgente"></span>
-            </label>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label required" for="f-orden">N° de orden</label>
+              <input type="text" id="f-orden" class="form-control" placeholder="ej: 12345" autocomplete="off" inputmode="numeric">
+              <div class="form-error" id="err-orden">Campo obligatorio</div>
+            </div>
+            <div class="form-group">
+              <label class="form-label required" for="f-urgente">Urgente</label>
+              <select id="f-urgente" class="form-control"><option value="">— Seleccionar —</option><option value="No">No</option><option value="Si">Sí</option></select>
+              <div class="form-error" id="err-urgente">Campo obligatorio</div>
+            </div>
           </div>
-
-          <div class="form-group toggle-row">
-            <label class="form-label">2 anteojos</label>
-            <label class="switch">
-              <input type="checkbox" id="toggle-dos-anteojos" onchange="toggleDosAnteojos()">
-              <span class="slider"></span>
-            </label>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label required" for="f-tipo">Tipo de pedido</label>
+              <select id="f-tipo" class="form-control"><option value="">— Seleccionar —</option><option value="Cristales">Cristales</option><option value="Armazón + Cristales">Armazón + Cristales</option><option value="Armazón">Armazón</option></select>
+              <div class="form-error" id="err-tipo">Campo obligatorio</div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="f-fecha-carga">Fecha</label>
+              <input type="date" id="f-fecha-carga" class="form-control">
+            </div>
           </div>
         </div>
-
-        <!-- ANTEOJO A -->
-        <div class="card-form" id="bloque-a">
-          <div class="card-form-title" id="label-anteojo-a">Anteojo</div>
-
-          <div class="form-group">
-            <label class="form-label">Tipo de pedido *</label>
-            <select id="campo-tipo-a" required>
-              <option value="">Seleccionar...</option>
-              <option value="Cristales">Cristales</option>
-              <option value="Armazón + Cristales">Armazón + Cristales</option>
-              <option value="Armazón">Armazón</option>
-            </select>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Laboratorio *</label>
-            <select id="campo-laboratorio-a" required>
-              <option value="">Seleccionar...</option>
-            </select>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Tipo de lente *</label>
-            <select id="campo-tipo-lente-a" required>
-              <option value="">Seleccionar...</option>
-              <option value="Monofocal">Monofocal</option>
-              <option value="Bifocal">Bifocal</option>
-              <option value="Ocupacional">Ocupacional</option>
-              <option value="Progresivo">Progresivo</option>
-              <option value="Teñido">Teñido</option>
-            </select>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Tratamiento</label>
-            <select id="campo-tratamiento-a">
-              <option value="">Sin tratamiento</option>
-            </select>
-          </div>
-
-          <!-- GRADUACIÓN A -->
-          <div class="form-group">
-            <label class="form-label">Graduación</label>
-            <div class="grad-table">
-              <div class="grad-header-row">
-                <span></span><span>Esf</span><span>Cil</span><span>Eje</span><span>Add</span>
-              </div>
-              <div class="grad-data-row">
-                <span class="grad-ojo-label">OD</span>
-                <input class="grad-input" id="a-od-esf" readonly onclick="abrirNumpad(this)" data-bloque="a" data-ojo="od" data-campo="esf" placeholder="±0.00">
-                <input class="grad-input" id="a-od-cil" readonly onclick="abrirNumpad(this)" data-bloque="a" data-ojo="od" data-campo="cil" placeholder="±0.00">
-                <input class="grad-input" id="a-od-eje" inputmode="numeric" data-bloque="a" data-ojo="od" data-campo="eje" placeholder="0°" oninput="formatEje(this)">
-                <input class="grad-input" id="a-od-add" readonly onclick="abrirNumpad(this)" data-bloque="a" data-ojo="od" data-campo="add" placeholder="+0.00">
-              </div>
-              <div class="grad-data-row">
-                <span class="grad-ojo-label">OI</span>
-                <input class="grad-input" id="a-oi-esf" readonly onclick="abrirNumpad(this)" data-bloque="a" data-ojo="oi" data-campo="esf" placeholder="±0.00">
-                <input class="grad-input" id="a-oi-cil" readonly onclick="abrirNumpad(this)" data-bloque="a" data-ojo="oi" data-campo="cil" placeholder="±0.00">
-                <input class="grad-input" id="a-oi-eje" inputmode="numeric" data-bloque="a" data-ojo="oi" data-campo="eje" placeholder="0°" oninput="formatEje(this)">
-                <input class="grad-input" id="a-oi-add" readonly onclick="abrirNumpad(this)" data-bloque="a" data-ojo="oi" data-campo="add" placeholder="+0.00">
-              </div>
-            </div>
-          </div>
-
-          <div class="form-group toggle-row">
-            <label class="form-label">Trabajo en 2 etapas</label>
-            <label class="switch">
-              <input type="checkbox" id="campo-dos-etapas-a">
-              <span class="slider"></span>
-            </label>
-          </div>
-
-          <!-- ARMAZÓN A -->
-          <div class="form-group">
-            <label class="form-label">Armazón</label>
-            <div class="segmented-control">
-              <button type="button" class="seg-btn active" id="btn-arm-nuevo-a" onclick="setArmazonTipo('nuevo','a')">Nuevo</button>
-              <button type="button" class="seg-btn" id="btn-arm-cliente-a" onclick="setArmazonTipo('cliente','a')">Del cliente</button>
-            </div>
-          </div>
-
-          <div id="armazon-nuevo-a">
-            <div class="form-group">
-              <label class="form-label">Marca</label>
-              <select id="campo-marca-a"><option value="">Sin marca</option></select>
-            </div>
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label">Código/Ref</label>
-                <input type="text" id="campo-codigo-a" placeholder="Ref...">
-              </div>
-              <div class="form-group">
-                <label class="form-label">Material</label>
-                <select id="campo-material-a"><option value="">-</option></select>
-              </div>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Color</label>
-              <input type="text" id="campo-color-a" placeholder="Color...">
-            </div>
-          </div>
-
-          <div id="armazon-cliente-a" class="hidden">
-            <div class="form-group">
-              <label class="form-label">Marca</label>
-              <input type="text" id="campo-marca-libre-a" placeholder="Marca del cliente...">
-            </div>
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label">Material</label>
-                <select id="campo-material-libre-a"><option value="">-</option></select>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Color</label>
-                <input type="text" id="campo-color-libre-a" placeholder="Color...">
-              </div>
-            </div>
-          </div>
-        </div><!-- /bloque-a -->
-
-        <!-- ANTEOJO B -->
-        <div class="card-form hidden" id="bloque-b">
-          <div class="card-form-title">Anteojo B</div>
-
-          <div class="form-group">
-            <label class="form-label">Laboratorio *</label>
-            <select id="campo-laboratorio-b">
-              <option value="">Seleccionar...</option>
-            </select>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Tipo de lente *</label>
-            <select id="campo-tipo-lente-b">
-              <option value="">Seleccionar...</option>
-              <option value="Monofocal">Monofocal</option>
-              <option value="Bifocal">Bifocal</option>
-              <option value="Ocupacional">Ocupacional</option>
-              <option value="Progresivo">Progresivo</option>
-              <option value="Teñido">Teñido</option>
-            </select>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Tratamiento</label>
-            <select id="campo-tratamiento-b">
-              <option value="">Sin tratamiento</option>
-            </select>
-          </div>
-
-          <!-- GRADUACIÓN B -->
-          <div class="form-group">
-            <label class="form-label">Graduación</label>
-            <div class="grad-table">
-              <div class="grad-header-row">
-                <span></span><span>Esf</span><span>Cil</span><span>Eje</span><span>Add</span>
-              </div>
-              <div class="grad-data-row">
-                <span class="grad-ojo-label">OD</span>
-                <input class="grad-input" id="b-od-esf" readonly onclick="abrirNumpad(this)" data-bloque="b" data-ojo="od" data-campo="esf" placeholder="±0.00">
-                <input class="grad-input" id="b-od-cil" readonly onclick="abrirNumpad(this)" data-bloque="b" data-ojo="od" data-campo="cil" placeholder="±0.00">
-                <input class="grad-input" id="b-od-eje" inputmode="numeric" data-bloque="b" data-ojo="od" data-campo="eje" placeholder="0°" oninput="formatEje(this)">
-                <input class="grad-input" id="b-od-add" readonly onclick="abrirNumpad(this)" data-bloque="b" data-ojo="od" data-campo="add" placeholder="+0.00">
-              </div>
-              <div class="grad-data-row">
-                <span class="grad-ojo-label">OI</span>
-                <input class="grad-input" id="b-oi-esf" readonly onclick="abrirNumpad(this)" data-bloque="b" data-ojo="oi" data-campo="esf" placeholder="±0.00">
-                <input class="grad-input" id="b-oi-cil" readonly onclick="abrirNumpad(this)" data-bloque="b" data-ojo="oi" data-campo="cil" placeholder="±0.00">
-                <input class="grad-input" id="b-oi-eje" inputmode="numeric" data-bloque="b" data-ojo="oi" data-campo="eje" placeholder="0°" oninput="formatEje(this)">
-                <input class="grad-input" id="b-oi-add" readonly onclick="abrirNumpad(this)" data-bloque="b" data-ojo="oi" data-campo="add" placeholder="+0.00">
-              </div>
-            </div>
-          </div>
-
-          <div class="form-group toggle-row">
-            <label class="form-label">Trabajo en 2 etapas</label>
-            <label class="switch">
-              <input type="checkbox" id="campo-dos-etapas-b">
-              <span class="slider"></span>
-            </label>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Armazón</label>
-            <div class="segmented-control">
-              <button type="button" class="seg-btn active" id="btn-arm-nuevo-b" onclick="setArmazonTipo('nuevo','b')">Nuevo</button>
-              <button type="button" class="seg-btn" id="btn-arm-cliente-b" onclick="setArmazonTipo('cliente','b')">Del cliente</button>
-            </div>
-          </div>
-
-          <div id="armazon-nuevo-b">
-            <div class="form-group">
-              <label class="form-label">Marca</label>
-              <select id="campo-marca-b"><option value="">Sin marca</option></select>
-            </div>
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label">Código/Ref</label>
-                <input type="text" id="campo-codigo-b" placeholder="Ref...">
-              </div>
-              <div class="form-group">
-                <label class="form-label">Material</label>
-                <select id="campo-material-b"><option value="">-</option></select>
-              </div>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Color</label>
-              <input type="text" id="campo-color-b" placeholder="Color...">
-            </div>
-          </div>
-
-          <div id="armazon-cliente-b" class="hidden">
-            <div class="form-group">
-              <label class="form-label">Marca</label>
-              <input type="text" id="campo-marca-libre-b" placeholder="Marca del cliente...">
-            </div>
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label">Material</label>
-                <select id="campo-material-libre-b"><option value="">-</option></select>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Color</label>
-                <input type="text" id="campo-color-libre-b" placeholder="Color...">
-              </div>
-            </div>
-          </div>
-        </div><!-- /bloque-b -->
-
-        <div class="form-submit-area">
-          <button type="submit" class="btn-primary btn-full btn-large" id="btn-guardar-pedido">
-            Guardar pedido
-          </button>
+        <div class="toggle-group">
+          <span class="toggle-label">2 anteojos</span>
+          <label class="toggle-switch"><input type="checkbox" id="toggle-dos-anteojos"><span class="toggle-slider"></span></label>
         </div>
-
+        <div class="form-section">
+          <div class="form-section-title" id="bloque1-title">Anteojo</div>
+          <div id="bloque1-fields"></div>
+        </div>
+        <div id="bloque-anteojo2" class="second-glass-block hidden">
+          <div class="second-glass-title">Anteojo B</div>
+          <div id="bloque2-fields"></div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-full" style="margin-bottom:24px">Revisar pedido →</button>
       </form>
     </section>
 
-    <!-- ── HISTORIAL ───────────────────────────────────────────── -->
-    <section id="section-historial" class="section hidden">
-      <div class="section-top">
-        <h1 class="section-title">Historial</h1>
-        <div class="historial-nav">
-          <button class="btn-mes" onclick="historialMesAnterior()">‹</button>
-          <span id="historial-mes-label" class="mes-label"></span>
-          <button class="btn-mes" onclick="historialMesSiguiente()">›</button>
+    <!-- ═══ HISTORIAL ═══ -->
+    <section id="screen-pedidos" class="screen">
+      <div class="section-header">
+        <div><h1 class="section-title">Historial</h1><p class="section-subtitle" id="pedidos-subtitle">Todos los pedidos</p></div>
+      </div>
+      <div id="mes-nav-container"></div>
+      <div class="estado-tabs">
+        <button class="estado-tab active" data-estado="todos" onclick="App.switchEstadoTab('todos')">Todos</button>
+        <button class="estado-tab" data-estado="Cristales pedidos a lab"     onclick="App.switchEstadoTab('Cristales pedidos a lab')">Cristales</button>
+        <button class="estado-tab" data-estado="Armazón enviado p/calibrado" onclick="App.switchEstadoTab('Armazón enviado p/calibrado')">Armz.</button>
+        <button class="estado-tab" data-estado="En laboratorio"              onclick="App.switchEstadoTab('En laboratorio')">En lab</button>
+        <button class="estado-tab" data-estado="Pendiente de retirar"        onclick="App.switchEstadoTab('Pendiente de retirar')">Retirar</button>
+        <button class="estado-tab" data-estado="Retirado"                    onclick="App.switchEstadoTab('Retirado')">Retirado</button>
+      </div>
+      <div id="pedidos-skeleton" style="display:flex;flex-direction:column;border-radius:12px;overflow:hidden;border:1.5px solid var(--gris-borde)">
+        <div class="skeleton-card skeleton"></div>
+        <div class="skeleton-card skeleton" style="opacity:.6;margin-top:1px"></div>
+        <div class="skeleton-card skeleton" style="opacity:.3;margin-top:1px"></div>
+      </div>
+      <div id="pedidos-list-container" style="display:none"></div>
+    </section>
+
+    <!-- ═══ PANEL ADMIN ═══ -->
+    <section id="screen-panel" class="screen">
+      <div class="section-header">
+        <div><h1 class="section-title">Panel</h1><p class="section-subtitle">KPIs y resumen del mes</p></div>
+      </div>
+      <div id="panel-kpis">
+        <div class="skeleton-card skeleton" style="height:80px;border-radius:12px;margin-bottom:10px"></div>
+        <div class="skeleton-card skeleton" style="height:80px;border-radius:12px;opacity:.6"></div>
+      </div>
+    </section>
+
+    <!-- ═══ AGENDA ═══ -->
+    <section id="screen-agenda" class="screen">
+      <div class="section-header">
+        <div><h1 class="section-title">Agenda</h1><p class="section-subtitle">Clientes y fichas médicas</p></div>
+      </div>
+      <div class="agenda-search-wrap">
+        <input type="search" id="agenda-search" class="agenda-search-input"
+               placeholder="Nombre, apellido, teléfono, médico…"
+               oninput="filtrarAgenda(this.value)" autocomplete="off">
+      </div>
+      <div id="agenda-list">
+        <div class="skeleton-card skeleton" style="height:64px;border-radius:12px;margin:8px 16px"></div>
+        <div class="skeleton-card skeleton" style="height:64px;border-radius:12px;margin:4px 16px;opacity:.6"></div>
+      </div>
+      <button class="agenda-fab" onclick="abrirFormCliente()">+</button>
+    </section>
+
+    <!-- ═══ CONFIGURACIÓN ═══ -->
+    <section id="screen-config" class="screen">
+      <div class="section-header">
+        <div><h1 class="section-title">Configuración</h1><p class="section-subtitle">Gestión de opciones del sistema</p></div>
+      </div>
+      <div class="form-section">
+        <div class="form-section-title">Laboratorios</div>
+        <div id="config-labs-list" class="config-list"></div>
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <input type="text" id="new-lab-input" class="form-control" placeholder="Nombre del laboratorio" style="flex:1">
+          <button class="btn btn-primary btn-sm" onclick="App.addLab()">Agregar</button>
         </div>
       </div>
-      <div id="historial-list" class="pedidos-container"></div>
-    </section>
-
-    <!-- ── AGENDA ──────────────────────────────────────────────── -->
-    <section id="section-agenda" class="section hidden">
-      <div class="section-top">
-        <h1 class="section-title">Agenda</h1>
+      <div class="form-section">
+        <div class="form-section-title">Marcas de armazón</div>
+        <div id="config-marcas-list" class="config-list"></div>
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <input type="text" id="new-marca-input" class="form-control" placeholder="Nombre de la marca" style="flex:1">
+          <button class="btn btn-primary btn-sm" onclick="App.addMarca()">Agregar</button>
+        </div>
       </div>
-      <div class="search-bar-wrapper">
-        <input type="search" id="agenda-search"
-               placeholder="Nombre, apellido, teléfono, médico..."
-               oninput="filtrarAgenda(this.value)"
-               autocomplete="off">
+      <div class="form-section">
+        <div class="form-section-title">Materiales</div>
+        <div id="config-materiales-list" class="config-list"></div>
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <input type="text" id="new-material-input" class="form-control" placeholder="Ej: Acetato, Metal…" style="flex:1">
+          <button class="btn btn-primary btn-sm" onclick="App.addMaterial()">Agregar</button>
+        </div>
       </div>
-      <div id="agenda-list" class="agenda-container">
-        <div class="loading-state"><div class="spinner"></div>Cargando...</div>
+      <div class="form-section">
+        <div class="form-section-title">Tratamientos por tipo de lente</div>
+        <div class="form-group">
+          <label class="form-label">Tipo de lente</label>
+          <select id="config-lente-select" class="form-control" onchange="App.loadConfigTratamientos()">
+            <option value="">— Seleccionar —</option>
+            <option>Monofocal</option><option>Bifocal</option><option>Ocupacional</option><option>Progresivo</option><option>Teñido</option>
+          </select>
+        </div>
+        <div id="config-trat-list" class="config-list"></div>
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <input type="text" id="new-trat-input" class="form-control" placeholder="Nombre del tratamiento" style="flex:1">
+          <button class="btn btn-primary btn-sm" onclick="App.addTratamiento()">Agregar</button>
+        </div>
       </div>
-      <button class="fab" onclick="abrirFormCliente()">+</button>
-    </section>
-
-    <!-- ── CONFIG (admin) ─────────────────────────────────────── -->
-    <section id="section-config" class="section hidden">
-      <div class="section-top">
-        <h1 class="section-title">Configuración</h1>
+      <div class="form-section">
+        <div class="form-section-title">Obras sociales</div>
+        <div id="config-os-list" class="config-list"></div>
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <input type="text" id="new-os-input" class="form-control" placeholder="Ej: OSDE, Galeno…" style="flex:1">
+          <button class="btn btn-primary btn-sm" onclick="App.addObraSocial()">Agregar</button>
+        </div>
       </div>
-      <div id="config-content"></div>
+      <div class="form-section">
+        <div class="form-section-title">Notificaciones push</div>
+        <p style="font-size:.85rem;color:var(--gris-texto);margin-bottom:12px">Activá las notificaciones para recibir alertas de pedidos nuevos, críticos y retirados.</p>
+        <button id="btn-activar-notif" class="btn btn-primary btn-full" onclick="App.activarNotificaciones()">🔔 Activar notificaciones push</button>
+        <p id="notif-status" style="font-size:.8rem;color:var(--gris-texto);margin-top:8px;text-align:center"></p>
+      </div>
     </section>
 
   </main>
 
-  <!-- ░░ BOTTOM NAV ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ -->
-  <nav id="bottom-nav">
-
-    <button class="nav-btn admin-only hidden" id="nav-panel" onclick="showSection('panel')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-        <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
-      </svg>
-      <span>Panel</span>
+  <!-- Nav -->
+  <nav class="bottom-nav">
+    <button class="nav-item active" id="nav-seguimiento" onclick="App.showScreen('seguimiento')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      Estado
+      <span class="nav-badge hidden" id="criticos-badge">0</span>
     </button>
-
-    <button class="nav-btn" id="nav-pedidos" onclick="showSection('pedidos')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <line x1="8" y1="6"  x2="21" y2="6"/>
-        <line x1="8" y1="12" x2="21" y2="12"/>
-        <line x1="8" y1="18" x2="21" y2="18"/>
-        <line x1="3" y1="6"  x2="3.01" y2="6"/>
-        <line x1="3" y1="12" x2="3.01" y2="12"/>
-        <line x1="3" y1="18" x2="3.01" y2="18"/>
-      </svg>
-      <span>Pedidos</span>
-      <span id="badge-criticos" class="nav-badge hidden"></span>
+    <button class="nav-item" id="nav-inicio" onclick="App.showScreen('inicio')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Nuevo
     </button>
-
-    <button class="nav-btn nav-btn-nuevo" id="nav-nuevo" onclick="showSection('nuevo')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
-        <line x1="12" y1="5" x2="12" y2="19"/>
-        <line x1="5" y1="12" x2="19" y2="12"/>
-      </svg>
-      <span>Nuevo</span>
+    <button class="nav-item" id="nav-pedidos" onclick="App.showScreen('pedidos')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      Historial
     </button>
-
-    <button class="nav-btn" id="nav-agenda" onclick="showSection('agenda')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-        <circle cx="9" cy="7" r="4"/>
-        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-      </svg>
-      <span>Agenda</span>
+    <button class="nav-item" id="nav-agenda" onclick="App.showScreen('agenda')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      Agenda
     </button>
-
-    <button class="nav-btn" id="nav-historial" onclick="showSection('historial')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <polyline points="12 8 12 12 14 14"/>
-        <path d="M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5"/>
-      </svg>
-      <span>Historial</span>
+    <button class="nav-item hidden" id="nav-panel" onclick="App.showScreen('panel')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      Panel
     </button>
-
-    <button class="nav-btn admin-only hidden" id="nav-config" onclick="showSection('config')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="3"/>
-        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-      </svg>
-      <span>Config</span>
+    <button class="nav-item hidden" id="nav-config" onclick="App.showScreen('config')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      Config
     </button>
-
   </nav>
 
-  <!-- ░░ SHEETS & MODALES ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ -->
+  <button id="fab-nuevo-pedido" onclick="App.showScreen('inicio')" aria-label="Nuevo pedido">+</button>
 
-  <!-- Detalle pedido -->
-  <div id="pedido-overlay" class="overlay hidden" onclick="cerrarPedidoSheet()"></div>
-  <div id="pedido-sheet" class="bottom-sheet hidden">
-    <div class="sheet-drag-handle"></div>
-    <div id="pedido-sheet-content" class="sheet-body"></div>
-  </div>
+</div>
 
-  <!-- Ficha cliente -->
-  <div id="cliente-sheet-overlay" class="overlay hidden" onclick="cerrarFichaCliente()"></div>
-  <div id="cliente-sheet" class="bottom-sheet hidden">
-    <div class="sheet-drag-handle"></div>
-    <div id="cliente-sheet-content" class="sheet-body"></div>
-  </div>
+<div id="toast-container"></div>
 
-  <!-- Form nuevo/editar cliente -->
-  <div id="cliente-form-overlay" class="overlay hidden" onclick="cerrarFormCliente()"></div>
-  <div id="cliente-form-sheet" class="bottom-sheet hidden">
-    <div class="sheet-drag-handle"></div>
-    <div id="cliente-form-content" class="sheet-body"></div>
-  </div>
-
-  <!-- Confirmar acción -->
-  <div id="confirm-overlay" class="modal-overlay hidden">
-    <div id="confirm-modal" class="modal-box">
-      <div id="confirm-title" class="modal-title"></div>
-      <div id="confirm-body"  class="modal-body"></div>
-      <div class="modal-actions">
-        <button class="btn-secondary" onclick="cerrarConfirm()">Cancelar</button>
-        <button class="btn-danger"    id="confirm-ok">Confirmar</button>
+<!-- Modal: Detalle -->
+<div id="detalle-modal" class="detalle-overlay hidden">
+  <div class="detalle-sheet">
+    <div class="detalle-header">
+      <span class="detalle-orden" id="detalle-orden">#—</span>
+      <div class="detalle-header-actions">
+        <button class="btn-editar-detalle" id="btn-abrir-edicion">✏️ Editar</button>
+        <button class="btn-eliminar-detalle" id="btn-eliminar-pedido" title="Eliminar">🗑️</button>
+        <button class="btn-cerrar-x" id="btn-cerrar-detalle">✕</button>
       </div>
     </div>
+    <div class="detalle-body" id="detalle-body"></div>
   </div>
+</div>
 
-  <!-- Numpad graduación -->
-  <div id="numpad-overlay" class="overlay hidden" onclick="cerrarNumpad()"></div>
-  <div id="numpad-sheet" class="bottom-sheet numpad-sheet hidden">
-    <div class="sheet-drag-handle"></div>
-    <div id="numpad-content"></div>
+<!-- Modal: Edición -->
+<div id="edit-modal" class="edit-overlay hidden">
+  <div class="edit-sheet">
+    <div class="edit-header">
+      <span class="edit-title">Editar pedido</span>
+      <button class="btn-cerrar-x" id="btn-cerrar-edit">✕</button>
+    </div>
+    <div class="edit-body-scroll" id="edit-body"></div>
   </div>
+</div>
 
-  <!-- Toast container -->
-  <div id="toast-container"></div>
+<!-- Modal: Confirmación -->
+<div id="confirm-modal" class="confirm-overlay hidden">
+  <div class="confirm-sheet">
+    <div class="confirm-header">
+      <span class="confirm-title">Confirmá el pedido</span>
+      <button class="btn-cerrar-x" id="modal-close-btn">✕</button>
+    </div>
+    <div class="confirm-body" id="modal-body-content"></div>
+    <div class="confirm-footer">
+      <button class="btn btn-secondary" id="modal-cancel-btn">Cancelar</button>
+      <button class="btn btn-primary btn-confirmar-guardar" id="modal-confirm-btn">✓ Guardar pedido</button>
+    </div>
+  </div>
+</div>
 
-  <!-- ░░ SCRIPTS ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ -->
-  <script src="config.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script>
-    window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  </script>
-  <script src="auth.js"></script>
-  <script src="pedidos.js"></script>
-  <script src="panel.js"></script>
-  <script src="agenda.js"></script>
-  <script src="app.js"></script>
+<!-- Numpad -->
+<div id="numpad-overlay" class="hidden">
+  <div id="numpad-sheet">
+    <div class="np-drag-bar"></div>
+    <div class="np-header"><span id="numpad-label">Valor</span><button id="numpad-close">✕</button></div>
+    <div id="numpad-display"><span class="np-placeholder">0.00</span><span class="np-cursor"></span></div>
+    <div class="np-step-row">
+      <button id="numpad-step-minus" class="np-step-btn"><span style="font-size:1.2rem">−</span><span class="np-step-label">0.25</span></button>
+      <button id="numpad-step-plus"  class="np-step-btn"><span style="font-size:1.2rem">+</span><span class="np-step-label">0.25</span></button>
+    </div>
+    <div class="np-grid">
+      <button class="numpad-key" id="numpad-sign">±</button>
+      <button class="numpad-key" data-val="1">1</button><button class="numpad-key" data-val="2">2</button><button class="numpad-key" data-val="3">3</button>
+      <button class="numpad-key" id="numpad-del">⌫</button>
+      <button class="numpad-key" data-val="4">4</button><button class="numpad-key" data-val="5">5</button><button class="numpad-key" data-val="6">6</button>
+      <button class="numpad-key" id="numpad-dot">.</button>
+      <button class="numpad-key" data-val="7">7</button><button class="numpad-key" data-val="8">8</button><button class="numpad-key" data-val="9">9</button>
+      <button class="numpad-key" id="numpad-clear">CLR</button>
+      <button class="numpad-key" data-val="0" style="grid-column:span 3">0</button>
+    </div>
+    <button id="numpad-ok">Confirmar</button>
+  </div>
+</div>
 
+<!-- Sheet: Ficha cliente -->
+<div id="cliente-sheet-overlay" class="cliente-sheet-overlay hidden" onclick="cerrarFichaCliente()"></div>
+<div id="cliente-sheet" class="cliente-sheet">
+  <div class="ficha-drag"></div>
+  <div id="cliente-sheet-content"></div>
+</div>
+
+<!-- Sheet: Form cliente -->
+<div id="cliente-form-overlay" class="cliente-sheet-overlay hidden" onclick="cerrarFormCliente()"></div>
+<div id="cliente-form-sheet" class="cliente-sheet">
+  <div class="ficha-drag"></div>
+  <div id="cliente-form-content"></div>
+</div>
+
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>window.supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);</script>
+<script src="auth.js"></script>
+<script src="pedidos.js"></script>
+<script src="panel.js"></script>
+<script src="agenda.js"></script>
+<script src="app.js"></script>
 </body>
 </html>
