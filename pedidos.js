@@ -1,1008 +1,794 @@
 // ============================================================
-// PEDIDOS.JS — CRUD, estado inteligente, lista — OLVISIÓN
+// PEDIDOS.JS — OLVISIÓN (compatible con HTML original)
 // ============================================================
 
-let _pedidosActivos  = [];
-let _pedidosFiltrados = [];
-let _tabActiva       = 'todos';
-let _busqueda        = '';
-
-// Config dinámica cacheada
-let _config = { laboratorios: [], tratamientos: [], marcas: [], materiales: [] };
-
-// Historial
-let _historialFecha  = new Date();
-let _historialPedidos = [];
-
-// Numpad
-let _numpadInput    = null;
-let _numpadValor    = '';
+// ─── CONFIG CACHE ─────────────────────────────────────────────
+let _cfg = { laboratorios: [], tratamientos: [], marcas: [], materiales: [] };
+let _pedidosCache = [];
+let _historialCache = [];
+let _historialFecha = new Date();
+let _historialEstado = 'todos';
 
 // ─── CONFIG DINÁMICA ──────────────────────────────────────────
 async function cargarConfiguracion() {
   const { data } = await window.supabaseClient
     .from('configuracion')
-    .select('tipo, valor, orden')
+    .select('tipo, subtipo, valor, orden')
     .order('orden', { ascending: true });
-
   if (!data) return;
-
-  _config.laboratorios = data.filter(d => d.tipo === 'laboratorio').map(d => d.valor);
-  _config.tratamientos = data.filter(d => d.tipo === 'tratamiento').map(d => d.valor);
-  _config.marcas       = data.filter(d => d.tipo === 'marca').map(d => d.valor);
-  _config.materiales   = data.filter(d => d.tipo === 'material').map(d => d.valor);
-
-  // Poblar selects del formulario
-  poblarSelectLabs();
-  poblarSelectTratamientos();
-  poblarSelectMarcas();
-  poblarSelectMateriales();
-}
-
-function poblarSelectLabs() {
-  ['a','b'].forEach(bloque => {
-    const sel = document.getElementById(`campo-laboratorio-${bloque}`);
-    if (!sel) return;
-    const val = sel.value;
-    sel.innerHTML = '<option value="">Seleccionar...</option>' +
-      _config.laboratorios.map(l => `<option value="${l}">${l}</option>`).join('');
-    if (val) sel.value = val;
-  });
-}
-
-function poblarSelectTratamientos() {
-  ['a','b'].forEach(bloque => {
-    const sel = document.getElementById(`campo-tratamiento-${bloque}`);
-    if (!sel) return;
-    sel.innerHTML = '<option value="">Sin tratamiento</option>' +
-      _config.tratamientos.map(t => `<option value="${t}">${t}</option>`).join('');
-  });
-}
-
-function poblarSelectMarcas() {
-  ['a','b'].forEach(bloque => {
-    const sel = document.getElementById(`campo-marca-${bloque}`);
-    if (!sel) return;
-    sel.innerHTML = '<option value="">Sin marca</option>' +
-      _config.marcas.map(m => `<option value="${m}">${m}</option>`).join('');
-  });
-}
-
-function poblarSelectMateriales() {
-  ['a','b','libre-a','libre-b'].forEach(sufijo => {
-    const sel = document.getElementById(`campo-material-${sufijo}`);
-    if (!sel) return;
-    sel.innerHTML = '<option value="">-</option>' +
-      _config.materiales.map(m => `<option value="${m}">${m}</option>`).join('');
-  });
+  _cfg.laboratorios = data.filter(d => d.tipo === 'laboratorio').map(d => d.valor);
+  _cfg.marcas       = data.filter(d => d.tipo === 'marca').map(d => d.valor);
+  _cfg.materiales   = data.filter(d => d.tipo === 'material').map(d => d.valor);
+  _cfg.tratamientos = data.filter(d => d.tipo === 'tratamiento');
+  // Poblar bloque form si ya está en DOM
+  _poblarBloqueFields('bloque1-fields', 1);
+  _poblarBloqueFields('bloque2-fields', 2);
 }
 
 // ─── ESTADO INTELIGENTE ───────────────────────────────────────
-const LIMITES = {
-  'Bichara': { ok: 2, demorado: 4 },
-  'Sol':     { ok: 5, demorado: 7 },
-  'Vitolen': { ok: 5, demorado: 7 },
-  'Cristian':{ ok: 7, demorado: 10 },
+const LIMITES_LAB = {
+  'Bichara':  { ok: 2, dem: 4 },
+  'Sol':      { ok: 5, dem: 7 },
+  'Vitolen':  { ok: 5, dem: 7 },
+  'Cristian': { ok: 7, dem: 10 },
 };
 
 function calcDiasHabiles(desde, hasta) {
-  let count = 0;
-  const d = new Date(desde);
-  d.setHours(0, 0, 0, 0);
-  const fin = new Date(hasta);
-  fin.setHours(0, 0, 0, 0);
-  while (d < fin) {
-    const dow = d.getDay();
-    if (dow !== 0 && dow !== 6) count++;
-    d.setDate(d.getDate() + 1);
-  }
-  return count;
+  let n = 0;
+  const d = new Date(desde); d.setHours(0,0,0,0);
+  const h = new Date(hasta);  h.setHours(0,0,0,0);
+  while (d < h) { const dow = d.getDay(); if (dow !== 0 && dow !== 6) n++; d.setDate(d.getDate()+1); }
+  return n;
 }
 
-function calcEstadoInteligente(pedido) {
-  if (pedido.estado === 'Retirado') return 'retirado';
-
-  const desde = new Date(pedido.fecha_pedido || pedido.fecha_carga);
-  const hasta = pedido.fecha_retiro ? new Date(pedido.fecha_retiro) : new Date();
+function calcEstadoInteligente(p) {
+  if (p.estado === 'Retirado') return 'retirado';
+  const desde = new Date(p.fecha_pedido || p.fecha_carga);
+  const hasta = p.fecha_retiro ? new Date(p.fecha_retiro) : new Date();
   const dias  = calcDiasHabiles(desde, hasta);
-
-  const lab    = pedido.laboratorio;
-  const limites = LIMITES[lab];
-  if (!limites) return 'ok';
-
-  if (dias <= limites.ok)      return 'ok';
-  if (dias <= limites.demorado) return 'demorado';
+  const lim   = LIMITES_LAB[p.laboratorio];
+  if (!lim) return 'ok';
+  if (dias <= lim.ok)  return 'ok';
+  if (dias <= lim.dem) return 'demorado';
   return 'critico';
 }
 
-function calcDiasTotales(pedido) {
-  const desde = new Date(pedido.fecha_pedido || pedido.fecha_carga);
-  const hasta = pedido.fecha_retiro ? new Date(pedido.fecha_retiro) : new Date();
-  return calcDiasHabiles(desde, hasta);
+function calcDias(p) {
+  return calcDiasHabiles(
+    new Date(p.fecha_pedido || p.fecha_carga),
+    p.fecha_retiro ? new Date(p.fecha_retiro) : new Date()
+  );
 }
 
-// ─── CARGA DE PEDIDOS ─────────────────────────────────────────
+// ─── CARGA SEGUIMIENTO ────────────────────────────────────────
 async function loadPedidos() {
-  const { data, error } = await window.supabaseClient
-    .from('pedidos')
-    .select('*')
-    .neq('estado', 'Retirado')
+  const { data } = await window.supabaseClient
+    .from('pedidos').select('*')
+    .not('estado', 'eq', 'Retirado')
     .order('fecha_carga', { ascending: false });
 
-  if (error) { console.error('Error cargando pedidos', error); return; }
+  _pedidosCache = data || [];
+  window._pedidosCache = _pedidosCache;
 
-  _pedidosActivos = data || [];
-  window._pedidosActivos = _pedidosActivos;
-
-  filtrarPedidos(_busqueda);
-  if (typeof actualizarBadgeCriticos === 'function') actualizarBadgeCriticos();
+  _renderSeguimiento();
+  if (typeof App !== 'undefined') App._actualizarBadge();
 }
 
-// ─── FILTRAR Y RENDERIZAR ─────────────────────────────────────
-function filtrarPedidos(busqueda = '') {
-  _busqueda = busqueda;
-  const q   = busqueda.toLowerCase().trim();
-
-  let lista = q
-    ? _pedidosActivos.filter(p =>
-        (p.cliente || '').toLowerCase().includes(q) ||
-        (p.orden   || '').toLowerCase().includes(q)
-      )
-    : [..._pedidosActivos];
-
-  _pedidosFiltrados = lista;
-  renderTabsPedidos(lista);
-  renderListaPedidos(lista);
-}
-
-// ─── TABS DE ESTADO ───────────────────────────────────────────
-const TABS = [
-  { id: 'todos',             label: 'Todos' },
-  { id: 'cristales-pedidos', label: 'Cristales' },
-  { id: 'armazon-envio',     label: 'Armazón' },
-  { id: 'en-laboratorio',    label: 'En lab' },
-  { id: 'para-retirar',      label: 'Retirar' },
-];
-
-const ESTADO_A_TAB = {
-  'Cristales pedidos a lab':     'cristales-pedidos',
-  'Armazón enviado p/calibrado': 'armazon-envio',
-  'En laboratorio':              'en-laboratorio',
-  'Pendiente de retirar':        'para-retirar',
-};
-
-function renderTabsPedidos(lista) {
-  const container = document.getElementById('pedidos-tabs');
-  if (!container) return;
-
-  const conteos = {};
-  lista.forEach(p => {
-    const tab = ESTADO_A_TAB[p.estado] || 'todos';
-    conteos[tab] = (conteos[tab] || 0) + 1;
-  });
-
-  container.innerHTML = TABS.map(t => {
-    const count = t.id === 'todos' ? lista.length : (conteos[t.id] || 0);
-    const active = _tabActiva === t.id ? 'active' : '';
-    return `<button class="tab-btn ${active}" onclick="cambiarTab('${t.id}')">
-      ${t.label}${count > 0 ? `<span class="tab-count">${count}</span>` : ''}
-    </button>`;
-  }).join('');
-}
-
-function cambiarTab(tabId) {
-  _tabActiva = tabId;
-  renderTabsPedidos(_pedidosFiltrados);
-  renderListaPedidos(_pedidosFiltrados);
-}
-
-// ─── RENDER LISTA ─────────────────────────────────────────────
 const ESTADO_COLOR = {
-  'Cristales pedidos a lab':     { bg: '#FFF8E7', borde: '#F59E0B', texto: '#78350F' },
-  'Armazón enviado p/calibrado': { bg: '#EEF2FF', borde: '#6366F1', texto: '#312E81' },
-  'En laboratorio':              { bg: '#EFF6FF', borde: '#034291', texto: '#1E3A5F' },
-  'Pendiente de retirar':        { bg: '#F0FDF4', borde: '#10B981', texto: '#064E3B' },
+  'Cristales pedidos a lab':     { bg:'#FFF8E7', borde:'#F59E0B', txt:'#78350F' },
+  'Armazón enviado p/calibrado': { bg:'#EEF2FF', borde:'#6366F1', txt:'#312E81' },
+  'En laboratorio':              { bg:'#EFF6FF', borde:'#034291', txt:'#1E3A6E' },
+  'Pendiente de retirar':        { bg:'#F0FDF4', borde:'#10B981', txt:'#064E3B' },
+  'Retirado':                    { bg:'#F5F3FF', borde:'#7C3AED', txt:'#4C1D95' },
+};
+const INTEL_COLOR = {
+  ok:       { bg:'#F0FDF4', txt:'#15803D', lbl:'OK' },
+  demorado: { bg:'#FFF7ED', txt:'#C2410C', lbl:'Demorado' },
+  critico:  { bg:'#FEF2F2', txt:'#DC2626', lbl:'⚠ Crítico' },
+  retirado: { bg:'#F5F3FF', txt:'#7C3AED', lbl:'Retirado' },
 };
 
-const ESTADO_INTEL_COLOR = {
-  ok:       { bg: '#F0FDF4', texto: '#15803D', label: 'OK' },
-  demorado: { bg: '#FFF7ED', texto: '#C2410C', label: 'Demorado' },
-  critico:  { bg: '#FEF2F2', texto: '#DC2626', label: 'Crítico' },
-  retirado: { bg: '#F5F3FF', texto: '#7C3AED', label: 'Retirado' },
-};
+function _renderSeguimiento() {
+  const labEl     = document.getElementById('seg-content-lab');
+  const retEl     = document.getElementById('seg-content-retirar');
+  const cntLab    = document.getElementById('seg-count-lab');
+  const cntRet    = document.getElementById('seg-count-retirar');
+  if (!labEl) return;
 
-function renderListaPedidos(lista) {
-  const container = document.getElementById('pedidos-list');
-  if (!container) return;
+  const enLab = _pedidosCache.filter(p => p.estado !== 'Pendiente de retirar');
+  const pRet  = _pedidosCache.filter(p => p.estado === 'Pendiente de retirar');
 
-  // Filtrar por tab activa
-  let filtrada = lista;
-  if (_tabActiva !== 'todos') {
-    filtrada = lista.filter(p => ESTADO_A_TAB[p.estado] === _tabActiva);
-  }
+  if (cntLab) cntLab.textContent = enLab.length;
+  if (cntRet) cntRet.textContent = pRet.length;
 
-  if (!filtrada.length) {
-    container.innerHTML = `<div class="empty-state">
-      <p>${_busqueda ? 'No hay resultados para tu búsqueda.' : 'No hay pedidos activos.'}</p>
-    </div>`;
-    return;
-  }
+  // Ordenar: críticos primero
+  const prio = { critico:0, demorado:1, ok:2 };
+  const sort = arr => [...arr].sort((a,b) => (prio[calcEstadoInteligente(a)]??9) - (prio[calcEstadoInteligente(b)]??9));
 
-  // Ordenar: críticos primero, luego demorados, luego OK
-  const prioOrder = { critico: 0, demorado: 1, ok: 2, retirado: 3 };
-  filtrada = [...filtrada].sort((a, b) => {
-    const pa = prioOrder[calcEstadoInteligente(a)] ?? 9;
-    const pb = prioOrder[calcEstadoInteligente(b)] ?? 9;
-    if (pa !== pb) return pa - pb;
-    return new Date(b.fecha_carga) - new Date(a.fecha_carga);
-  });
+  labEl.innerHTML = _renderGrupo(sort(enLab), 'No hay pedidos activos en laboratorio.');
+  if (retEl) retEl.innerHTML = _renderGrupo(sort(pRet), 'No hay pedidos pendientes de retiro.');
+}
 
+function _renderGrupo(lista, vacioMsg) {
+  if (!lista.length) return `<div class="empty-state" style="padding:32px 16px;text-align:center;color:var(--gris-texto)">${vacioMsg}</div>`;
+  
   // Agrupar pares A/B
-  const vistos = new Set();
-  const grupos = [];
-
-  filtrada.forEach(p => {
-    if (vistos.has(p.id)) return;
-    vistos.add(p.id);
-
+  const vistos = new Set(), grupos = [];
+  lista.forEach(p => {
+    if (vistos.has(p.id)) return; vistos.add(p.id);
     if (p.sufijo === 'A') {
-      const pareja = filtrada.find(q => q.orden === p.orden && q.sufijo === 'B');
-      if (pareja) {
-        vistos.add(pareja.id);
-        grupos.push({ tipo: 'par', a: p, b: pareja });
-        return;
-      }
+      const par = lista.find(q => q.orden === p.orden && q.sufijo === 'B');
+      if (par) { vistos.add(par.id); grupos.push({ tipo:'par', a:p, b:par }); return; }
     }
-    grupos.push({ tipo: 'simple', pedido: p });
+    grupos.push({ tipo:'simple', p });
   });
 
-  container.innerHTML = grupos.map(g => {
-    if (g.tipo === 'par') return renderParPedidos(g.a, g.b);
-    return renderCardPedido(g.pedido);
-  }).join('');
+  return '<div style="border-radius:12px;overflow:hidden;border:1.5px solid var(--gris-borde)">' +
+    grupos.map((g,i) => {
+      const sep = i > 0 ? 'border-top:1px solid var(--gris-borde);' : '';
+      return g.tipo === 'par' ? _cardPar(g.a, g.b, sep) : _card(g.p, sep);
+    }).join('') + '</div>';
 }
 
-function renderCardPedido(p) {
-  const estIntel  = calcEstadoInteligente(p);
-  const dias      = calcDiasTotales(p);
-  const colEst    = ESTADO_COLOR[p.estado] || { bg: '#F5F6FA', borde: '#888', texto: '#333' };
-  const colIntel  = ESTADO_INTEL_COLOR[estIntel] || ESTADO_INTEL_COLOR.ok;
-  const esCritico = estIntel === 'critico';
-  const urgente   = p.urgente === 'Si';
+function _card(p, sep='') {
+  const intel = calcEstadoInteligente(p);
+  const dias  = calcDias(p);
+  const ci    = INTEL_COLOR[intel] || INTEL_COLOR.ok;
+  const ce    = ESTADO_COLOR[p.estado] || { borde:'#888' };
+  const critico = intel === 'critico';
 
-  const borderColor = esCritico ? '#DC2626' : colEst.borde;
-  const ringClass   = esCritico ? ' card-critico' : '';
-
-  return `
-    <div class="pedido-card${ringClass}" style="border-left-color:${borderColor}"
-         onclick="abrirPedidoSheet(${p.id})">
-      <div class="card-top">
-        <div class="card-orden">
-          <span class="orden-num">${p.orden}${p.sufijo ? ' — ' + p.sufijo : ''}</span>
-          ${urgente ? '<span class="badge-urgente">URGENTE</span>' : ''}
-        </div>
-        <span class="badge-intel" style="background:${colIntel.bg};color:${colIntel.texto}">
-          ${esCritico ? '⚠ ' : ''}${colIntel.label}
-        </span>
+  return `<div class="pedido-row" style="${sep}border-left:4px solid ${critico?'#DC2626':ce.borde};cursor:pointer;padding:12px 14px;background:#fff;display:flex;align-items:center;gap:10px" onclick="abrirDetalle(${p.id})">
+    <div style="flex:1;min-width:0">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+        <span style="font-family:var(--font-mono);font-size:.82rem;font-weight:700;color:var(--azul)">${p.orden}${p.sufijo?'-'+p.sufijo:''}</span>
+        ${p.urgente==='Si'?'<span style="font-size:.68rem;background:#FEF3C7;color:#92400E;border-radius:4px;padding:1px 5px;font-weight:700">URGENTE</span>':''}
+        <span style="font-size:.72rem;background:${ci.bg};color:${ci.txt};border-radius:4px;padding:1px 6px;font-weight:600;margin-left:auto">${ci.lbl}</span>
       </div>
-      <div class="card-cliente">${p.cliente}</div>
-      <div class="card-meta">
-        <span class="meta-lab" style="background:${colEst.bg};color:${colEst.texto}">
-          ${p.laboratorio || '—'}
-        </span>
-        <span class="meta-lente">${p.tipo_lente || '—'}</span>
-        <span class="meta-dias">${dias}d</span>
+      <div style="font-size:.9rem;font-weight:600;color:var(--gris-dark);margin-bottom:4px">${p.cliente}</div>
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        <span style="font-size:.75rem;background:${ce.bg||'#F5F5F5'};color:${ce.txt||'#555'};border-radius:6px;padding:2px 8px">${p.laboratorio||'—'}</span>
+        <span style="font-size:.75rem;color:var(--gris-texto)">${p.tipo_lente||'—'}</span>
+        <span style="font-size:.75rem;color:var(--gris-texto);margin-left:auto">${dias}d</span>
       </div>
-      <div class="card-estado-row">
-        <select class="estado-select" data-id="${p.id}"
-                onclick="event.stopPropagation()"
-                onchange="cambiarEstado(${p.id}, this.value, event)">
-          ${renderOpcionesEstado(p.estado)}
-        </select>
-      </div>
-    </div>`;
-}
-
-function renderParPedidos(a, b) {
-  const diasA  = calcDiasTotales(a);
-  const diasB  = calcDiasTotales(b);
-  const estA   = calcEstadoInteligente(a);
-  const estB   = calcEstadoInteligente(b);
-  const colA   = ESTADO_INTEL_COLOR[estA];
-  const colB   = ESTADO_INTEL_COLOR[estB];
-  const critico = estA === 'critico' || estB === 'critico';
-  const urgente = a.urgente === 'Si';
-
-  return `
-    <div class="pedido-card pedido-par${critico ? ' card-critico' : ''}">
-      <div class="card-top">
-        <div class="card-orden">
-          <span class="orden-num">${a.orden}</span>
-          <span class="badge-par">2 anteojos</span>
-          ${urgente ? '<span class="badge-urgente">URGENTE</span>' : ''}
-        </div>
-      </div>
-      <div class="card-cliente">${a.cliente}</div>
-
-      <div class="par-fila par-fila-a" onclick="abrirPedidoSheet(${a.id})">
-        <span class="par-sufijo par-a">A</span>
-        <span class="par-lab">${a.laboratorio || '—'}</span>
-        <span class="par-lente">${a.tipo_lente || '—'}</span>
-        <span class="par-dias">${diasA}d</span>
-        <span class="badge-intel-sm" style="background:${colA.bg};color:${colA.texto}">${colA.label}</span>
-      </div>
-      <div class="par-estado-row" onclick="event.stopPropagation()">
-        <select class="estado-select estado-select-sm" data-id="${a.id}"
-                onchange="cambiarEstado(${a.id}, this.value, event)">
-          ${renderOpcionesEstado(a.estado)}
-        </select>
-      </div>
-
-      <div class="par-fila par-fila-b" onclick="abrirPedidoSheet(${b.id})">
-        <span class="par-sufijo par-b">B</span>
-        <span class="par-lab">${b.laboratorio || '—'}</span>
-        <span class="par-lente">${b.tipo_lente || '—'}</span>
-        <span class="par-dias">${diasB}d</span>
-        <span class="badge-intel-sm" style="background:${colB.bg};color:${colB.texto}">${colB.label}</span>
-      </div>
-      <div class="par-estado-row" onclick="event.stopPropagation()">
-        <select class="estado-select estado-select-sm" data-id="${b.id}"
-                onchange="cambiarEstado(${b.id}, this.value, event)">
-          ${renderOpcionesEstado(b.estado)}
-        </select>
-      </div>
-    </div>`;
-}
-
-const ESTADOS = [
-  'Cristales pedidos a lab',
-  'Armazón enviado p/calibrado',
-  'En laboratorio',
-  'Pendiente de retirar',
-  'Retirado',
-];
-
-function renderOpcionesEstado(actual) {
-  return ESTADOS.map(e =>
-    `<option value="${e}" ${e === actual ? 'selected' : ''}>${e}</option>`
-  ).join('');
-}
-
-// ─── CAMBIAR ESTADO ───────────────────────────────────────────
-async function cambiarEstado(pedidoId, nuevoEstado, event) {
-  if (event) event.stopPropagation();
-
-  const update = { estado: nuevoEstado };
-  if (nuevoEstado === 'Retirado') update.fecha_retiro = new Date().toISOString();
-
-  const { error } = await window.supabaseClient
-    .from('pedidos').update(update).eq('id', pedidoId);
-
-  if (error) {
-    showToast('Error al actualizar el estado.', 'error');
-    return;
-  }
-
-  showToast('Estado actualizado.');
-  await loadPedidos();
-}
-
-// ─── DETALLE PEDIDO (SHEET) ───────────────────────────────────
-async function abrirPedidoSheet(pedidoId) {
-  const overlay = document.getElementById('pedido-overlay');
-  const sheet   = document.getElementById('pedido-sheet');
-  const content = document.getElementById('pedido-sheet-content');
-
-  content.innerHTML = '<div class="sheet-loading"><div class="spinner"></div></div>';
-  overlay.classList.remove('hidden');
-  sheet.classList.remove('hidden');
-  requestAnimationFrame(() => sheet.classList.add('sheet-open'));
-
-  const { data: pedido, error } = await window.supabaseClient
-    .from('pedidos').select('*').eq('id', pedidoId).single();
-
-  if (error || !pedido) {
-    content.innerHTML = '<p style="padding:1rem">Error al cargar el pedido.</p>';
-    return;
-  }
-
-  content.innerHTML = renderDetallePedido(pedido);
-}
-
-function renderDetallePedido(p) {
-  const dias     = calcDiasTotales(p);
-  const estIntel = calcEstadoInteligente(p);
-  const colIntel = ESTADO_INTEL_COLOR[estIntel];
-  const admin    = esAdmin();
-
-  const fechaCarga  = new Date(p.fecha_carga).toLocaleDateString('es-AR', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
-  const fechaRetiro = p.fecha_retiro ? new Date(p.fecha_retiro).toLocaleDateString('es-AR', { day:'2-digit', month:'short', year:'numeric' }) : null;
-
-  let gradHtml = '';
-  if (p.graduacion) {
-    gradHtml = `<div class="detalle-grad">${p.graduacion.replace(/\|/g, '<br>')}</div>`;
-  }
-
-  return `
-    <div class="detalle-header">
-      <div>
-        <div class="detalle-orden">Orden ${p.orden}${p.sufijo ? ' — ' + p.sufijo : ''}</div>
-        <div class="detalle-cliente">${p.cliente}</div>
-      </div>
-      <button class="ficha-close-btn" onclick="cerrarPedidoSheet()">✕</button>
     </div>
-
-    <div class="detalle-body">
-      <div class="detalle-badges">
-        <span class="badge-intel" style="background:${colIntel.bg};color:${colIntel.texto}">
-          ${colIntel.label} · ${dias}d
-        </span>
-        ${p.urgente === 'Si' ? '<span class="badge-urgente">URGENTE</span>' : ''}
-      </div>
-
-      <div class="detalle-grid">
-        ${filaDetalle('Laboratorio',   p.laboratorio)}
-        ${filaDetalle('Tipo de lente', p.tipo_lente)}
-        ${p.tratamiento   ? filaDetalle('Tratamiento',   p.tratamiento) : ''}
-        ${filaDetalle('Estado',        p.estado)}
-        ${filaDetalle('Tipo',          p.tipo)}
-        ${p.dos_etapas === 'Si' ? filaDetalle('2 etapas', 'Sí') : ''}
-        ${p.armazon       ? filaDetalle('Armazón',        p.armazon) : ''}
-        ${filaDetalle('Cargado por',   p.cargado_por)}
-        ${filaDetalle('Fecha carga',   fechaCarga)}
-        ${fechaRetiro ? filaDetalle('Fecha retiro', fechaRetiro) : ''}
-      </div>
-
-      ${gradHtml}
-
-      <div class="detalle-estado-select">
-        <label class="form-label">Cambiar estado</label>
-        <select class="estado-select" onchange="cambiarEstado(${p.id}, this.value, event)">
-          ${renderOpcionesEstado(p.estado)}
-        </select>
-      </div>
-
-      ${admin ? `
-      <div class="detalle-admin-actions">
-        <button class="btn-secondary" onclick="cerrarPedidoSheet(); setTimeout(() => editarPedido(${p.id}), 300)">
-          ✏️ Editar
-        </button>
-        <button class="btn-danger-sm" onclick="confirmarEliminarPedido(${p.id})">
-          🗑️ Eliminar
-        </button>
-      </div>` : ''}
-    </div>`;
-}
-
-function filaDetalle(label, valor) {
-  if (!valor) return '';
-  return `<div class="detalle-fila">
-    <span class="detalle-label">${label}</span>
-    <span class="detalle-valor">${valor}</span>
+    <select class="estado-select-inline" data-id="${p.id}"
+      onclick="event.stopPropagation()"
+      onchange="cambiarEstado(${p.id},this.value,event)"
+      style="font-size:.75rem;border:1.5px solid var(--gris-borde);border-radius:8px;padding:6px 8px;background:#fff;color:var(--gris-dark);cursor:pointer;flex-shrink:0;max-width:130px">
+      ${_opcionesEstado(p.estado)}
+    </select>
   </div>`;
 }
 
-function cerrarPedidoSheet() {
-  const sheet = document.getElementById('pedido-sheet');
-  sheet.classList.remove('sheet-open');
-  setTimeout(() => {
-    sheet.classList.add('hidden');
-    document.getElementById('pedido-overlay').classList.add('hidden');
-  }, 280);
+function _cardPar(a, b, sep='') {
+  const iA = calcEstadoInteligente(a), iB = calcEstadoInteligente(b);
+  const ciA = INTEL_COLOR[iA], ciB = INTEL_COLOR[iB];
+  const critico = iA==='critico'||iB==='critico';
+  const borde = critico ? '#DC2626' : (ESTADO_COLOR[a.estado]?.borde||'#888');
+
+  return `<div style="${sep}border-left:4px solid ${borde};background:#fff;padding:12px 14px">
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+      <span style="font-family:var(--font-mono);font-size:.82rem;font-weight:700;color:var(--azul)">${a.orden}</span>
+      <span style="font-size:.72rem;background:var(--azul-light);color:var(--azul);border-radius:4px;padding:1px 6px">2 anteojos</span>
+      ${a.urgente==='Si'?'<span style="font-size:.68rem;background:#FEF3C7;color:#92400E;border-radius:4px;padding:1px 5px;font-weight:700">URGENTE</span>':''}
+    </div>
+    <div style="font-size:.9rem;font-weight:600;color:var(--gris-dark);margin-bottom:8px">${a.cliente}</div>
+    ${_filapar(a, ciA, 'A')}
+    ${_filapar(b, ciB, 'B')}
+  </div>`;
 }
 
-// ─── ELIMINAR PEDIDO ──────────────────────────────────────────
-function confirmarEliminarPedido(pedidoId) {
-  mostrarConfirm(
-    'Eliminar pedido',
-    '¿Seguro que querés eliminar este pedido? Esta acción no se puede deshacer.',
-    () => eliminarPedido(pedidoId)
-  );
+function _filapar(p, ci, suf) {
+  return `<div style="display:flex;align-items:center;gap:6px;padding:6px 0;border-top:1px solid var(--gris-bg);cursor:pointer" onclick="abrirDetalle(${p.id})">
+    <span style="width:20px;height:20px;border-radius:50%;background:${suf==='A'?'#034291':'#0891B2'};color:#fff;font-size:.72rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${suf}</span>
+    <span style="font-size:.8rem;color:var(--gris-texto);flex:1">${p.laboratorio||'—'} · ${p.tipo_lente||'—'}</span>
+    <span style="font-size:.72rem;background:${ci.bg};color:${ci.txt};border-radius:4px;padding:1px 6px">${ci.lbl}</span>
+    <select class="estado-select-inline" data-id="${p.id}" onclick="event.stopPropagation()" onchange="cambiarEstado(${p.id},this.value,event)"
+      style="font-size:.72rem;border:1.5px solid var(--gris-borde);border-radius:6px;padding:4px 6px;background:#fff;max-width:120px">
+      ${_opcionesEstado(p.estado)}
+    </select>
+  </div>`;
 }
 
-async function eliminarPedido(pedidoId) {
-  const { error } = await window.supabaseClient.from('pedidos').delete().eq('id', pedidoId);
+const ESTADOS = ['Cristales pedidos a lab','Armazón enviado p/calibrado','En laboratorio','Pendiente de retirar','Retirado'];
+function _opcionesEstado(actual) {
+  return ESTADOS.map(e => `<option value="${e}" ${e===actual?'selected':''}>${e}</option>`).join('');
+}
+
+// ─── CAMBIAR ESTADO ───────────────────────────────────────────
+async function cambiarEstado(id, nuevoEstado, event) {
+  if (event) event.stopPropagation();
+  const upd = { estado: nuevoEstado };
+  if (nuevoEstado === 'Retirado') upd.fecha_retiro = new Date().toISOString();
+  const { error } = await window.supabaseClient.from('pedidos').update(upd).eq('id', id);
+  if (error) { showToast('Error al actualizar.', 'error'); return; }
+  showToast('Estado actualizado.');
+  await loadPedidos();
+  // Si hay historial cargado, recargar
+  if (_historialCache.length) await _loadHistorial();
+}
+
+// ─── DETALLE PEDIDO ───────────────────────────────────────────
+async function abrirDetalle(id) {
+  const modal = document.getElementById('detalle-modal');
+  if (!modal) return;
+  modal.classList.remove('hidden');
+
+  const { data: p } = await window.supabaseClient.from('pedidos').select('*').eq('id', id).single();
+  if (!p) return;
+
+  document.getElementById('detalle-orden').textContent = `#${p.orden}${p.sufijo?'-'+p.sufijo:''}`;
+
+  const intel = calcEstadoInteligente(p);
+  const ci    = INTEL_COLOR[intel];
+  const dias  = calcDias(p);
+  const fCarga  = new Date(p.fecha_carga).toLocaleDateString('es-AR',{day:'2-digit',month:'short',year:'numeric'});
+  const fRetiro = p.fecha_retiro ? new Date(p.fecha_retiro).toLocaleDateString('es-AR',{day:'2-digit',month:'short',year:'numeric'}) : null;
+
+  document.getElementById('detalle-body').innerHTML = `
+    <div style="padding-top:14px">
+      <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">
+        <span style="background:${ci.bg};color:${ci.txt};border-radius:6px;padding:4px 10px;font-size:.82rem;font-weight:600">${ci.lbl} · ${dias}d</span>
+        ${p.urgente==='Si'?'<span style="background:#FEF3C7;color:#92400E;border-radius:6px;padding:4px 10px;font-size:.82rem;font-weight:600">URGENTE</span>':''}
+      </div>
+      <div class="detalle-seccion">
+        <div class="detalle-seccion-title">Pedido</div>
+        ${_dr('Cliente',     p.cliente)}
+        ${_dr('Laboratorio', p.laboratorio)}
+        ${_dr('Tipo lente',  p.tipo_lente)}
+        ${p.tratamiento ? _dr('Tratamiento', p.tratamiento) : ''}
+        ${_dr('Tipo',        p.tipo)}
+        ${_dr('Estado',      p.estado)}
+        ${p.dos_etapas==='Si' ? _dr('2 etapas','Sí') : ''}
+        ${p.armazon ? _dr('Armazón', p.armazon) : ''}
+      </div>
+      ${p.graduacion ? `<div class="detalle-seccion"><div class="detalle-seccion-title">Graduación</div><div class="detalle-grad">${p.graduacion.replace(/\|/g,'<br>')}</div></div>` : ''}
+      <div class="detalle-seccion">
+        <div class="detalle-seccion-title">Info</div>
+        ${_dr('Cargado por', p.cargado_por)}
+        ${_dr('Fecha carga', fCarga)}
+        ${fRetiro ? _dr('Fecha retiro', fRetiro) : ''}
+      </div>
+      <div style="margin-top:16px">
+        <label style="font-size:.78rem;color:var(--gris-texto);font-weight:600;display:block;margin-bottom:6px">Cambiar estado</label>
+        <select onchange="cambiarEstado(${p.id},this.value,event)" style="width:100%;padding:10px 12px;border:1.5px solid var(--gris-borde);border-radius:10px;font-size:.9rem">
+          ${_opcionesEstado(p.estado)}
+        </select>
+      </div>
+    </div>`;
+
+  // Botones del header
+  const esAdm = typeof Auth !== 'undefined' && Auth.isAdmin();
+  const btnEdit = document.getElementById('btn-abrir-edicion');
+  const btnDel  = document.getElementById('btn-eliminar-pedido');
+  if (btnEdit) btnEdit.style.display = esAdm ? '' : 'none';
+  if (btnDel)  btnDel.style.display  = esAdm ? '' : 'none';
+
+  // Editar
+  btnEdit?.replaceWith(btnEdit.cloneNode(true));
+  document.getElementById('btn-abrir-edicion')?.addEventListener('click', () => abrirEdicion(p));
+
+  // Eliminar
+  btnDel?.replaceWith(btnDel.cloneNode(true));
+  document.getElementById('btn-eliminar-pedido')?.addEventListener('click', () => {
+    if (confirm('¿Eliminar este pedido?')) eliminarPedido(p.id);
+  });
+
+  // Cerrar
+  document.getElementById('btn-cerrar-detalle')?.addEventListener('click', cerrarDetalle, { once:true });
+  modal.addEventListener('click', e => { if (e.target === modal) cerrarDetalle(); }, { once:true });
+}
+
+function _dr(label, valor) {
+  return `<div class="detalle-row"><span class="detalle-label">${label}</span><span class="detalle-valor">${valor||'—'}</span></div>`;
+}
+
+function cerrarDetalle() {
+  document.getElementById('detalle-modal')?.classList.add('hidden');
+}
+
+async function eliminarPedido(id) {
+  const { error } = await window.supabaseClient.from('pedidos').delete().eq('id', id);
   if (error) { showToast('Error al eliminar.', 'error'); return; }
   showToast('Pedido eliminado.');
-  cerrarPedidoSheet();
+  cerrarDetalle();
   await loadPedidos();
 }
 
-// ─── NUEVO PEDIDO — FORM ──────────────────────────────────────
-function toggleDosAnteojos() {
-  const checked = document.getElementById('toggle-dos-anteojos').checked;
-  const bloqueB = document.getElementById('bloque-b');
-  const labelA  = document.getElementById('label-anteojo-a');
+// ─── EDICIÓN ──────────────────────────────────────────────────
+function abrirEdicion(p) {
+  const modal = document.getElementById('edit-modal');
+  if (!modal) return;
+  cerrarDetalle();
+  modal.classList.remove('hidden');
 
-  if (checked) {
-    bloqueB.classList.remove('hidden');
-    labelA.textContent = 'Anteojo A';
-  } else {
-    bloqueB.classList.add('hidden');
-    labelA.textContent = 'Anteojo';
-  }
-}
+  const labOpts = _cfg.laboratorios.map(l => `<option value="${l}" ${p.laboratorio===l?'selected':''}>${l}</option>`).join('');
+  const tratOpts = `<option value="">Sin tratamiento</option>` + _cfg.tratamientos.map(t => `<option value="${t.valor}" ${p.tratamiento===t.valor?'selected':''}>${t.valor}</option>`).join('');
 
-function setArmazonTipo(tipo, bloque) {
-  const btnNuevo   = document.getElementById(`btn-arm-nuevo-${bloque}`);
-  const btnCliente = document.getElementById(`btn-arm-cliente-${bloque}`);
-  const divNuevo   = document.getElementById(`armazon-nuevo-${bloque}`);
-  const divCliente = document.getElementById(`armazon-cliente-${bloque}`);
-
-  if (tipo === 'nuevo') {
-    btnNuevo.classList.add('active');
-    btnCliente.classList.remove('active');
-    divNuevo.classList.remove('hidden');
-    divCliente.classList.add('hidden');
-  } else {
-    btnCliente.classList.add('active');
-    btnNuevo.classList.remove('active');
-    divCliente.classList.remove('hidden');
-    divNuevo.classList.add('hidden');
-    // Copiar materiales al select libre
-    const selMat = document.getElementById(`campo-material-libre-${bloque}`);
-    if (selMat && selMat.options.length <= 1) {
-      selMat.innerHTML = '<option value="">-</option>' +
-        _config.materiales.map(m => `<option value="${m}">${m}</option>`).join('');
-    }
-  }
-}
-
-function formatEje(input) {
-  input.value = input.value.replace(/[^0-9]/g, '');
-  if (parseInt(input.value) > 180) input.value = '180';
-}
-
-// ─── SUBMIT NUEVO PEDIDO ──────────────────────────────────────
-async function submitNuevoPedido(event) {
-  event.preventDefault();
-
-  const cliente  = document.getElementById('campo-cliente').value.trim();
-  const orden    = document.getElementById('campo-orden').value.trim();
-  const clienteId = document.getElementById('campo-cliente-id').value || null;
-
-  if (!cliente) { showToast('El nombre del cliente es obligatorio.', 'error'); return; }
-  if (!orden)   { showToast('El número de orden es obligatorio.', 'error'); return; }
-
-  const tipoA    = document.getElementById('campo-tipo-a').value;
-  const labA     = document.getElementById('campo-laboratorio-a').value;
-  const lentA    = document.getElementById('campo-tipo-lente-a').value;
-  if (!tipoA || !labA || !lentA) {
-    showToast('Completá tipo, laboratorio y tipo de lente.', 'error'); return;
-  }
-
-  const dosAnteojos = document.getElementById('toggle-dos-anteojos').checked;
-  const urgente     = document.getElementById('campo-urgente').checked ? 'Si' : 'No';
-
-  // Verificar duplicado
-  const sufijosABuscar = dosAnteojos ? ['A', 'B'] : [null];
-  for (const sufijo of sufijosABuscar) {
-    let q = window.supabaseClient.from('pedidos').select('id').eq('orden', orden);
-    if (sufijo) q = q.eq('sufijo', sufijo);
-    else q = q.is('sufijo', null);
-    const { data: dup } = await q;
-    if (dup && dup.length > 0) {
-      const suf = sufijo ? ` (${sufijo})` : '';
-      showToast(`Ya existe un pedido con orden ${orden}${suf}.`, 'error');
-      return;
-    }
-  }
-
-  // Armar datos
-  const graduacionA = armarGraduacion('a');
-  const armazonA    = armarArmazon('a');
-
-  const baseA = {
-    cliente,
-    cliente_id:   clienteId,
-    orden,
-    urgente,
-    tipo:         tipoA,
-    laboratorio:  labA,
-    tipo_lente:   lentA,
-    tratamiento:  document.getElementById('campo-tratamiento-a').value || null,
-    graduacion:   graduacionA || null,
-    dos_etapas:   document.getElementById('campo-dos-etapas-a').checked ? 'Si' : 'No',
-    armazon:      armazonA || null,
-    estado:       'Cristales pedidos a lab',
-    cargado_por:  currentPerfil?.nombre || 'Sistema',
-    fecha_pedido: new Date().toISOString(),
-  };
-
-  const pedidosAInsertar = dosAnteojos
-    ? [{ ...baseA, sufijo: 'A' }, { ...buildBloqueB(cliente, clienteId, orden, urgente), sufijo: 'B' }]
-    : [baseA];
-
-  const btn = document.getElementById('btn-guardar-pedido');
-  btn.disabled = true;
-  btn.textContent = 'Guardando...';
-
-  // Mostrar confirmación
-  mostrarConfirm(
-    'Confirmar pedido',
-    `<strong>${cliente}</strong><br>Orden: ${orden}<br>Lab: ${labA}${dosAnteojos ? '<br><em>(2 anteojos)</em>' : ''}`,
-    async () => {
-      const { error } = await window.supabaseClient.from('pedidos').insert(pedidosAInsertar);
-      if (error) {
-        showToast('Error al guardar el pedido.', 'error');
-        btn.disabled = false;
-        btn.textContent = 'Guardar pedido';
-        return;
-      }
-      showToast('Pedido guardado.');
-      limpiarFormNuevo();
-      btn.disabled = false;
-      btn.textContent = 'Guardar pedido';
-      await loadPedidos();
-      showSection('pedidos');
-    }
-  );
-
-  // Si cancela el confirm, rehabilitar botón
-  document.getElementById('confirm-cancel')?.addEventListener('click', () => {
-    btn.disabled = false;
-    btn.textContent = 'Guardar pedido';
-  }, { once: true });
-}
-
-function buildBloqueB(cliente, clienteId, orden, urgente) {
-  const labB   = document.getElementById('campo-laboratorio-b').value;
-  const lentB  = document.getElementById('campo-tipo-lente-b').value;
-  const gradB  = armarGraduacion('b');
-  const armB   = armarArmazon('b');
-
-  return {
-    cliente,
-    cliente_id:   clienteId,
-    orden,
-    urgente,
-    tipo:         document.getElementById('campo-tipo-a').value, // mismo tipo que A
-    laboratorio:  labB || document.getElementById('campo-laboratorio-a').value,
-    tipo_lente:   lentB || document.getElementById('campo-tipo-lente-a').value,
-    tratamiento:  document.getElementById('campo-tratamiento-b').value || null,
-    graduacion:   gradB || null,
-    dos_etapas:   document.getElementById('campo-dos-etapas-b').checked ? 'Si' : 'No',
-    armazon:      armB || null,
-    estado:       'Cristales pedidos a lab',
-    cargado_por:  currentPerfil?.nombre || 'Sistema',
-    fecha_pedido: new Date().toISOString(),
-  };
-}
-
-function armarGraduacion(bloque) {
-  const g = {
-    odEsf: document.getElementById(`${bloque}-od-esf`)?.value,
-    odCil: document.getElementById(`${bloque}-od-cil`)?.value,
-    odEje: document.getElementById(`${bloque}-od-eje`)?.value,
-    odAdd: document.getElementById(`${bloque}-od-add`)?.value,
-    oiEsf: document.getElementById(`${bloque}-oi-esf`)?.value,
-    oiCil: document.getElementById(`${bloque}-oi-cil`)?.value,
-    oiEje: document.getElementById(`${bloque}-oi-eje`)?.value,
-    oiAdd: document.getElementById(`${bloque}-oi-add`)?.value,
-  };
-  const tieneAlgo = Object.values(g).some(v => v && v !== '');
-  if (!tieneAlgo) return '';
-
-  const fmtOjo = (esf, cil, eje, add) => {
-    let s = `${esf || '±0.00'} / ${cil || '±0.00'} x ${eje || '0'}°`;
-    if (add) s += ` Add ${add}`;
-    return s;
-  };
-
-  return `OD: ${fmtOjo(g.odEsf, g.odCil, g.odEje, g.odAdd)} | OI: ${fmtOjo(g.oiEsf, g.oiCil, g.oiEje, g.oiAdd)}`;
-}
-
-function armarArmazon(bloque) {
-  const btnNuevo = document.getElementById(`btn-arm-nuevo-${bloque}`);
-  const esNuevo  = btnNuevo?.classList.contains('active');
-
-  if (esNuevo) {
-    const marca   = document.getElementById(`campo-marca-${bloque}`)?.value || '';
-    const codigo  = document.getElementById(`campo-codigo-${bloque}`)?.value || '';
-    const material= document.getElementById(`campo-material-${bloque}`)?.value || '';
-    const color   = document.getElementById(`campo-color-${bloque}`)?.value || '';
-    if (!marca && !codigo && !material && !color) return '';
-    return [marca, codigo, material, color].filter(Boolean).join(' / ');
-  } else {
-    const marca   = document.getElementById(`campo-marca-libre-${bloque}`)?.value || '';
-    const material= document.getElementById(`campo-material-libre-${bloque}`)?.value || '';
-    const color   = document.getElementById(`campo-color-libre-${bloque}`)?.value || '';
-    if (!marca && !material && !color) return '';
-    return ['Del cliente:', marca, material, color].filter(Boolean).join(' / ');
-  }
-}
-
-function limpiarFormNuevo() {
-  document.getElementById('form-nuevo-pedido')?.reset();
-  document.getElementById('bloque-b')?.classList.add('hidden');
-  const labelA = document.getElementById('label-anteojo-a');
-  if (labelA) labelA.textContent = 'Anteojo';
-
-  // Limpiar cliente seleccionado
-  limpiarClienteSeleccionado();
-
-  // Limpiar inputs de graduación (son readonly, no los resetea el form)
-  document.querySelectorAll('.grad-input[readonly]').forEach(i => i.value = '');
-
-  // Resetear armazón tipo a "Nuevo"
-  ['a','b'].forEach(bl => setArmazonTipo('nuevo', bl));
-}
-
-// ─── NUMPAD ───────────────────────────────────────────────────
-function abrirNumpad(input) {
-  _numpadInput = input;
-  _numpadValor = input.value || '';
-
-  const bloque = input.dataset.bloque;
-  const ojo    = input.dataset.ojo;
-  const campo  = input.dataset.campo;
-
-  const campos = ['esf', 'cil', 'add'].filter(c => c !== campo);
-
-  const overlay = document.getElementById('numpad-overlay');
-  const sheet   = document.getElementById('numpad-sheet');
-  const content = document.getElementById('numpad-content');
-
-  content.innerHTML = renderNumpad(campo, _numpadValor, bloque, ojo);
-  overlay.classList.remove('hidden');
-  sheet.classList.remove('hidden');
-  requestAnimationFrame(() => sheet.classList.add('sheet-open'));
-}
-
-function renderNumpad(campo, valorActual, bloque, ojo) {
-  const esSigned = campo === 'esf' || campo === 'cil';
-  const esAdd    = campo === 'add';
-
-  // Indicador de campo
-  const CAMPOS_LABEL = { esf: 'Esfera', cil: 'Cilindro', add: 'Adición' };
-  const ojoLabel = ojo === 'od' ? 'OD' : 'OI';
-  const bloqueLabel = bloque === 'a' ? 'A' : 'B';
-
-  return `
-    <div class="numpad-indicator">
-      <span class="numpad-campo-label">${ojoLabel} · ${CAMPOS_LABEL[campo] || campo}</span>
-      <div class="numpad-display">${valorActual || '0.00'}</div>
+  document.getElementById('edit-body').innerHTML = `
+    <div class="form-group"><label class="form-label">Cliente</label><input class="form-control" id="edit-cliente" value="${p.cliente||''}"></div>
+    <div class="form-group"><label class="form-label">N° Orden</label><input class="form-control" id="edit-orden" value="${p.orden||''}"></div>
+    <div class="form-group"><label class="form-label">Laboratorio</label><select class="form-control" id="edit-lab"><option value="">—</option>${labOpts}</select></div>
+    <div class="form-group"><label class="form-label">Tipo de lente</label>
+      <select class="form-control" id="edit-lente">
+        <option value="">—</option>
+        ${['Monofocal','Bifocal','Ocupacional','Progresivo','Teñido'].map(l=>`<option value="${l}" ${p.tipo_lente===l?'selected':''}>${l}</option>`).join('')}
+      </select>
     </div>
-
-    <div class="numpad-grid">
-      <button class="numpad-btn numpad-sign" onclick="numpadSigno('+')">+</button>
-      <button class="numpad-btn numpad-sign" onclick="numpadSigno('−')">−</button>
-      <button class="numpad-btn numpad-del"  onclick="numpadBorrar()">⌫</button>
-
-      <button class="numpad-btn" onclick="numpadDigito('1')">1</button>
-      <button class="numpad-btn" onclick="numpadDigito('2')">2</button>
-      <button class="numpad-btn" onclick="numpadDigito('3')">3</button>
-
-      <button class="numpad-btn" onclick="numpadDigito('4')">4</button>
-      <button class="numpad-btn" onclick="numpadDigito('5')">5</button>
-      <button class="numpad-btn" onclick="numpadDigito('6')">6</button>
-
-      <button class="numpad-btn" onclick="numpadDigito('7')">7</button>
-      <button class="numpad-btn" onclick="numpadDigito('8')">8</button>
-      <button class="numpad-btn" onclick="numpadDigito('9')">9</button>
-
-      <button class="numpad-btn numpad-dot"  onclick="numpadDigito('.')">.</button>
-      <button class="numpad-btn" onclick="numpadDigito('0')">0</button>
-      <button class="numpad-btn numpad-clr"  onclick="numpadLimpiar()">CLR</button>
+    <div class="form-group"><label class="form-label">Tratamiento</label><select class="form-control" id="edit-trat">${tratOpts}</select></div>
+    <div class="form-group"><label class="form-label">Estado</label>
+      <select class="form-control" id="edit-estado">${_opcionesEstado(p.estado)}</select>
     </div>
+    <div class="form-group"><label class="form-label">Urgente</label>
+      <select class="form-control" id="edit-urgente">
+        <option value="No" ${p.urgente==='No'?'selected':''}>No</option>
+        <option value="Si" ${p.urgente==='Si'?'selected':''}>Sí</option>
+      </select>
+    </div>
+    <button class="edit-save-btn" onclick="guardarEdicion(${p.id})">Guardar cambios</button>`;
 
-    <div class="numpad-actions">
-      <button class="btn-numpad-copiar" onclick="numpadCopiarOjo()">Copiar a ${ojo === 'od' ? 'OI' : 'OD'}</button>
-      <button class="btn-numpad-ok"     onclick="numpadConfirmar()">OK</button>
-    </div>`;
+  document.getElementById('btn-cerrar-edit')?.addEventListener('click', () => modal.classList.add('hidden'), { once:true });
 }
 
-function numpadDigito(d) {
-  if (d === '.' && _numpadValor.includes('.')) return;
-  if (_numpadValor === '0' && d !== '.') _numpadValor = d;
-  else _numpadValor += d;
-  actualizarDisplayNumpad();
-}
-
-function numpadSigno(signo) {
-  const s = signo === '−' ? '-' : '+';
-  if (_numpadValor.startsWith('-') || _numpadValor.startsWith('+')) {
-    _numpadValor = s + _numpadValor.slice(1);
-  } else {
-    _numpadValor = s + _numpadValor;
-  }
-  actualizarDisplayNumpad();
-}
-
-function numpadBorrar() {
-  _numpadValor = _numpadValor.slice(0, -1) || '0';
-  actualizarDisplayNumpad();
-}
-
-function numpadLimpiar() {
-  _numpadValor = '';
-  actualizarDisplayNumpad();
-}
-
-function actualizarDisplayNumpad() {
-  const display = document.querySelector('.numpad-display');
-  if (display) display.textContent = _numpadValor || '0.00';
-}
-
-function numpadConfirmar() {
-  if (_numpadInput) {
-    _numpadInput.value = _numpadValor;
-  }
-  cerrarNumpad();
-}
-
-function numpadCopiarOjo() {
-  if (!_numpadInput) return;
-  const bloque = _numpadInput.dataset.bloque;
-  const ojo    = _numpadInput.dataset.ojo;
-  const campo  = _numpadInput.dataset.campo;
-  const ojoOpuesto = ojo === 'od' ? 'oi' : 'od';
-
-  _numpadInput.value = _numpadValor;
-  const inputOpuesto = document.getElementById(`${bloque}-${ojoOpuesto}-${campo}`);
-  if (inputOpuesto) inputOpuesto.value = _numpadValor;
-
-  cerrarNumpad();
-}
-
-function cerrarNumpad() {
-  const sheet = document.getElementById('numpad-sheet');
-  sheet.classList.remove('sheet-open');
-  setTimeout(() => {
-    sheet.classList.add('hidden');
-    document.getElementById('numpad-overlay').classList.add('hidden');
-  }, 280);
-  _numpadInput = null;
+async function guardarEdicion(id) {
+  const nuevoEstado = document.getElementById('edit-estado')?.value;
+  const upd = {
+    cliente:    document.getElementById('edit-cliente')?.value.trim(),
+    orden:      document.getElementById('edit-orden')?.value.trim(),
+    laboratorio:document.getElementById('edit-lab')?.value,
+    tipo_lente: document.getElementById('edit-lente')?.value,
+    tratamiento:document.getElementById('edit-trat')?.value || null,
+    estado:     nuevoEstado,
+    urgente:    document.getElementById('edit-urgente')?.value,
+  };
+  if (nuevoEstado === 'Retirado') upd.fecha_retiro = new Date().toISOString();
+  const { error } = await window.supabaseClient.from('pedidos').update(upd).eq('id', id);
+  if (error) { showToast('Error al guardar.', 'error'); return; }
+  showToast('Pedido actualizado.');
+  document.getElementById('edit-modal')?.classList.add('hidden');
+  await loadPedidos();
 }
 
 // ─── HISTORIAL ────────────────────────────────────────────────
-function initHistorial() {
-  _historialFecha = new Date();
-  loadHistorial();
-}
+function initHistorial() { _loadHistorial(); }
 
-async function loadHistorial() {
-  const labelEl = document.getElementById('historial-mes-label');
-  const listEl  = document.getElementById('historial-list');
-
+async function _loadHistorial() {
   const año = _historialFecha.getFullYear();
   const mes  = _historialFecha.getMonth();
 
-  if (labelEl) {
-    const nombreMes = _historialFecha.toLocaleString('es-AR', { month: 'long', year: 'numeric' });
-    labelEl.textContent = nombreMes.charAt(0).toUpperCase() + nombreMes.slice(1);
-  }
+  // Mes nav
+  const mesNombre = _historialFecha.toLocaleString('es-AR', { month:'long', year:'numeric' });
+  const navEl = document.getElementById('mes-nav-container');
+  if (navEl) navEl.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+      <button onclick="historialMesAnterior()" style="width:32px;height:32px;border-radius:50%;border:1.5px solid var(--gris-borde);background:#fff;font-size:1.1rem;cursor:pointer;display:flex;align-items:center;justify-content:center">‹</button>
+      <span style="flex:1;text-align:center;font-size:.9rem;font-weight:600;color:var(--azul);text-transform:capitalize">${mesNombre}</span>
+      <button onclick="historialMesSiguiente()" style="width:32px;height:32px;border-radius:50%;border:1.5px solid var(--gris-borde);background:#fff;font-size:1.1rem;cursor:pointer;display:flex;align-items:center;justify-content:center">›</button>
+    </div>`;
 
-  if (listEl) listEl.innerHTML = '<div class="loading-state"><div class="spinner"></div>Cargando...</div>';
+  const skeleton = document.getElementById('pedidos-skeleton');
+  const listEl   = document.getElementById('pedidos-list-container');
+  if (skeleton) skeleton.style.display = 'flex';
+  if (listEl)   listEl.style.display   = 'none';
 
   const inicio = new Date(año, mes, 1).toISOString();
-  const fin    = new Date(año, mes + 1, 0, 23, 59, 59).toISOString();
+  const fin    = new Date(año, mes+1, 0, 23, 59, 59).toISOString();
 
-  const { data, error } = await window.supabaseClient
-    .from('pedidos')
-    .select('*')
-    .gte('fecha_carga', inicio)
-    .lte('fecha_carga', fin)
+  const { data } = await window.supabaseClient
+    .from('pedidos').select('*')
+    .gte('fecha_carga', inicio).lte('fecha_carga', fin)
     .order('fecha_carga', { ascending: false });
 
-  if (error) { if (listEl) listEl.innerHTML = '<p>Error al cargar historial.</p>'; return; }
+  _historialCache = data || [];
+  if (skeleton) skeleton.style.display = 'none';
+  if (listEl)   listEl.style.display   = 'block';
 
-  _historialPedidos = data || [];
-  renderHistorial(_historialPedidos);
+  filtrarPorEstado(_historialEstado);
 }
 
-function renderHistorial(pedidos) {
-  const listEl = document.getElementById('historial-list');
+function filtrarPorEstado(estado) {
+  _historialEstado = estado;
+  const listEl = document.getElementById('pedidos-list-container');
   if (!listEl) return;
 
-  if (!pedidos.length) {
-    listEl.innerHTML = '<div class="empty-state"><p>Sin pedidos en este mes.</p></div>';
+  let lista = estado === 'todos'
+    ? _historialCache
+    : _historialCache.filter(p => p.estado === estado);
+
+  if (!lista.length) {
+    listEl.innerHTML = '<div style="padding:32px 16px;text-align:center;color:var(--gris-texto)">Sin pedidos en este período.</div>';
     return;
   }
 
-  listEl.innerHTML = pedidos.map(p => {
-    const fecha    = new Date(p.fecha_carga).toLocaleDateString('es-AR', { day:'2-digit', month:'short' });
-    const dias     = calcDiasTotales(p);
-    const estIntel = calcEstadoInteligente(p);
-    const colIntel = ESTADO_INTEL_COLOR[estIntel];
-
-    return `
-      <div class="pedido-card pedido-card-compact" onclick="abrirPedidoSheet(${p.id})">
-        <div class="card-top">
-          <span class="orden-num">${p.orden}${p.sufijo ? '-'+p.sufijo : ''}</span>
-          <span class="badge-intel" style="background:${colIntel.bg};color:${colIntel.texto}">${colIntel.label}</span>
-        </div>
-        <div class="card-cliente">${p.cliente}</div>
-        <div class="card-meta">
-          <span class="meta-lab">${p.laboratorio || '—'}</span>
-          <span class="meta-estado">${p.estado}</span>
-          <span class="meta-fecha">${fecha} · ${dias}d</span>
-        </div>
-      </div>`;
-  }).join('');
+  listEl.innerHTML = '<div style="border-radius:12px;overflow:hidden;border:1.5px solid var(--gris-borde)">' +
+    lista.map((p, i) => {
+      const sep = i > 0 ? 'border-top:1px solid var(--gris-borde);' : '';
+      return _card(p, sep);
+    }).join('') + '</div>';
 }
 
 function historialMesAnterior() {
   _historialFecha.setMonth(_historialFecha.getMonth() - 1);
-  loadHistorial();
+  _loadHistorial();
 }
-
 function historialMesSiguiente() {
   const hoy = new Date();
-  if (_historialFecha.getFullYear() === hoy.getFullYear() &&
-      _historialFecha.getMonth()    === hoy.getMonth()) return;
+  if (_historialFecha.getFullYear() === hoy.getFullYear() && _historialFecha.getMonth() === hoy.getMonth()) return;
   _historialFecha.setMonth(_historialFecha.getMonth() + 1);
-  loadHistorial();
+  _loadHistorial();
 }
 
-// ─── CONFIG ───────────────────────────────────────────────────
-function initConfig() {
-  loadConfigPanel();
+// ─── FORM NUEVO PEDIDO ────────────────────────────────────────
+function _poblarBloqueFields(containerId, num) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+
+  const suf  = num === 1 ? 'a' : 'b';
+  const labOpts  = _cfg.laboratorios.map(l => `<option value="${l}">${l}</option>`).join('');
+  const marcaOpts = `<option value="">Sin marca</option>` + _cfg.marcas.map(m => `<option value="${m}">${m}</option>`).join('');
+  const matOpts  = `<option value="">—</option>` + _cfg.materiales.map(m => `<option value="${m}">${m}</option>`).join('');
+
+  el.innerHTML = `
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label required">Laboratorio</label>
+        <select id="f-lab-${suf}" class="form-control"><option value="">— Seleccionar —</option>${labOpts}</select>
+        <div class="form-error" id="err-lab-${suf}">Campo obligatorio</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label required">Tipo de lente</label>
+        <select id="f-lente-${suf}" class="form-control" onchange="_onLenteChange('${suf}')">
+          <option value="">— Seleccionar —</option>
+          <option>Monofocal</option><option>Bifocal</option><option>Ocupacional</option><option>Progresivo</option><option>Teñido</option>
+        </select>
+        <div class="form-error" id="err-lente-${suf}">Campo obligatorio</div>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Tratamiento</label>
+      <select id="f-trat-${suf}" class="form-control"><option value="">Sin tratamiento</option></select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Graduación</label>
+      <div class="grad-table">
+        <div class="grad-header-row"><span></span><span>Esf</span><span>Cil</span><span>Eje</span><span>Add</span></div>
+        <div class="grad-data-row">
+          <span class="grad-ojo-label">OD</span>
+          <input class="grad-input" id="${suf}-od-esf" readonly onclick="abrirNumpad(this)" data-bloque="${suf}" data-ojo="od" data-campo="esf" placeholder="±0.00">
+          <input class="grad-input" id="${suf}-od-cil" readonly onclick="abrirNumpad(this)" data-bloque="${suf}" data-ojo="od" data-campo="cil" placeholder="±0.00">
+          <input class="grad-input" id="${suf}-od-eje" inputmode="numeric" data-bloque="${suf}" data-ojo="od" data-campo="eje" placeholder="0°" oninput="this.value=this.value.replace(/[^0-9]/g,'');if(parseInt(this.value)>180)this.value='180'">
+          <input class="grad-input" id="${suf}-od-add" readonly onclick="abrirNumpad(this)" data-bloque="${suf}" data-ojo="od" data-campo="add" placeholder="+0.00">
+        </div>
+        <div class="grad-data-row">
+          <span class="grad-ojo-label">OI</span>
+          <input class="grad-input" id="${suf}-oi-esf" readonly onclick="abrirNumpad(this)" data-bloque="${suf}" data-ojo="oi" data-campo="esf" placeholder="±0.00">
+          <input class="grad-input" id="${suf}-oi-cil" readonly onclick="abrirNumpad(this)" data-bloque="${suf}" data-ojo="oi" data-campo="cil" placeholder="±0.00">
+          <input class="grad-input" id="${suf}-oi-eje" inputmode="numeric" data-bloque="${suf}" data-ojo="oi" data-campo="eje" placeholder="0°" oninput="this.value=this.value.replace(/[^0-9]/g,'');if(parseInt(this.value)>180)this.value='180'">
+          <input class="grad-input" id="${suf}-oi-add" readonly onclick="abrirNumpad(this)" data-bloque="${suf}" data-ojo="oi" data-campo="add" placeholder="+0.00">
+        </div>
+      </div>
+    </div>
+    <div class="toggle-group">
+      <span class="toggle-label">Trabajo en 2 etapas</span>
+      <label class="toggle-switch"><input type="checkbox" id="f-dos-etapas-${suf}"><span class="toggle-slider"></span></label>
+    </div>
+    <div class="form-section-title" style="margin-top:8px">Armazón</div>
+    <div class="form-group">
+      <label class="form-label">Tipo de armazón</label>
+      <div class="segmented-control" style="display:flex;gap:6px;margin-bottom:8px">
+        <button type="button" class="seg-btn active" id="btn-arm-nuevo-${suf}" onclick="_setArm('nuevo','${suf}')">Nuevo</button>
+        <button type="button" class="seg-btn" id="btn-arm-cliente-${suf}" onclick="_setArm('cliente','${suf}')">Del cliente</button>
+      </div>
+    </div>
+    <div id="arm-nuevo-${suf}">
+      <div class="form-group"><label class="form-label">Marca</label><select id="f-marca-${suf}" class="form-control">${marcaOpts}</select></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Código/Ref</label><input type="text" id="f-codigo-${suf}" class="form-control" placeholder="Ref…"></div>
+        <div class="form-group"><label class="form-label">Material</label><select id="f-material-${suf}" class="form-control">${matOpts}</select></div>
+      </div>
+      <div class="form-group"><label class="form-label">Color</label><input type="text" id="f-color-${suf}" class="form-control" placeholder="Color…"></div>
+    </div>
+    <div id="arm-cliente-${suf}" class="hidden">
+      <div class="form-group"><label class="form-label">Marca</label><input type="text" id="f-marca-libre-${suf}" class="form-control" placeholder="Marca del cliente…"></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Material</label><select id="f-mat-libre-${suf}" class="form-control">${matOpts}</select></div>
+        <div class="form-group"><label class="form-label">Color</label><input type="text" id="f-color-libre-${suf}" class="form-control" placeholder="Color…"></div>
+      </div>
+    </div>`;
 }
 
-async function loadConfigPanel() {
-  const container = document.getElementById('config-content');
-  if (!container) return;
+function _onLenteChange(suf) {
+  const lente = document.getElementById(`f-lente-${suf}`)?.value;
+  const tratSel = document.getElementById(`f-trat-${suf}`);
+  if (!tratSel) return;
+  const opts = _cfg.tratamientos.filter(t => !t.subtipo || t.subtipo === lente);
+  tratSel.innerHTML = '<option value="">Sin tratamiento</option>' + opts.map(t => `<option value="${t.valor}">${t.valor}</option>`).join('');
+}
 
-  const { data } = await window.supabaseClient
-    .from('configuracion')
-    .select('*')
-    .order('tipo')
-    .order('orden');
+function _setArm(tipo, suf) {
+  const btnN = document.getElementById(`btn-arm-nuevo-${suf}`);
+  const btnC = document.getElementById(`btn-arm-cliente-${suf}`);
+  const divN = document.getElementById(`arm-nuevo-${suf}`);
+  const divC = document.getElementById(`arm-cliente-${suf}`);
+  if (tipo === 'nuevo') {
+    btnN?.classList.add('active'); btnC?.classList.remove('active');
+    divN?.classList.remove('hidden'); divC?.classList.add('hidden');
+  } else {
+    btnC?.classList.add('active'); btnN?.classList.remove('active');
+    divC?.classList.remove('hidden'); divN?.classList.add('hidden');
+  }
+}
 
-  if (!data) return;
-
-  const tipos = {
-    laboratorio: 'Laboratorios',
-    tratamiento: 'Tratamientos',
-    marca:       'Marcas',
-    material:    'Materiales',
-    obra_social: 'Obras sociales',
-  };
-
-  let html = '';
-  Object.entries(tipos).forEach(([tipo, label]) => {
-    const items = data.filter(d => d.tipo === tipo);
-    html += `
-      <div class="config-section">
-        <div class="config-section-header">
-          <h3 class="config-section-title">${label}</h3>
-          <button class="btn-sm btn-primary" onclick="agregarConfigItem('${tipo}')">+ Agregar</button>
-        </div>
-        <div class="config-items" id="config-items-${tipo}">
-          ${items.map(item => `
-            <div class="config-item">
-              <span>${item.valor}</span>
-              <button class="btn-icon-danger" onclick="eliminarConfigItem(${item.id}, '${tipo}')">✕</button>
-            </div>`).join('')}
-        </div>
-      </div>`;
+// Toggle 2 anteojos
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('toggle-dos-anteojos')?.addEventListener('change', function() {
+    const bloque2 = document.getElementById('bloque-anteojo2');
+    const titulo1 = document.getElementById('bloque1-title');
+    if (this.checked) {
+      bloque2?.classList.remove('hidden');
+      if (titulo1) titulo1.textContent = 'Anteojo A';
+      _poblarBloqueFields('bloque2-fields', 2);
+    } else {
+      bloque2?.classList.add('hidden');
+      if (titulo1) titulo1.textContent = 'Anteojo';
+    }
   });
 
-  container.innerHTML = html;
+  // Submit form
+  document.getElementById('form-nuevo-pedido')?.addEventListener('submit', _submitNuevoPedido);
+});
+
+async function _submitNuevoPedido(e) {
+  e.preventDefault();
+  const cliente = document.getElementById('f-cliente')?.value.trim();
+  const orden   = document.getElementById('f-orden')?.value.trim();
+  const urgente = document.getElementById('f-urgente')?.value;
+  const tipo    = document.getElementById('f-tipo')?.value;
+  const clienteId = document.getElementById('campo-cliente-id')?.value || null;
+
+  // Validar obligatorios
+  let ok = true;
+  const req = [
+    ['f-cliente','err-cliente'], ['f-orden','err-orden'],
+    ['f-urgente','err-urgente'], ['f-tipo','err-tipo'],
+    ['f-lab-a','err-lab-a'],     ['f-lente-a','err-lente-a'],
+  ];
+  req.forEach(([fId, eId]) => {
+    const val = document.getElementById(fId)?.value;
+    const err = document.getElementById(eId);
+    if (!val) { err?.classList.add('visible'); ok = false; }
+    else { err?.classList.remove('visible'); }
+  });
+  if (!ok) return;
+
+  // Verificar duplicado
+  const dosAnteojos = document.getElementById('toggle-dos-anteojos')?.checked;
+  const sufijos = dosAnteojos ? ['A','B'] : [null];
+  for (const suf of sufijos) {
+    let q = window.supabaseClient.from('pedidos').select('id').eq('orden', orden);
+    suf ? q = q.eq('sufijo', suf) : q = q.is('sufijo', null);
+    const { data: dup } = await q;
+    if (dup?.length) {
+      showToast(`Ya existe un pedido con orden ${orden}${suf?' ('+suf+')':''}`, 'error');
+      return;
+    }
+  }
+
+  // Armar resumen para modal
+  const lab  = document.getElementById('f-lab-a')?.value;
+  const resumen = `<div class="modal-row"><span class="modal-label">Cliente</span><span class="modal-value">${cliente}</span></div>
+    <div class="modal-row"><span class="modal-label">Orden</span><span class="modal-value">${orden}</span></div>
+    <div class="modal-row"><span class="modal-label">Laboratorio</span><span class="modal-value">${lab}</span></div>
+    <div class="modal-row"><span class="modal-label">Tipo</span><span class="modal-value">${tipo}</span></div>
+    ${dosAnteojos ? '<div class="modal-row"><span class="modal-label">Anteojos</span><span class="modal-value">2 (A y B)</span></div>' : ''}`;
+
+  // Mostrar modal confirmación
+  const modal     = document.getElementById('confirm-modal');
+  const bodyEl    = document.getElementById('modal-body-content');
+  const btnOk     = document.getElementById('modal-confirm-btn');
+  const btnCancel = document.getElementById('modal-cancel-btn');
+  const btnClose  = document.getElementById('modal-close-btn');
+  if (!modal) return;
+  if (bodyEl) bodyEl.innerHTML = resumen;
+  modal.classList.remove('hidden');
+
+  const cerrar = () => modal.classList.add('hidden');
+  const okNew = btnOk.cloneNode(true);
+  btnOk.parentNode.replaceChild(okNew, btnOk);
+  okNew.addEventListener('click', async () => {
+    cerrar();
+    await _insertarPedidos(cliente, clienteId, orden, urgente, tipo, dosAnteojos);
+  });
+  btnCancel?.addEventListener('click', cerrar, { once:true });
+  btnClose?.addEventListener('click',  cerrar, { once:true });
 }
 
-async function agregarConfigItem(tipo) {
-  const valor = prompt(`Nuevo valor para ${tipo}:`);
-  if (!valor || !valor.trim()) return;
+async function _insertarPedidos(cliente, clienteId, orden, urgente, tipo, dosAnteojos) {
+  const base = {
+    cliente, cliente_id: clienteId, orden, urgente, tipo,
+    estado: 'Cristales pedidos a lab',
+    cargado_por: typeof Auth !== 'undefined' ? Auth.getNombre() : 'Sistema',
+    fecha_pedido: new Date().toISOString(),
+  };
 
-  const { data: existentes } = await window.supabaseClient
-    .from('configuracion').select('orden').eq('tipo', tipo).order('orden', { ascending: false }).limit(1);
-  const orden = existentes?.length ? existentes[0].orden + 1 : 1;
+  const pedidos = [];
+  const sufijos = dosAnteojos ? ['a','b'] : ['a'];
 
-  const { error } = await window.supabaseClient.from('configuracion').insert([{ tipo, valor: valor.trim(), orden }]);
-  if (error) { showToast('Error al agregar.', 'error'); return; }
+  for (const suf of sufijos) {
+    const grad = _armarGrad(suf);
+    const arm  = _armarArmazon(suf);
+    pedidos.push({
+      ...base,
+      sufijo:      dosAnteojos ? suf.toUpperCase() : null,
+      laboratorio: document.getElementById(`f-lab-${suf}`)?.value,
+      tipo_lente:  document.getElementById(`f-lente-${suf}`)?.value,
+      tratamiento: document.getElementById(`f-trat-${suf}`)?.value || null,
+      graduacion:  grad || null,
+      dos_etapas:  document.getElementById(`f-dos-etapas-${suf}`)?.checked ? 'Si' : 'No',
+      armazon:     arm || null,
+    });
+  }
 
-  showToast('Agregado correctamente.');
-  await cargarConfiguracion();
-  loadConfigPanel();
+  const { error } = await window.supabaseClient.from('pedidos').insert(pedidos);
+  if (error) { showToast('Error al guardar.', 'error'); return; }
+
+  showToast('Pedido guardado.');
+  _limpiarForm();
+  await loadPedidos();
+  if (typeof App !== 'undefined') App.showScreen('seguimiento');
 }
 
-async function eliminarConfigItem(id, tipo) {
-  if (!confirm('¿Eliminar este elemento?')) return;
-  const { error } = await window.supabaseClient.from('configuracion').delete().eq('id', id);
-  if (error) { showToast('Error al eliminar.', 'error'); return; }
-  showToast('Eliminado.');
-  await cargarConfiguracion();
-  loadConfigPanel();
+function _armarGrad(suf) {
+  const g = ['od','oi'].map(ojo => {
+    const esf = document.getElementById(`${suf}-${ojo}-esf`)?.value;
+    const cil = document.getElementById(`${suf}-${ojo}-cil`)?.value;
+    const eje = document.getElementById(`${suf}-${ojo}-eje`)?.value;
+    const add = document.getElementById(`${suf}-${ojo}-add`)?.value;
+    if (!esf && !cil && !eje && !add) return null;
+    return `${ojo.toUpperCase()}: ${esf||'±0.00'} / ${cil||'±0.00'} x ${eje||'0'}°${add?' Add '+add:''}`;
+  }).filter(Boolean);
+  return g.length ? g.join(' | ') : '';
+}
+
+function _armarArmazon(suf) {
+  const esNuevo = document.getElementById(`btn-arm-nuevo-${suf}`)?.classList.contains('active');
+  if (esNuevo) {
+    const marca   = document.getElementById(`f-marca-${suf}`)?.value || '';
+    const codigo  = document.getElementById(`f-codigo-${suf}`)?.value || '';
+    const material= document.getElementById(`f-material-${suf}`)?.value || '';
+    const color   = document.getElementById(`f-color-${suf}`)?.value || '';
+    return [marca, codigo, material, color].filter(Boolean).join(' / ');
+  } else {
+    const marca   = document.getElementById(`f-marca-libre-${suf}`)?.value || '';
+    const material= document.getElementById(`f-mat-libre-${suf}`)?.value || '';
+    const color   = document.getElementById(`f-color-libre-${suf}`)?.value || '';
+    return ['Del cliente:', marca, material, color].filter(Boolean).join(' / ');
+  }
+}
+
+function _limpiarForm() {
+  document.getElementById('form-nuevo-pedido')?.reset();
+  document.getElementById('bloque-anteojo2')?.classList.add('hidden');
+  document.getElementById('bloque1-title').textContent = 'Anteojo';
+  document.querySelectorAll('.grad-input[readonly]').forEach(i => i.value = '');
+  limpiarClienteSeleccionado?.();
+  _poblarBloqueFields('bloque1-fields', 1);
+}
+
+// ─── NUMPAD ───────────────────────────────────────────────────
+let _npInput = null, _npVal = '';
+
+function abrirNumpad(input) {
+  _npInput = input;
+  _npVal = input.value || '';
+  const overlay = document.getElementById('numpad-overlay');
+  const label   = document.getElementById('numpad-label');
+  const display = document.getElementById('numpad-display');
+  const campo   = input.dataset.campo;
+  const ojo     = input.dataset.ojo;
+  const LABELS  = { esf:'Esfera', cil:'Cilindro', add:'Adición' };
+  if (label)   label.textContent = `${ojo?.toUpperCase()} · ${LABELS[campo]||campo}`;
+  if (display) display.innerHTML = `<span class="${_npVal?'np-sign':''}">${_npVal||''}</span><span class="np-cursor"></span>`;
+  overlay.style.display = 'flex';
+  setTimeout(() => overlay.classList.add('np-visible'), 10);
+  _bindNumpad();
+}
+
+function _bindNumpad() {
+  const overlay = document.getElementById('numpad-overlay');
+  const display = document.getElementById('numpad-display');
+
+  const upd = () => {
+    if (display) display.innerHTML = `<span>${_npVal||''}</span><span class="np-cursor"></span>`;
+  };
+
+  document.querySelectorAll('.numpad-key[data-val]').forEach(btn => {
+    btn.onclick = () => {
+      if (btn.dataset.val === '.' && _npVal.includes('.')) return;
+      _npVal += btn.dataset.val; upd();
+    };
+  });
+  document.getElementById('numpad-sign').onclick = () => {
+    if (_npVal.startsWith('-')) _npVal = '+' + _npVal.slice(1);
+    else if (_npVal.startsWith('+')) _npVal = '-' + _npVal.slice(1);
+    else _npVal = '-' + _npVal;
+    upd();
+  };
+  document.getElementById('numpad-del').onclick   = () => { _npVal = _npVal.slice(0,-1); upd(); };
+  document.getElementById('numpad-clear').onclick = () => { _npVal = ''; upd(); };
+  document.getElementById('numpad-dot').onclick   = () => { if (!_npVal.includes('.')) { _npVal += '.'; upd(); } };
+  document.getElementById('numpad-ok').onclick    = () => { if (_npInput) _npInput.value = _npVal; _cerrarNumpad(); };
+  document.getElementById('numpad-close').onclick = _cerrarNumpad;
+  overlay.onclick = e => { if (e.target === overlay) _cerrarNumpad(); };
+
+  // Steps +/- 0.25
+  document.getElementById('numpad-step-minus').onclick = () => {
+    const n = (parseFloat(_npVal)||0) - 0.25;
+    _npVal = (n > 0 ? '+' : '') + n.toFixed(2); upd();
+  };
+  document.getElementById('numpad-step-plus').onclick = () => {
+    const n = (parseFloat(_npVal)||0) + 0.25;
+    _npVal = (n > 0 ? '+' : '') + n.toFixed(2); upd();
+  };
+}
+
+function _cerrarNumpad() {
+  const overlay = document.getElementById('numpad-overlay');
+  overlay.classList.remove('np-visible');
+  setTimeout(() => { overlay.style.display = 'none'; }, 280);
+  _npInput = null;
+}
+
+// ─── AUTOCOMPLETE CLIENTE EN NUEVO PEDIDO ─────────────────────
+function initClienteAutocompletePedido() {
+  const input = document.getElementById('cliente-search-input');
+  const chip  = document.getElementById('cliente-seleccionado');
+  if (input) input.value = '';
+  if (chip) chip.classList.add('hidden');
+  document.getElementById('campo-cliente-id') && (document.getElementById('campo-cliente-id').value = '');
+
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.autocomplete-wrap')) {
+      document.getElementById('cliente-suggestions')?.classList.add('hidden');
+    }
+  });
+}
+
+async function onClienteSearchInput(valor) {
+  const sugEl = document.getElementById('cliente-suggestions');
+  if (!sugEl) return;
+  document.getElementById('f-cliente').value = valor;
+  const q = valor.toLowerCase().trim();
+  if (q.length < 2) { sugEl.classList.add('hidden'); return; }
+
+  const { data } = await window.supabaseClient
+    .from('clientes').select('id, nombre, apellido, telefono')
+    .or(`nombre.ilike.%${q}%,apellido.ilike.%${q}%,telefono.ilike.%${q}%`)
+    .limit(6);
+
+  if (!data?.length) { sugEl.classList.add('hidden'); return; }
+
+  sugEl.innerHTML = data.map(c => `
+    <div class="sug-item" onclick="seleccionarClientePedido('${c.id}','${c.nombre} ${c.apellido}')">
+      <strong>${c.apellido}, ${c.nombre}</strong>
+      <span class="sug-tel">${c.telefono}</span>
+    </div>`).join('') +
+    `<div class="sug-item sug-nuevo" onclick="abrirFormCliente()">+ Crear cliente nuevo</div>`;
+  sugEl.classList.remove('hidden');
+}
+
+function seleccionarClientePedido(id, nombre) {
+  document.getElementById('f-cliente').value = nombre;
+  document.getElementById('campo-cliente-id').value = id;
+  document.getElementById('cliente-search-input').value = '';
+  document.getElementById('cliente-chip-nombre').textContent = nombre;
+  document.getElementById('cliente-seleccionado')?.classList.remove('hidden');
+  document.getElementById('cliente-suggestions')?.classList.add('hidden');
+}
+
+function limpiarClienteSeleccionado() {
+  document.getElementById('f-cliente').value = '';
+  document.getElementById('campo-cliente-id').value = '';
+  document.getElementById('cliente-search-input').value = '';
+  document.getElementById('cliente-seleccionado')?.classList.add('hidden');
 }
