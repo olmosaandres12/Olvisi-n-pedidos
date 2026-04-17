@@ -86,7 +86,12 @@ const App = (() => {
     if (name === 'inicio') {
       setTimeout(() => {
         if (typeof initClienteAutocompletePedido === 'function') initClienteAutocompletePedido();
-      }, 50);
+        // Siempre repoblar los campos del anteojo al entrar al form
+        if (typeof _poblarBloqueFields === 'function') {
+          const b1 = document.getElementById('bloque1-fields');
+          if (b1) { delete b1.dataset.poblado; _poblarBloqueFields('bloque1-fields', 1); }
+        }
+      }, 80);
     }
   }
 
