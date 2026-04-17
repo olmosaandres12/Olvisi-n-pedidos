@@ -265,75 +265,100 @@ async function abrirFormCliente(clienteId = null) {
 }
 
 function renderFormCliente(cliente = null) {
-  const titulo = cliente ? 'Editar cliente' : 'Nuevo cliente';
-  const v = (campo) => cliente ? (cliente[campo] || '') : '';
+  const esEdicion = !!cliente;
+  const v = (campo) => cliente ? (window.escHtml ? window.escHtml(cliente[campo] || '') : (cliente[campo] || '')) : '';
 
   const opcionesOS = agendaObrasSociales.map(os =>
-    `<option value="${os}" ${v('obra_social') === os ? 'selected' : ''}>${os}</option>`
+    `<option value="${os}" ${(cliente?.obra_social === os) ? 'selected' : ''}>${os}</option>`
   ).join('');
 
   return `
-    <div class="form-sheet-header">
-      <h2 class="form-sheet-title">${titulo}</h2>
-      <button class="ficha-close-btn" onclick="cerrarFormCliente()">✕</button>
+    <div class="detalle-header" style="padding:16px 18px 14px">
+      <span class="detalle-orden" style="font-size:1rem">
+        ${esEdicion ? `✏️ Editar cliente` : '👤 Nuevo cliente'}
+      </span>
+      <button class="btn-cerrar-x" onclick="cerrarFormCliente()">✕</button>
     </div>
 
-    <form id="form-cliente" onsubmit="guardarCliente(event)" autocomplete="off">
-      ${cliente ? `<input type="hidden" id="fc-id" value="${cliente.id}">` : ''}
+    <form id="form-cliente" onsubmit="guardarCliente(event)" autocomplete="off"
+          style="padding:0 18px 32px">
 
-      <div class="form-section-label">Datos obligatorios</div>
+      ${esEdicion ? `<input type="hidden" id="fc-id" value="${cliente.id}">` : ''}
 
-      <div class="form-group">
-        <label>Nombre *</label>
-        <input type="text" id="fc-nombre" value="${v('nombre')}" required placeholder="Nombre">
-      </div>
-      <div class="form-group">
-        <label>Apellido *</label>
-        <input type="text" id="fc-apellido" value="${v('apellido')}" required placeholder="Apellido">
-      </div>
-      <div class="form-group">
-        <label>Celular *</label>
-        <input type="tel" id="fc-telefono" value="${v('telefono')}" required placeholder="381 123 4567" inputmode="tel">
-      </div>
-
-      <div class="form-section-label">Datos opcionales</div>
-
-      <div class="form-group">
-        <label>Email</label>
-        <input type="email" id="fc-email" value="${v('email')}" placeholder="correo@ejemplo.com" inputmode="email">
-      </div>
-      <div class="form-group">
-        <label>DNI</label>
-        <input type="text" id="fc-dni" value="${v('dni')}" placeholder="00.000.000" inputmode="numeric">
-      </div>
-      <div class="form-group">
-        <label>Obra social</label>
-        <select id="fc-obra-social">
-          <option value="">Sin obra social</option>
-          ${opcionesOS}
-        </select>
-      </div>
-      <div class="form-group">
-        <label>Médico derivante</label>
-        <div class="autocomplete-wrapper">
-          <input type="text" id="fc-medico" value="${v('medico')}"
-                 placeholder="Nombre del médico" autocomplete="off"
-                 oninput="onMedicoInput(this.value)"
-                 onfocus="onMedicoInput(this.value)">
-          <div id="medico-suggestions" class="suggestions-dropdown hidden"></div>
+      <!-- Obligatorios -->
+      <div class="detalle-seccion">
+        <div class="detalle-seccion-title">Datos obligatorios</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label required">Nombre</label>
+            <input type="text" id="fc-nombre" class="form-control" value="${v('nombre')}"
+                   required placeholder="Nombre">
+            <div class="form-error" id="err-fc-nombre">Campo obligatorio</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label required">Apellido</label>
+            <input type="text" id="fc-apellido" class="form-control" value="${v('apellido')}"
+                   required placeholder="Apellido">
+            <div class="form-error" id="err-fc-apellido">Campo obligatorio</div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label required">Celular</label>
+          <input type="tel" id="fc-telefono" class="form-control" value="${v('telefono')}"
+                 required placeholder="381 123 4567" inputmode="tel">
+          <div class="form-error" id="err-fc-telefono">Campo obligatorio</div>
         </div>
       </div>
-      <div class="form-group">
-        <label>Observaciones</label>
-        <textarea id="fc-observaciones" rows="2" placeholder="Notas adicionales...">${v('observaciones')}</textarea>
+
+      <!-- Opcionales -->
+      <div class="detalle-seccion">
+        <div class="detalle-seccion-title">Datos opcionales</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">DNI</label>
+            <input type="text" id="fc-dni" class="form-control" value="${v('dni')}"
+                   placeholder="00.000.000" inputmode="numeric">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Email</label>
+            <input type="email" id="fc-email" class="form-control" value="${v('email')}"
+                   placeholder="correo@ejemplo.com" inputmode="email">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Obra social</label>
+          <select id="fc-obra-social" class="form-control">
+            <option value="">— Particular / Sin obra social —</option>
+            ${opcionesOS}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Médico derivante</label>
+          <div style="position:relative">
+            <input type="text" id="fc-medico" class="form-control" value="${v('medico')}"
+                   placeholder="Nombre del médico" autocomplete="off"
+                   oninput="onMedicoInput(this.value)"
+                   onfocus="onMedicoInput(this.value)">
+            <div id="medico-suggestions" class="sugerencias-dropdown hidden"></div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Observaciones</label>
+          <textarea id="fc-observaciones" class="form-control" rows="2"
+                    placeholder="Alergias, preferencias, notas..."
+                    style="resize:vertical;font-size:1rem">${v('observaciones')}</textarea>
+        </div>
       </div>
 
-      <div class="form-actions">
-        <button type="button" class="btn-secondary" onclick="cerrarFormCliente()">Cancelar</button>
-        <button type="submit" class="btn-primary">
-          ${cliente ? 'Guardar cambios' : 'Crear cliente'}
+      <!-- Acciones -->
+      <div style="display:flex;gap:10px;margin-top:8px">
+        <button type="button" class="btn btn-secondary" style="flex:1"
+                onclick="cerrarFormCliente()">Cancelar</button>
+        <button type="submit" class="btn btn-primary" style="flex:2" id="btn-guardar-cliente">
+          ${esEdicion ? 'Guardar cambios' : '+ Crear cliente'}
         </button>
       </div>
+
     </form>`;
 }
 
@@ -376,7 +401,7 @@ function onMedicoInput(valor) {
 
 function renderMedicoSuggestions(lista, sugEl) {
   sugEl.innerHTML = lista.map(m =>
-    `<div class="suggestion-item" onclick="seleccionarMedico('${m.replace(/'/g, "\\'")}')">Dr. ${m}</div>`
+    `<div class="sug-item" onclick="seleccionarMedico('${m.replace(/'/g, "\\'")}')">Dr. ${m}</div>`
   ).join('');
   sugEl.classList.remove('hidden');
 }
@@ -406,9 +431,8 @@ async function guardarCliente(e) {
     observaciones:document.getElementById('fc-observaciones').value.trim() || null,
   };
 
-  const btn = document.querySelector('#form-cliente [type="submit"]');
-  btn.disabled = true;
-  btn.textContent = 'Guardando...';
+  const btn = document.getElementById('btn-guardar-cliente');
+  if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
 
   let error;
   if (clienteId) {
@@ -419,8 +443,7 @@ async function guardarCliente(e) {
 
   if (error) {
     showToast('Error al guardar el cliente.', 'error');
-    btn.disabled = false;
-    btn.textContent = clienteId ? 'Guardar cambios' : 'Crear cliente';
+    if (btn) { btn.disabled = false; btn.textContent = clienteId ? 'Guardar cambios' : '+ Crear cliente'; }
     return;
   }
 
