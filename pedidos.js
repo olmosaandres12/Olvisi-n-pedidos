@@ -674,40 +674,89 @@ function _cerrarNumpad() {
 }
 
 // ─── AUTOCOMPLETE CLIENTE EN NUEVO PEDIDO ─────────────────────
+let _clienteSearchTimeout = null;
+
 function initClienteAutocompletePedido() {
-  const input = document.getElementById('cliente-search-input');
-  if (input) input.value = '';
+  document.getElementById('f-cliente') && (document.getElementById('f-cliente').value = '');
   document.getElementById('cliente-seleccionado')?.classList.add('hidden');
-  const idEl = document.getElementById('campo-cliente-id');
-  if (idEl) idEl.value = '';
+  document.getElementById('campo-cliente-id') && (document.getElementById('campo-cliente-id').value = '');
+  document.getElementById('cliente-suggestions')?.classList.add('hidden');
+
+  // Cerrar dropdown al tocar fuera
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.autocomplete-wrap') && !e.target.closest('.cliente-chip')) {
+      document.getElementById('cliente-suggestions')?.classList.add('hidden');
+    }
+  });
 }
 
-async function onClienteSearchInput(valor) {
-  const sugEl = document.getElementById('cliente-suggestions');
-  const fCliente = document.getElementById('f-cliente');
-  if (fCliente) fCliente.value = valor;
+async function onClienteInput(valor) {
+  const sugEl    = document.getElementById('cliente-suggestions');
+  const chipEl   = document.getElementById('cliente-seleccionado');
+  const idEl     = document.getElementById('campo-cliente-id');
   if (!sugEl) return;
-  const q = valor.toLowerCase().trim();
+
+  // Si hay cliente seleccionado y el usuario borra, limpiar la selección
+  if (idEl?.value && valor !== document.getElementById('cliente-chip-nombre')?.textContent) {
+    idEl.value = '';
+    chipEl?.classList.add('hidden');
+  }
+
+  const q = valor.trim();
   if (q.length < 2) { sugEl.classList.add('hidden'); return; }
 
-  const { data } = await window.supabaseClient
-    .from('clientes').select('id,nombre,apellido,telefono')
-    .or(`nombre.ilike.%${q}%,apellido.ilike.%${q}%,telefono.ilike.%${q}%`)
-    .limit(6);
+  // Debounce para no buscar en cada tecla
+  clearTimeout(_clienteSearchTimeout);
+  _clienteSearchTimeout = setTimeout(async () => {
+    const qLow = q.toLowerCase();
+    const { data } = await window.supabaseClient
+      .from('clientes')
+      .select('id, nombre, apellido, telefono, dni, obra_social')
+      .or(`nombre.ilike.%${qLow}%,apellido.ilike.%${qLow}%,telefono.ilike.%${qLow}%,dni.ilike.%${qLow}%`)
+      .order('apellido')
+      .limit(6);
 
-  if (!data?.length) { sugEl.classList.add('hidden'); return; }
-  sugEl.innerHTML = data.map(c => `
-    <div class="sug-item" onclick="seleccionarClientePedido('${c.id}','${c.nombre} ${c.apellido}')">
-      <strong>${c.apellido}, ${c.nombre}</strong><span class="sug-tel">${c.telefono}</span>
-    </div>`).join('') + `<div class="sug-item sug-nuevo" onclick="abrirFormCliente()">+ Crear cliente nuevo</div>`;
-  sugEl.classList.remove('hidden');
+    if (!data?.length) {
+      sugEl.innerHTML = `<div class="sug-item sug-nuevo" onclick="abrirFormCliente()">
+        + Crear cliente "<strong>${q}</strong>"
+      </div>`;
+      sugEl.classList.remove('hidden');
+      return;
+    }
+
+    sugEl.innerHTML = data.map(cl => {
+      // Resaltar qué campo matcheó
+      const detalle = cl.telefono ? `📱 ${cl.telefono}` : '';
+      const os = cl.obra_social ? ` · ${cl.obra_social}` : '';
+      return `<div class="sug-item" onclick="seleccionarClientePedido('${cl.id}','${cl.apellido}, ${cl.nombre}','${cl.telefono||''}','${cl.obra_social||''}')">
+        <div>
+          <div style="font-weight:600">${cl.apellido}, ${cl.nombre}</div>
+          <div style="font-size:.78rem;color:var(--gris-texto);margin-top:2px">${detalle}${os}</div>
+        </div>
+      </div>`;
+    }).join('') + `<div class="sug-item sug-nuevo" onclick="abrirFormCliente()">+ Crear cliente nuevo</div>`;
+
+    sugEl.classList.remove('hidden');
+  }, 250);
 }
 
-function seleccionarClientePedido(id, nombre) {
-  document.getElementById('f-cliente').value = nombre;
+function seleccionarClientePedido(id, nombre, telefono, obraSocial) {
+  // Llenar el campo con el nombre
+  const inputEl = document.getElementById('f-cliente');
+  if (inputEl) inputEl.value = nombre;
+
+  // Guardar ID oculto
   document.getElementById('campo-cliente-id').value = id;
-  document.getElementById('cliente-search-input').value = '';
+
+  // Mostrar chip con detalles
   document.getElementById('cliente-chip-nombre').textContent = nombre;
+  const detalleEl = document.getElementById('cliente-chip-detalle');
+  if (detalleEl) {
+    const partes = [];
+    if (telefono) partes.push('📱 ' + telefono);
+    if (obraSocial) partes.push(obraSocial);
+    detalleEl.textContent = partes.join(' · ');
+  }
   document.getElementById('cliente-seleccionado')?.classList.remove('hidden');
   document.getElementById('cliente-suggestions')?.classList.add('hidden');
 }
@@ -715,6 +764,8 @@ function seleccionarClientePedido(id, nombre) {
 function limpiarClienteSeleccionado() {
   document.getElementById('f-cliente') && (document.getElementById('f-cliente').value = '');
   document.getElementById('campo-cliente-id') && (document.getElementById('campo-cliente-id').value = '');
-  document.getElementById('cliente-search-input') && (document.getElementById('cliente-search-input').value = '');
   document.getElementById('cliente-seleccionado')?.classList.add('hidden');
+  document.getElementById('cliente-suggestions')?.classList.add('hidden');
+  // Devolver foco al input
+  document.getElementById('f-cliente')?.focus();
 }
