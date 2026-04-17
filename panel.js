@@ -122,23 +122,18 @@ const Panel = (() => {
     _labMesActual = new Date();
 
     const overlay = document.getElementById('lab-detalle-overlay');
-    const sheet   = document.getElementById('lab-detalle-sheet');
-    if (!overlay || !sheet) return;
+    if (!overlay) return;
+
+    // Evitar que el click en el sheet cierre el overlay
+    const sheet = overlay.querySelector('.detalle-sheet');
+    if (sheet) sheet.onclick = e => e.stopPropagation();
 
     overlay.classList.remove('hidden');
-    sheet.classList.remove('hidden');
-    requestAnimationFrame(() => sheet.classList.add('sheet-open'));
-
     renderLabDetalle();
   }
 
   function cerrarLabDetalle() {
-    const sheet = document.getElementById('lab-detalle-sheet');
-    sheet?.classList.remove('sheet-open');
-    setTimeout(() => {
-      sheet?.classList.add('hidden');
-      document.getElementById('lab-detalle-overlay')?.classList.add('hidden');
-    }, 280);
+    document.getElementById('lab-detalle-overlay')?.classList.add('hidden');
   }
 
   function renderLabDetalle() {
