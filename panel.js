@@ -516,5 +516,6 @@ const Panel = (() => {
 
   return { render, contarCriticos, irAPedidos, irAPedidosDemorados, irAPedidosCriticos, irAPedidosUrgentes,
            abrirExportador, cerrarExportador, generarPDF,
+           renderLabCards,
            abrirLabDetalle, cerrarLabDetalle, labMesAnterior, labMesSiguiente };
 })();
