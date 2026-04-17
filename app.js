@@ -305,7 +305,7 @@ const App = (() => {
       document.getElementById('nav-config').classList.remove('hidden');
     }
 
-    document.getElementById('f-fecha-carga').value = todayStr();
+    const fechaEl = document.getElementById('f-fecha-carga'); if (fechaEl) fechaEl.value = todayStr();
     document.getElementById('toggle-dos-anteojos').addEventListener('change', (e) => {
       document.getElementById('bloque-anteojo2').classList.toggle('hidden', !e.target.checked);
       document.getElementById('bloque1-title').textContent = e.target.checked ? 'Anteojo A' : 'Anteojo';
