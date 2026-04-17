@@ -338,6 +338,7 @@ const App = (() => {
 
     // Inicializar agenda
     if (typeof initAgenda === 'function') initAgenda();
+    initClienteSearch();
 
     const overlay = document.getElementById('loading-overlay');
     overlay.classList.add('fade-out');
@@ -483,6 +484,7 @@ const App = (() => {
     if (name==='panel')       refreshPanel();
     if (name==='config')      loadConfigScreen();
     if (name==='agenda' && typeof loadClientes === 'function') loadClientes();
+    if (name==='inicio') { setTimeout(_cargarObrasSocialesForm, 50); }
     const fab=document.getElementById('fab-nuevo-pedido');
     if (fab) fab.style.display=(name==='inicio'||name==='agenda')?'none':'flex';
   }
@@ -1158,13 +1160,20 @@ const App = (() => {
     const g=id=>document.getElementById(id)?.value.trim()??'';
     const doble=document.getElementById('toggle-dos-anteojos').checked;
     const antData=(n)=>({laboratorio:g(`f-lab${n}`),tipo_lente:g(`f-lente${n}`),tratamiento:g(`f-tratamiento${n}`),graduacion:getGraduacion(n),dos_etapas:g(`f-etapas${n}`),...getArmazonData(n),observaciones:document.getElementById(`f-obs${n}`)?.value.trim()||null});
-    return {doble,base:{cliente:g('f-cliente'),orden:g('f-orden'),urgente:g('f-urgente'),tipo:g('f-tipo'),fecha_carga:g('f-fecha-carga')||todayStr()},ant1:antData(1),ant2:doble?antData(2):null};
+    return {doble,base:{
+      cliente:g('f-cliente'),orden:g('f-orden'),urgente:g('f-urgente'),tipo:g('f-tipo'),
+      fecha_carga:g('f-fecha-carga')||todayStr(),
+      celular:g('f-cliente-cel'), dni:g('f-cliente-dni'),
+      obra_social:g('f-cliente-os'),
+      cliente_id:document.getElementById('campo-cliente-id')?.value||null,
+    },ant1:antData(1),ant2:doble?antData(2):null};
   }
 
   function validateForm(data) {
     let valid=true;
     const check=(fId,eId,cond)=>{const f=document.getElementById(fId),e=document.getElementById(eId);if(!f||!e)return;f.classList.toggle('error',cond);e.classList.toggle('visible',cond);if(cond)valid=false;};
     check('f-cliente','err-cliente',!data.base.cliente); check('f-orden','err-orden',!data.base.orden);
+    check('f-cliente-cel','err-cliente-cel',!data.base.celular);
     check('f-urgente','err-urgente',!data.base.urgente); check('f-tipo','err-tipo',!data.base.tipo);
     check('f-lab1','err-lab1',!data.ant1.laboratorio);   check('f-lente1','err-lente1',!data.ant1.tipo_lente);
     if(data.doble){check('f-lab2','err-lab2',!data.ant2.laboratorio);check('f-lente2','err-lente2',!data.ant2.tipo_lente);}
@@ -1196,7 +1205,20 @@ const App = (() => {
     btn.classList.add('btn-loading'); btn.disabled=true;
     try {
       const nombre=Auth.getNombre(), fechaISO=new Date(data.base.fecha_carga+'T12:00:00').toISOString();
-      const clienteId = document.getElementById('campo-cliente-id')?.value || null;
+      // Si no hay cliente_id, crear cliente nuevo en la agenda
+      let clienteId = data.base.cliente_id;
+      if (!clienteId && data.base.cliente) {
+        try {
+          const { data: nuevo } = await window.supabaseClient.from('clientes').insert([{
+            nombre:      data.base.cliente.includes(',') ? data.base.cliente.split(',')[1].trim() : data.base.cliente,
+            apellido:    data.base.cliente.includes(',') ? data.base.cliente.split(',')[0].trim() : '',
+            telefono:    data.base.celular || '—',
+            dni:         data.base.dni || null,
+            obra_social: data.base.obra_social || null,
+          }]).select('id').single();
+          if (nuevo) clienteId = nuevo.id;
+        } catch(e) { console.warn('No se pudo crear cliente:', e); }
+      }
       const buildRow=(ant,sufijo)=>({
         cliente:data.base.cliente, cliente_id:clienteId,
         orden:data.base.orden, sufijo,
@@ -1226,8 +1248,13 @@ const App = (() => {
     [1,2].forEach(n=>{ try{setDistancia(n,'lejos');}catch{} document.getElementById(`f-armazon-nuevo${n}`)?.classList.add('hidden'); document.getElementById(`f-armazon-cliente${n}`)?.classList.add('hidden'); });
     _pendingGuardar=null;
     // Limpiar cliente vinculado
-    document.getElementById('campo-cliente-id') && (document.getElementById('campo-cliente-id').value='');
-    document.getElementById('cliente-seleccionado')?.classList.add('hidden');
+    if (typeof limpiarClienteForm === 'function') limpiarClienteForm();
+    else {
+      document.getElementById('campo-cliente-id') && (document.getElementById('campo-cliente-id').value='');
+      document.getElementById('cliente-seleccionado')?.classList.add('hidden');
+    }
+    ['f-cliente-cel','f-cliente-dni'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+    const selOs=document.getElementById('f-cliente-os'); if(selOs) selOs.value='';
   }
 
   function closeModal() { document.getElementById('confirm-modal').classList.add('hidden'); _pendingGuardar=null; }
@@ -1251,11 +1278,30 @@ const App = (() => {
 
   // ── CLIENTE AUTOCOMPLETE (agenda) ─────────────────
   let _clienteSearchTimer = null;
+  let _obrasSocialesCache = [];
+  let _clientesSugData = [];
+
+  async function _cargarObrasSocialesForm() {
+    if (_obrasSocialesCache.length) { _poblarSelectOS(); return; }
+    const { data } = await window.supabaseClient
+      .from('configuracion').select('valor').eq('tipo','obra_social').order('orden');
+    _obrasSocialesCache = data ? data.map(d => d.valor) : [];
+    _poblarSelectOS();
+  }
+
+  function _poblarSelectOS() {
+    const sel = document.getElementById('f-cliente-os');
+    if (!sel) return;
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">— Particular / Sin obra social —</option>' +
+      _obrasSocialesCache.map(os => `<option value="${esc(os)}">${esc(os)}</option>`).join('');
+    if (cur) sel.value = cur;
+  }
 
   function initClienteSearch() {
-    // Cerrar dropdown al tocar fuera
+    _cargarObrasSocialesForm();
     document.addEventListener('click', e => {
-      if (!e.target.closest('#f-cliente') && !e.target.closest('#cliente-suggestions')) {
+      if (!e.target.closest('.autocomplete-wrap') && !e.target.closest('#cliente-seleccionado')) {
         document.getElementById('cliente-suggestions')?.classList.add('hidden');
       }
     });
@@ -1264,51 +1310,67 @@ const App = (() => {
   async function onClienteInput(valor) {
     const sugEl = document.getElementById('cliente-suggestions');
     if (!sugEl) return;
-
-    // Si borra el nombre, quitar cliente vinculado
     const idEl = document.getElementById('campo-cliente-id');
-    if (idEl?.value) { idEl.value = ''; document.getElementById('cliente-seleccionado')?.classList.add('hidden'); }
-
+    if (idEl?.value) {
+      idEl.value = '';
+      document.getElementById('cliente-seleccionado')?.classList.add('hidden');
+    }
     clearTimeout(_clienteSearchTimer);
     if (valor.trim().length < 2) { sugEl.classList.add('hidden'); return; }
-
     _clienteSearchTimer = setTimeout(async () => {
       const q = valor.trim().toLowerCase();
       const { data } = await window.supabaseClient
-        .from('clientes')
-        .select('id, nombre, apellido, telefono, dni, obra_social')
+        .from('clientes').select('id,nombre,apellido,telefono,dni,obra_social')
         .or(`nombre.ilike.%${q}%,apellido.ilike.%${q}%,telefono.ilike.%${q}%,dni.ilike.%${q}%`)
         .order('apellido').limit(6);
-
-      if (!data?.length) {
+      _clientesSugData = data || [];
+      if (!_clientesSugData.length) {
         sugEl.innerHTML = `<div class="sug-item sug-nuevo" onclick="App.crearClienteDesdeNuevo()">+ Crear cliente nuevo</div>`;
         sugEl.classList.remove('hidden'); return;
       }
-
-      sugEl.innerHTML = data.map(cl => {
-        const det = [cl.telefono ? `📱 ${cl.telefono}` : '', cl.obra_social || ''].filter(Boolean).join(' · ');
-        return `<div class="sug-item" onclick="App.seleccionarCliente('${cl.id}','${esc(cl.apellido)}, ${esc(cl.nombre)}','${cl.telefono||''}','${cl.obra_social||''}')">
-          <div><div style="font-weight:600">${esc(cl.apellido)}, ${esc(cl.nombre)}</div>${det?`<div style="font-size:.78rem;color:var(--gris-texto);margin-top:2px">${det}</div>`:''}</div>
+      sugEl.innerHTML = _clientesSugData.map(cl => {
+        const det = [cl.telefono?`📱 ${cl.telefono}`:'', cl.obra_social||''].filter(Boolean).join(' · ');
+        return `<div class="sug-item" onclick="App.seleccionarCliente(${cl.id})">
+          <div><div style="font-weight:600">${esc(cl.apellido)}, ${esc(cl.nombre)}</div>
+          ${det?`<div style="font-size:.78rem;color:var(--gris-texto);margin-top:2px">${det}</div>`:''}</div>
         </div>`;
       }).join('') + `<div class="sug-item sug-nuevo" onclick="App.crearClienteDesdeNuevo()">+ Crear cliente nuevo</div>`;
       sugEl.classList.remove('hidden');
     }, 280);
   }
 
-  function seleccionarCliente(id, nombre, telefono, obraSocial) {
+  function seleccionarCliente(id) {
+    const cl = _clientesSugData.find(x => x.id === id);
+    if (!cl) return;
+    const nombre = `${cl.apellido}, ${cl.nombre}`;
     document.getElementById('f-cliente').value = nombre;
-    document.getElementById('campo-cliente-id').value = id;
+    document.getElementById('campo-cliente-id').value = cl.id;
+    if (cl.telefono) document.getElementById('f-cliente-cel') && (document.getElementById('f-cliente-cel').value = cl.telefono);
+    if (cl.dni)      document.getElementById('f-cliente-dni') && (document.getElementById('f-cliente-dni').value = cl.dni);
+    if (cl.obra_social) { const sel=document.getElementById('f-cliente-os'); if(sel) sel.value=cl.obra_social; }
     document.getElementById('cliente-chip-nombre').textContent = nombre;
     const det = document.getElementById('cliente-chip-detalle');
-    if (det) det.textContent = [telefono ? '📱 '+telefono : '', obraSocial].filter(Boolean).join(' · ');
+    if (det) det.textContent = [cl.telefono?'📱 '+cl.telefono:'', cl.obra_social].filter(Boolean).join(' · ');
     document.getElementById('cliente-seleccionado')?.classList.remove('hidden');
     document.getElementById('cliente-suggestions')?.classList.add('hidden');
+  }
+
+  function limpiarClienteForm() {
+    ['f-cliente','f-cliente-cel','f-cliente-dni'].forEach(id => {
+      const el = document.getElementById(id); if(el) el.value='';
+    });
+    document.getElementById('campo-cliente-id').value = '';
+    const sel = document.getElementById('f-cliente-os'); if(sel) sel.value='';
+    document.getElementById('cliente-seleccionado')?.classList.add('hidden');
+    document.getElementById('cliente-suggestions')?.classList.add('hidden');
+    document.getElementById('f-cliente')?.focus();
   }
 
   function crearClienteDesdeNuevo() {
     document.getElementById('cliente-suggestions')?.classList.add('hidden');
     if (typeof abrirFormCliente === 'function') abrirFormCliente();
   }
+
 
   // ── UTILS ─────────────────────────────────────────
   function todayStr() { return new Date().toISOString().slice(0,10); }
@@ -1337,7 +1399,7 @@ const App = (() => {
     guardarEdicion, eliminarPedido, activarNotificaciones,
     togglePedidoRow, mesPrev, mesNext,
     _abrirDetalleRapido,
-    onClienteInput, seleccionarCliente, crearClienteDesdeNuevo,
+    onClienteInput, seleccionarCliente, crearClienteDesdeNuevo, limpiarClienteForm,
     initClienteSearch,
   };
 })();
