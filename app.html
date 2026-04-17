@@ -532,9 +532,10 @@
 </div>
 
 <!-- Sheet: Detalle laboratorio -->
-<div id="lab-detalle-overlay" class="detalle-overlay hidden" onclick="Panel.cerrarLabDetalle()"></div>
-<div id="lab-detalle-sheet" class="detalle-sheet hidden" style="max-height:92dvh">
-  <div id="lab-detalle-content"></div>
+<div id="lab-detalle-overlay" class="detalle-overlay hidden" onclick="Panel.cerrarLabDetalle()">
+  <div id="lab-detalle-sheet" class="detalle-sheet" style="max-height:92dvh;overflow-y:auto">
+    <div id="lab-detalle-content"></div>
+  </div>
 </div>
 
 <script src="config.js"></script>
