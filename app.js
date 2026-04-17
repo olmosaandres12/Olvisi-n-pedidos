@@ -569,6 +569,7 @@ const App = (() => {
       renderSegPanel('seg-content-lab',     enLab.sort(sortPorPrioridad),   true);
       renderSegPanel('seg-content-retirar', retirar.sort(sortPorPrioridad), false);
       updateBadge();
+      if (typeof Panel !== 'undefined') Panel.renderLabCards(todos, 'seg-labs-cards');
       const criticos=todos.filter(p=>p._est.valor==='critico');
       const demorados=todos.filter(p=>p._est.valor==='demorado');
       if (criticos.length>0)  enviarNotificacion('🔴 Pedidos críticos — OLVISIÓN',`${criticos.length} pedido${criticos.length>1?'s':''} superó el tiempo límite`,true);
