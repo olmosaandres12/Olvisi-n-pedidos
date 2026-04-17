@@ -150,6 +150,12 @@
     .cliente-chip { display:flex;align-items:center;gap:8px;background:var(--azul-light);border:1.5px solid #BFD4F5;border-radius:8px;padding:7px 12px;font-size:.85rem;color:var(--azul);font-weight:600;margin-top:6px; }
     .chip-clear { background:none;border:none;color:var(--azul);font-size:.95rem;cursor:pointer;opacity:.6;padding:0; }
 
+    /* Lab cards */
+    .dash-labs-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; margin-bottom:20px; }
+    @media(min-width:768px){ .dash-labs-grid{ grid-template-columns:repeat(3,1fr); } }
+    .dash-lab-card { border-radius:16px; padding:16px; cursor:pointer; transition:transform .15s,box-shadow .15s; color:#fff; }
+    .dash-lab-card:active { transform:scale(.97); }
+
     @keyframes fadeIn   { from{opacity:0} to{opacity:1} }
     @keyframes slideSheet { from{transform:translateY(60px);opacity:0} to{transform:translateY(0);opacity:1} }
   </style>
@@ -182,6 +188,9 @@
       <div class="section-header">
         <div><h1 class="section-title">Estado</h1><p class="section-subtitle">Pedidos activos en laboratorio</p></div>
       </div>
+      <!-- Cards por laboratorio -->
+      <div class="dash-labs-grid" id="seg-labs-cards" style="padding:0 0 4px"></div>
+
       <div class="seg-tabs">
         <button class="seg-tab active" data-tab="lab" onclick="App.switchSegTab('lab')">
           En laboratorio <span class="seg-tab-count" id="seg-count-lab">0</span>
@@ -520,6 +529,12 @@
 <div id="cliente-form-sheet" class="cliente-sheet">
   <div class="ficha-drag"></div>
   <div id="cliente-form-content"></div>
+</div>
+
+<!-- Sheet: Detalle laboratorio -->
+<div id="lab-detalle-overlay" class="detalle-overlay hidden" onclick="Panel.cerrarLabDetalle()"></div>
+<div id="lab-detalle-sheet" class="detalle-sheet hidden" style="max-height:92dvh">
+  <div id="lab-detalle-content"></div>
 </div>
 
 <script src="config.js"></script>
