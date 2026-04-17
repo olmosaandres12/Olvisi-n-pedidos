@@ -474,7 +474,7 @@ function initClienteAutocompletePedido() {
   input.value = '';
   if (chip) chip.classList.add('hidden');
   if (campo) campo.value = '';
-  document.getElementById('campo-cliente-id').value = '';
+  const _cid = document.getElementById('campo-cliente-id'); if (_cid) _cid.value = '';
 
   document.addEventListener('click', (e) => {
     if (!e.target.closest('.cliente-search-wrapper')) {
@@ -520,7 +520,7 @@ function seleccionarClientePedido(clienteId) {
   _clienteSeleccionadoId = clienteId;
 
   const nombreCompleto = `${cliente.nombre} ${cliente.apellido}`;
-  document.getElementById('cliente-search-input').value = '';
+  const _csi = document.getElementById('cliente-search-input'); if (_csi) _csi.value = '';
   document.getElementById('campo-cliente').value = nombreCompleto;
   document.getElementById('campo-cliente-id').value = clienteId;
 
@@ -533,9 +533,9 @@ function seleccionarClientePedido(clienteId) {
 
 function limpiarClienteSeleccionado() {
   _clienteSeleccionadoId = null;
-  document.getElementById('campo-cliente-id').value = '';
+  const _cid = document.getElementById('campo-cliente-id'); if (_cid) _cid.value = '';
   document.getElementById('campo-cliente').value = '';
-  document.getElementById('cliente-search-input').value = '';
+  const _csi = document.getElementById('cliente-search-input'); if (_csi) _csi.value = '';
   document.getElementById('cliente-seleccionado').classList.add('hidden');
 }
 
