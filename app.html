@@ -207,26 +207,27 @@
       <form id="form-nuevo-pedido" novalidate>
         <div class="form-section">
           <div class="form-section-title">Cliente</div>
-          <!-- Buscador de cliente agenda -->
           <div class="form-group">
-            <label class="form-label">Buscar cliente existente</label>
+            <label class="form-label required">Nombre, DNI o celular</label>
             <div class="autocomplete-wrap">
-              <input type="text" id="cliente-search-input" class="form-control"
-                     placeholder="Nombre, apellido o teléfono…"
-                     oninput="onClienteSearchInput(this.value)" autocomplete="off">
+              <input type="text" id="f-cliente" class="form-control"
+                     placeholder="Escribí para buscar o ingresar nuevo…"
+                     oninput="onClienteInput(this.value)"
+                     onfocus="onClienteInput(this.value)"
+                     autocomplete="off">
               <div id="cliente-suggestions" class="sugerencias-dropdown hidden"></div>
             </div>
-            <div id="cliente-seleccionado" class="cliente-chip hidden">
-              <span id="cliente-chip-nombre"></span>
-              <button type="button" class="chip-clear" onclick="limpiarClienteSeleccionado()">✕</button>
-            </div>
-            <input type="hidden" id="campo-cliente-id">
-          </div>
-          <div class="form-group">
-            <label class="form-label required" for="f-cliente">Nombre del cliente</label>
-            <input type="text" id="f-cliente" class="form-control" placeholder="Apellido, Nombre" autocomplete="off">
             <div class="form-error" id="err-cliente">Campo obligatorio</div>
           </div>
+          <!-- Chip cliente existente seleccionado -->
+          <div id="cliente-seleccionado" class="cliente-chip hidden">
+            <div style="flex:1;min-width:0">
+              <div id="cliente-chip-nombre" style="font-weight:600"></div>
+              <div id="cliente-chip-detalle" style="font-size:.78rem;opacity:.75;margin-top:1px"></div>
+            </div>
+            <button type="button" class="chip-clear" onclick="limpiarClienteSeleccionado()">✕</button>
+          </div>
+          <input type="hidden" id="campo-cliente-id">
           <div class="form-row">
             <div class="form-group">
               <label class="form-label required" for="f-orden">N° de orden</label>
