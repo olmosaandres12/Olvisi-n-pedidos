@@ -9,9 +9,16 @@ let agendaInicializada = false;
 
 // ─── INIT ────────────────────────────────────────────────────
 async function initAgenda() {
-  await Promise.all([loadObrasSocialesAgenda(), loadMedicosUnicos()]);
+  await Promise.all([loadObrasSocialesAgenda(), loadMedicosUnicos(), loadLabsAgenda()]);
   await loadClientes();
   agendaInicializada = true;
+}
+
+async function loadLabsAgenda() {
+  const { data } = await window.supabaseClient
+    .from('configuracion').select('valor')
+    .eq('tipo', 'laboratorio').order('orden');
+  window._agendaLabs = data ? data.map(d => d.valor) : [];
 }
 
 // ─── DATA ─────────────────────────────────────────────────────
@@ -266,16 +273,26 @@ async function abrirFormCliente(clienteId = null) {
 
 function renderFormCliente(cliente = null) {
   const esEdicion = !!cliente;
-  const v = (campo) => cliente ? (window.escHtml ? window.escHtml(cliente[campo] || '') : (cliente[campo] || '')) : '';
+  const esc2 = (s) => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const v = (campo) => esc2(cliente?.[campo] || '');
+
+  // Nombre completo combinado
+  const nombreCompleto = cliente
+    ? esc2([cliente.nombre, cliente.apellido].filter(Boolean).join(' '))
+    : '';
 
   const opcionesOS = agendaObrasSociales.map(os =>
-    `<option value="${os}" ${(cliente?.obra_social === os) ? 'selected' : ''}>${os}</option>`
+    `<option value="${esc2(os)}" ${(cliente?.obra_social === os) ? 'selected' : ''}>${esc2(os)}</option>`
   ).join('');
+
+  // Laboratorios y tipos de lente para el bloque pedido
+  const labsCache = window._agendaLabs || [];
+  const labOpts = labsCache.map(l => `<option value="${esc2(l)}">${esc2(l)}</option>`).join('');
 
   return `
     <div class="detalle-header" style="padding:16px 18px 14px">
       <span class="detalle-orden" style="font-size:1rem">
-        ${esEdicion ? `✏️ Editar cliente` : '👤 Nuevo cliente'}
+        ${esEdicion ? '✏️ Editar cliente' : '👤 Nuevo cliente'}
       </span>
       <button class="btn-cerrar-x" onclick="cerrarFormCliente()">✕</button>
     </div>
@@ -285,39 +302,39 @@ function renderFormCliente(cliente = null) {
 
       ${esEdicion ? `<input type="hidden" id="fc-id" value="${cliente.id}">` : ''}
 
-      <!-- Obligatorios -->
+      <!-- ── Contacto ─────────────────────────────── -->
       <div class="detalle-seccion">
-        <div class="detalle-seccion-title">Datos obligatorios</div>
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label required">Nombre</label>
-            <input type="text" id="fc-nombre" class="form-control" value="${v('nombre')}"
-                   required placeholder="Nombre">
-            <div class="form-error" id="err-fc-nombre">Campo obligatorio</div>
-          </div>
-          <div class="form-group">
-            <label class="form-label required">Apellido</label>
-            <input type="text" id="fc-apellido" class="form-control" value="${v('apellido')}"
-                   required placeholder="Apellido">
-            <div class="form-error" id="err-fc-apellido">Campo obligatorio</div>
-          </div>
-        </div>
-        <div class="form-group">
-          <label class="form-label required">Celular</label>
-          <input type="tel" id="fc-telefono" class="form-control" value="${v('telefono')}"
-                 required placeholder="381 123 4567" inputmode="tel">
-          <div class="form-error" id="err-fc-telefono">Campo obligatorio</div>
-        </div>
-      </div>
+        <div class="detalle-seccion-title">Datos del cliente</div>
 
-      <!-- Opcionales -->
-      <div class="detalle-seccion">
-        <div class="detalle-seccion-title">Datos opcionales</div>
+        <div class="form-group">
+          <label class="form-label required">Nombre completo</label>
+          <input type="text" id="fc-nombre-completo" class="form-control"
+                 value="${nombreCompleto}" required
+                 placeholder="Ej: Juan García">
+          <div class="form-error" id="err-fc-nombre">Campo obligatorio</div>
+        </div>
+
         <div class="form-row">
+          <div class="form-group">
+            <label class="form-label required">Celular</label>
+            <input type="tel" id="fc-telefono" class="form-control" value="${v('telefono')}"
+                   required placeholder="381 123 4567" inputmode="tel">
+            <div class="form-error" id="err-fc-telefono">Campo obligatorio</div>
+          </div>
           <div class="form-group">
             <label class="form-label">DNI</label>
             <input type="text" id="fc-dni" class="form-control" value="${v('dni')}"
                    placeholder="00.000.000" inputmode="numeric">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Obra social</label>
+            <select id="fc-obra-social" class="form-control">
+              <option value="">— Particular —</option>
+              ${opcionesOS}
+            </select>
           </div>
           <div class="form-group">
             <label class="form-label">Email</label>
@@ -325,13 +342,7 @@ function renderFormCliente(cliente = null) {
                    placeholder="correo@ejemplo.com" inputmode="email">
           </div>
         </div>
-        <div class="form-group">
-          <label class="form-label">Obra social</label>
-          <select id="fc-obra-social" class="form-control">
-            <option value="">— Particular / Sin obra social —</option>
-            ${opcionesOS}
-          </select>
-        </div>
+
         <div class="form-group">
           <label class="form-label">Médico derivante</label>
           <div style="position:relative">
@@ -342,6 +353,7 @@ function renderFormCliente(cliente = null) {
             <div id="medico-suggestions" class="sugerencias-dropdown hidden"></div>
           </div>
         </div>
+
         <div class="form-group">
           <label class="form-label">Observaciones</label>
           <textarea id="fc-observaciones" class="form-control" rows="2"
@@ -350,7 +362,91 @@ function renderFormCliente(cliente = null) {
         </div>
       </div>
 
-      <!-- Acciones -->
+      <!-- ── Pedido histórico (solo en nuevo cliente) ── -->
+      ${!esEdicion ? `
+      <div class="detalle-seccion">
+        <div class="detalle-seccion-title" style="cursor:pointer;user-select:none"
+             onclick="toggleBloquePedido(this)">
+          Agregar pedido histórico
+          <span id="pedido-toggle-icon" style="float:right;font-size:.8rem;opacity:.5">▼ opcional</span>
+        </div>
+
+        <div id="bloque-pedido-historico" class="hidden">
+          <div class="form-row" style="margin-top:12px">
+            <div class="form-group">
+              <label class="form-label">N° de orden</label>
+              <input type="text" id="fc-ped-orden" class="form-control"
+                     placeholder="12345" inputmode="numeric">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Fecha</label>
+              <input type="date" id="fc-ped-fecha" class="form-control">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Tipo de pedido</label>
+              <select id="fc-ped-tipo" class="form-control">
+                <option value="">— Seleccionar —</option>
+                <option>Cristales</option>
+                <option>Armazón + Cristales</option>
+                <option>Armazón</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Laboratorio</label>
+              <select id="fc-ped-lab" class="form-control">
+                <option value="">— Seleccionar —</option>
+                ${labOpts}
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Tipo de lente</label>
+              <select id="fc-ped-lente" class="form-control">
+                <option value="">— Seleccionar —</option>
+                <option>Monofocal</option>
+                <option>Bifocal</option>
+                <option>Ocupacional</option>
+                <option>Progresivo</option>
+                <option>Teñido</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Tratamiento</label>
+              <input type="text" id="fc-ped-trat" class="form-control" placeholder="AR, Blue, etc.">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Graduación</label>
+            <input type="text" id="fc-ped-grad" class="form-control"
+                   placeholder="OD: +1.00 / -0.50 x 90 | OI: +0.75">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Armazón</label>
+            <input type="text" id="fc-ped-armazon" class="form-control"
+                   placeholder="Marca, material, color...">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Estado</label>
+            <select id="fc-ped-estado" class="form-control">
+              <option value="Retirado">Retirado</option>
+              <option value="Pendiente de retirar">Pendiente de retirar</option>
+              <option value="En laboratorio">En laboratorio</option>
+              <option value="Cristales pedidos a lab">Cristales pedidos a lab</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      ` : ''}
+
+      <!-- ── Acciones ───────────────────────────────── -->
       <div style="display:flex;gap:10px;margin-top:8px">
         <button type="button" class="btn btn-secondary" style="flex:1"
                 onclick="cerrarFormCliente()">Cancelar</button>
@@ -360,6 +456,15 @@ function renderFormCliente(cliente = null) {
       </div>
 
     </form>`;
+}
+
+function toggleBloquePedido(headerEl) {
+  const bloque = document.getElementById('bloque-pedido-historico');
+  const icon   = document.getElementById('pedido-toggle-icon');
+  if (!bloque) return;
+  const abierto = !bloque.classList.contains('hidden');
+  bloque.classList.toggle('hidden', abierto);
+  if (icon) icon.textContent = abierto ? '▼ opcional' : '▲ abierto';
 }
 
 function cerrarFormCliente() {
@@ -420,25 +525,45 @@ async function guardarCliente(e) {
   const idEl = document.getElementById('fc-id');
   const clienteId = idEl ? idEl.value : null;
 
+  // Procesar nombre completo → nombre + apellido
+  const nombreCompleto = document.getElementById('fc-nombre-completo')?.value.trim() || '';
+  let nombre = nombreCompleto, apellido = '';
+  if (nombreCompleto.includes(',')) {
+    // Formato "Apellido, Nombre"
+    const partes = nombreCompleto.split(',');
+    apellido = partes[0].trim();
+    nombre   = partes.slice(1).join(',').trim();
+  } else if (nombreCompleto.includes(' ')) {
+    // Última palabra como apellido
+    const partes = nombreCompleto.split(' ');
+    apellido = partes[partes.length - 1];
+    nombre   = partes.slice(0, -1).join(' ');
+  }
+
   const datos = {
-    nombre:       document.getElementById('fc-nombre').value.trim(),
-    apellido:     document.getElementById('fc-apellido').value.trim(),
-    telefono:     document.getElementById('fc-telefono').value.trim(),
-    email:        document.getElementById('fc-email').value.trim() || null,
-    dni:          document.getElementById('fc-dni').value.trim() || null,
-    obra_social:  document.getElementById('fc-obra-social').value || null,
-    medico:       document.getElementById('fc-medico').value.trim() || null,
-    observaciones:document.getElementById('fc-observaciones').value.trim() || null,
+    nombre,
+    apellido,
+    telefono:     document.getElementById('fc-telefono')?.value.trim() || '',
+    email:        document.getElementById('fc-email')?.value.trim() || null,
+    dni:          document.getElementById('fc-dni')?.value.trim() || null,
+    obra_social:  document.getElementById('fc-obra-social')?.value || null,
+    medico:       document.getElementById('fc-medico')?.value.trim() || null,
+    observaciones:document.getElementById('fc-observaciones')?.value.trim() || null,
   };
 
   const btn = document.getElementById('btn-guardar-cliente');
   if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
 
+  let nuevoClienteId = clienteId;
   let error;
+
   if (clienteId) {
     ({ error } = await window.supabaseClient.from('clientes').update(datos).eq('id', clienteId));
   } else {
-    ({ error } = await window.supabaseClient.from('clientes').insert([datos]));
+    const { data: creado, error: err } = await window.supabaseClient
+      .from('clientes').insert([datos]).select('id').single();
+    error = err;
+    if (creado) nuevoClienteId = creado.id;
   }
 
   if (error) {
@@ -447,19 +572,52 @@ async function guardarCliente(e) {
     return;
   }
 
-  showToast(clienteId ? 'Cliente actualizado.' : 'Cliente creado.', 'success');
-  cerrarFormCliente();
+  // Guardar pedido histórico si se completó el bloque
+  if (!clienteId && nuevoClienteId) {
+    const orden = document.getElementById('fc-ped-orden')?.value.trim();
+    const lab   = document.getElementById('fc-ped-lab')?.value;
+    const lente = document.getElementById('fc-ped-lente')?.value;
+    if (orden && lab && lente) {
+      const fechaInput = document.getElementById('fc-ped-fecha')?.value;
+      const fechaISO   = fechaInput
+        ? new Date(fechaInput + 'T12:00:00').toISOString()
+        : new Date().toISOString();
+      const estadoPed  = document.getElementById('fc-ped-estado')?.value || 'Retirado';
+      await window.supabaseClient.from('pedidos').insert([{
+        cliente:      nombreCompleto,
+        cliente_id:   nuevoClienteId,
+        orden,
+        tipo:         document.getElementById('fc-ped-tipo')?.value || null,
+        laboratorio:  lab,
+        tipo_lente:   lente,
+        tratamiento:  document.getElementById('fc-ped-trat')?.value.trim() || null,
+        graduacion:   document.getElementById('fc-ped-grad')?.value.trim() || null,
+        armazon:      document.getElementById('fc-ped-armazon')?.value.trim() || null,
+        estado:       estadoPed,
+        urgente:      'No',
+        cargado_por:  typeof Auth !== 'undefined' ? Auth.getNombre() : 'Agenda',
+        fecha_carga:  fechaISO,
+        fecha_pedido: fechaISO,
+        fecha_retiro: estadoPed === 'Retirado' ? fechaISO : null,
+      }]);
+      showToast('Cliente y pedido guardados.', 'success');
+    } else {
+      showToast('Cliente creado.', 'success');
+    }
+  } else {
+    showToast(clienteId ? 'Cliente actualizado.' : 'Cliente creado.', 'success');
+  }
 
-  // Actualizar lista y médicos
+  cerrarFormCliente();
   await Promise.all([loadClientes(), loadMedicosUnicos()]);
 
-  // Si había ficha abierta, refrescarla
+  // Refrescar ficha si estaba abierta
   if (clienteId) {
     const cliente = agendaClientes.find(c => c.id === clienteId);
     if (cliente) {
       const pedidos = await getPedidosDeCliente(clienteId);
-      document.getElementById('cliente-sheet-content').innerHTML =
-        renderFichaCliente(cliente, pedidos);
+      const el = document.getElementById('cliente-sheet-content');
+      if (el) el.innerHTML = renderFichaCliente(cliente, pedidos);
     }
   }
 }
