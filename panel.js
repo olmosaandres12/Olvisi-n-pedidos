@@ -117,18 +117,23 @@ const Panel = (() => {
   let _labDetalleActual = '';
   let _labMesActual = new Date();
 
-  function abrirLabDetalle(lab) {
+  async function abrirLabDetalle(lab) {
     _labDetalleActual = lab;
     _labMesActual = new Date();
 
     const overlay = document.getElementById('lab-detalle-overlay');
     if (!overlay) return;
 
-    // Evitar que el click en el sheet cierre el overlay
     const sheet = overlay.querySelector('.detalle-sheet');
     if (sheet) sheet.onclick = e => e.stopPropagation();
 
     overlay.classList.remove('hidden');
+
+    // Si no hay cache (venimos de Estado, no del Panel), cargar ahora
+    if (!_todosCache.length) {
+      _todosCache = await Pedidos.getTodosPedidos();
+    }
+
     renderLabDetalle();
   }
 
