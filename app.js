@@ -523,6 +523,8 @@ const App = (() => {
       </div>
       <div class="form-group"><label class="form-label">Tratamiento</label>
         <select id="f-tratamiento${num}" class="form-control"><option value="">— Primero elegí tipo de lente —</option></select></div>
+      <div class="form-group"><label class="form-label">Fecha prometida <span class="form-label-hint">(cuándo estará listo)</span></label>
+        <input type="date" id="f-fecha-prom${num}" class="form-control"></div>
       <div class="form-group"><label class="form-label">Distancia</label>
         <div class="distancia-tabs" id="dist-tabs${num}">
           <button type="button" class="dist-tab active" data-dist="lejos" onclick="App.setDistancia(${num},'lejos')">Lejos</button>
@@ -675,7 +677,12 @@ const App = (() => {
 
   function getCardConfig(p) {
     const dh = calcDiasHabiles(p.fecha_pedido || p.fecha_carga);
-    const advertencia = dh >= 5 && p.estado !== 'Retirado';
+    let advertencia = dh >= 5 && p.estado !== 'Retirado';
+    if (p.fecha_prometida && p.estado !== 'Retirado') {
+      const hoy  = new Date(); hoy.setHours(0,0,0,0);
+      const prom = new Date(p.fecha_prometida + 'T00:00:00');
+      advertencia = hoy > prom;
+    }
     const cfg = CARD_ESTADO_MAP[p.estado] || { badgeCls: 'gris', icono: '●', label: p.estado, borderCls: 'gris' };
     let borderCls = cfg.borderCls;
     if (advertencia || p._est.valor === 'critico') borderCls = 'rojo';
@@ -795,6 +802,16 @@ const App = (() => {
     const fechaCorta = new Date(p.fecha_carga).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'});
     const daysBadge = cfg.advertencia ? `<span class="ped-warning-badge">⚠️ ${cfg.dh}dh</span>` : `<span class="ped-days-badge">${cfg.dh}dh</span>`;
     const urgenteBadge = p.urgente==='Si' && p.estado !== 'Retirado' ? '<span class="ped-urgente-chip">⚡ URGENTE</span>' : '';
+    const promBadge = (() => {
+      if (!p.fecha_prometida || p.estado === 'Retirado') return '';
+      const hoy  = new Date(); hoy.setHours(0,0,0,0);
+      const prom = new Date(p.fecha_prometida + 'T00:00:00');
+      const diff = Math.floor((prom - hoy) / (1000*60*60*24));
+      const str  = prom.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'});
+      return diff >= 0
+        ? `<span class="ped-days-badge" style="color:#16A34A;background:#DCFCE7">📅 ${str}</span>`
+        : `<span class="ped-warning-badge">📅 ${str}</span>`;
+    })();
     const detalle = `
       <div class="ped-row-detail ${isOpen?'':'hidden'}" onclick="event.stopPropagation()">
         <div class="ped-row-detail-grid">
@@ -807,6 +824,13 @@ const App = (() => {
           ${p.armazon    ?`<div class="prd-item prd-item--full"><span class="prd-label">Armazón</span><span class="prd-val">${esc(p.armazon)}</span></div>`:''}
           ${p.observaciones?`<div class="prd-item prd-item--full"><span class="prd-label">Observaciones</span><span class="prd-val" style="font-style:italic;color:var(--gris-texto)">${esc(p.observaciones)}</span></div>`:''}
           <div class="prd-item"><span class="prd-label">Estado inteligente</span><span class="prd-val">${p._est.texto}</span></div>
+          ${p.fecha_prometida ? (() => {
+            const hoy  = new Date(); hoy.setHours(0,0,0,0);
+            const prom = new Date(p.fecha_prometida + 'T00:00:00');
+            const ok   = prom >= hoy;
+            const str  = prom.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'});
+            return `<div class="prd-item"><span class="prd-label">Fecha prometida</span><span class="prd-val" style="font-weight:600;color:${ok?'#16A34A':'#DC2626'}">📅 ${str}</span></div>`;
+          })() : ''}
           <div class="prd-item"><span class="prd-label">Cargado por</span><span class="prd-val">${esc(p.cargado_por||'—')}</span></div>
           ${_fotoDetalle(p)}
         </div>
@@ -827,6 +851,7 @@ const App = (() => {
           <span class="ped-card-orden">#${esc(p.orden)}${sufijo}</span>
           ${p.laboratorio?`<span class="meta-dot">·</span><span>${esc(p.laboratorio)}</span>`:''}
           <span class="meta-dot">·</span><span>${fechaCorta}</span>
+          ${promBadge ? `<span class="meta-dot">·</span>${promBadge}` : ''}
           ${p.foto_url ? '<span class="meta-dot">·</span><span style="font-size:.72rem">📷</span>' : ''}
         </div>
       </div>
@@ -861,7 +886,17 @@ const App = (() => {
           <span class="ped-status-badge badge--${pcfg.badgeCls}" style="font-size:.6rem;padding:2px 8px">${pcfg.icono} ${pcfg.label}</span>
           ${p.laboratorio?`<span class="ped-row-lab">${esc(p.laboratorio)}</span>`:''}
           <span class="ped-pair-spacer"></span>
-          ${pcfg.advertencia?`<span class="ped-warning-badge">⚠️ ${pcfg.dh}dh</span>`:`<span class="ped-days-badge">${pcfg.dh}dh</span>`}
+          ${(() => {
+            if (!p.fecha_prometida || p.estado === 'Retirado')
+              return pcfg.advertencia ? `<span class="ped-warning-badge">⚠️ ${pcfg.dh}dh</span>` : `<span class="ped-days-badge">${pcfg.dh}dh</span>`;
+            const hoy  = new Date(); hoy.setHours(0,0,0,0);
+            const prom = new Date(p.fecha_prometida + 'T00:00:00');
+            const diff = Math.floor((prom - hoy) / (1000*60*60*24));
+            const str  = prom.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'});
+            return diff >= 0
+              ? `<span class="ped-days-badge" style="color:#16A34A;background:#DCFCE7">📅 ${str}</span>`
+              : `<span class="ped-warning-badge">📅 ${str}</span>`;
+          })()}
         </div>
         ${p.graduacion?`<div class="ped-pair-grad">${esc(p.graduacion).replace(/\|/g,' | ')}</div>`:''}
         ${p.observaciones?`<div class="ped-pair-obs">💬 ${esc(p.observaciones)}</div>`:''}
@@ -1163,6 +1198,7 @@ const App = (() => {
             <div class="form-group"><label class="form-label">Tipo de lente</label><select id="e-lente" class="form-control"><option value="">—</option>${lentes}</select></div>
           </div>
           <div class="form-group"><label class="form-label">Tratamiento</label><input type="text" id="e-tratamiento" class="form-control" value="${esc(p.tratamiento||'')}"></div>
+          <div class="form-group"><label class="form-label">Fecha prometida</label><input type="date" id="e-fecha-prometida" class="form-control" value="${p.fecha_prometida||''}"></div>
           <div class="form-group"><label class="form-label">Graduación</label><textarea id="e-graduacion" class="form-control" rows="3" style="resize:vertical;font-family:var(--font-mono);font-size:.85rem">${esc(p.graduacion||'')}</textarea></div>
           <div class="form-group"><label class="form-label">2 etapas</label><select id="e-etapas" class="form-control">${etapas}</select></div>
         </div>
@@ -1196,6 +1232,7 @@ const App = (() => {
         tipo_lente:document.getElementById('e-lente')?.value,
         tratamiento:document.getElementById('e-tratamiento')?.value.trim()||null,
         graduacion:document.getElementById('e-graduacion')?.value.trim()||null,
+        fecha_prometida:document.getElementById('e-fecha-prometida')?.value||null,
         dos_etapas:document.getElementById('e-etapas')?.value,
         armazon:document.getElementById('e-armazon')?.value.trim()||null,
         observaciones:document.getElementById('e-observaciones')?.value.trim()||null,
@@ -1381,7 +1418,7 @@ const App = (() => {
   function getFormData() {
     const g=id=>document.getElementById(id)?.value.trim()??'';
     const doble=document.getElementById('toggle-dos-anteojos').checked;
-    const antData=(n)=>({laboratorio:g(`f-lab${n}`),tipo_lente:g(`f-lente${n}`),tratamiento:g(`f-tratamiento${n}`),graduacion:getGraduacion(n),dos_etapas:g(`f-etapas${n}`),...getArmazonData(n),observaciones:document.getElementById(`f-obs${n}`)?.value.trim()||null});
+    const antData=(n)=>({laboratorio:g(`f-lab${n}`),tipo_lente:g(`f-lente${n}`),tratamiento:g(`f-tratamiento${n}`),graduacion:getGraduacion(n),dos_etapas:g(`f-etapas${n}`),...getArmazonData(n),fecha_prometida:document.getElementById(`f-fecha-prom${n}`)?.value||null,observaciones:document.getElementById(`f-obs${n}`)?.value.trim()||null});
     return {doble,base:{
       cliente:g('f-cliente'),orden:g('f-orden'),urgente:g('f-urgente'),tipo:g('f-tipo'),
       fecha_carga:g('f-fecha-carga')||todayStr(),
@@ -1452,7 +1489,7 @@ const App = (() => {
         tratamiento:ant.tratamiento||null, graduacion:ant.graduacion||null,
         dos_etapas:ant.dos_etapas||'No', armazon:ant.armazon||null,
         observaciones:ant.observaciones||null,
-        cargado_por:nombre, fecha_carga:fechaISO, fecha_pedido:fechaISO,
+        cargado_por:nombre, fecha_carga:fechaISO, fecha_pedido:fechaISO, fecha_prometida:ant.fecha_prometida||null,
       });
       const rows=data.doble?[buildRow(data.ant1,'A'),buildRow(data.ant2,'B')]:[buildRow(data.ant1,null)];
       const creados = await Pedidos.crearPedido(rows);
