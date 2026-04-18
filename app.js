@@ -309,7 +309,18 @@ const App = (() => {
       document.getElementById('nav-config').classList.remove('hidden');
     }
 
-    const fechaEl = document.getElementById('f-fecha-carga'); if (fechaEl) fechaEl.value = todayStr();
+    const fechaEl = document.getElementById('f-fecha-carga');
+    if (fechaEl) {
+      fechaEl.value = todayStr();
+      // Inyectar campo "Fecha prometida" justo después del campo de fecha de carga
+      if (!document.getElementById('f-fecha-prometida')) {
+        const promGroup = document.createElement('div');
+        promGroup.className = 'form-group';
+        promGroup.innerHTML = `<label class="form-label">Fecha prometida <span class="form-label-hint">(cuándo estará listo)</span></label>
+          <input type="date" id="f-fecha-prometida" class="form-control">`;
+        fechaEl.closest('.form-group')?.insertAdjacentElement('afterend', promGroup);
+      }
+    }
     document.getElementById('toggle-dos-anteojos').addEventListener('change', (e) => {
       document.getElementById('bloque-anteojo2').classList.toggle('hidden', !e.target.checked);
       document.getElementById('bloque1-title').textContent = e.target.checked ? 'Anteojo A' : 'Anteojo';
@@ -523,8 +534,6 @@ const App = (() => {
       </div>
       <div class="form-group"><label class="form-label">Tratamiento</label>
         <select id="f-tratamiento${num}" class="form-control"><option value="">— Primero elegí tipo de lente —</option></select></div>
-      <div class="form-group"><label class="form-label">Fecha prometida <span class="form-label-hint">(cuándo estará listo)</span></label>
-        <input type="date" id="f-fecha-prom${num}" class="form-control"></div>
       <div class="form-group"><label class="form-label">Distancia</label>
         <div class="distancia-tabs" id="dist-tabs${num}">
           <button type="button" class="dist-tab active" data-dist="lejos" onclick="App.setDistancia(${num},'lejos')">Lejos</button>
@@ -1418,10 +1427,11 @@ const App = (() => {
   function getFormData() {
     const g=id=>document.getElementById(id)?.value.trim()??'';
     const doble=document.getElementById('toggle-dos-anteojos').checked;
-    const antData=(n)=>({laboratorio:g(`f-lab${n}`),tipo_lente:g(`f-lente${n}`),tratamiento:g(`f-tratamiento${n}`),graduacion:getGraduacion(n),dos_etapas:g(`f-etapas${n}`),...getArmazonData(n),fecha_prometida:document.getElementById(`f-fecha-prom${n}`)?.value||null,observaciones:document.getElementById(`f-obs${n}`)?.value.trim()||null});
+    const antData=(n)=>({laboratorio:g(`f-lab${n}`),tipo_lente:g(`f-lente${n}`),tratamiento:g(`f-tratamiento${n}`),graduacion:getGraduacion(n),dos_etapas:g(`f-etapas${n}`),...getArmazonData(n),observaciones:document.getElementById(`f-obs${n}`)?.value.trim()||null});
     return {doble,base:{
       cliente:g('f-cliente'),orden:g('f-orden'),urgente:g('f-urgente'),tipo:g('f-tipo'),
       fecha_carga:g('f-fecha-carga')||todayStr(),
+      fecha_prometida:document.getElementById('f-fecha-prometida')?.value||null,
       celular:g('f-cliente-cel'), dni:g('f-cliente-dni'),
       obra_social:g('f-cliente-os'),
       cliente_id:document.getElementById('campo-cliente-id')?.value||null,
@@ -1444,7 +1454,7 @@ const App = (() => {
     const data=getFormData();
     if (!validateForm(data)){toast('Completá los campos obligatorios','warn');return;}
     const rf=(label,val)=>val?`<div class="modal-row"><span class="modal-label">${label}</span><span class="modal-value">${esc(String(val))}</span></div>`:'';
-    let html=rf('Cliente',data.base.cliente)+rf('Orden',data.doble?`${data.base.orden}-A / -B`:data.base.orden)+rf('Tipo',data.base.tipo)+rf('Urgente',data.base.urgente)+rf('Fecha',data.base.fecha_carga);
+    let html=rf('Cliente',data.base.cliente)+rf('Orden',data.doble?`${data.base.orden}-A / -B`:data.base.orden)+rf('Tipo',data.base.tipo)+rf('Urgente',data.base.urgente)+rf('Fecha',data.base.fecha_carga)+rf('Fecha prometida',data.base.fecha_prometida);
     if(data.doble){
       html+=`<div style="margin:10px 0 4px;font-size:.78rem;font-weight:700;color:var(--azul)">ANTEOJO A</div>`;
       html+=rf('Lab',data.ant1.laboratorio)+rf('Lente',data.ant1.tipo_lente)+rf('Tratamiento',data.ant1.tratamiento)+rf('Graduación',data.ant1.graduacion)+rf('Armazón',data.ant1.armazon)+rf('Obs.',data.ant1.observaciones);
@@ -1489,7 +1499,7 @@ const App = (() => {
         tratamiento:ant.tratamiento||null, graduacion:ant.graduacion||null,
         dos_etapas:ant.dos_etapas||'No', armazon:ant.armazon||null,
         observaciones:ant.observaciones||null,
-        cargado_por:nombre, fecha_carga:fechaISO, fecha_pedido:fechaISO, fecha_prometida:ant.fecha_prometida||null,
+        cargado_por:nombre, fecha_carga:fechaISO, fecha_pedido:fechaISO, fecha_prometida:data.base.fecha_prometida||null,
       });
       const rows=data.doble?[buildRow(data.ant1,'A'),buildRow(data.ant2,'B')]:[buildRow(data.ant1,null)];
       const creados = await Pedidos.crearPedido(rows);
