@@ -20,12 +20,22 @@ const Pedidos = (() => {
 
   function calcEstInteligente(pedido) {
     if (pedido.estado === 'Retirado') return { texto: '✅ OK', clase: 'est-ok', valor: 'ok' };
+    // Prioridad: si tiene fecha prometida, el estado se calcula en base a ella
+    if (pedido.fecha_prometida) {
+      const hoy    = new Date(); hoy.setHours(0,0,0,0);
+      const prom   = new Date(pedido.fecha_prometida + 'T00:00:00');
+      const atraso = Math.floor((hoy - prom) / (1000*60*60*24));
+      if (atraso <= 0) return { texto: '✅ En plazo',  clase: 'est-ok',   valor: 'ok'      };
+      if (atraso <= 1) return { texto: '⚠️ Demorado',  clase: 'est-dem',  valor: 'demorado' };
+      return                  { texto: '🔴 Crítico',   clase: 'est-crit', valor: 'critico'  };
+    }
+    // Fallback: límites por laboratorio
     const limite = LIMITES[pedido.laboratorio];
     if (!limite) return { texto: '—', clase: '', valor: 'ok' };
     const dias = calcDias(pedido);
-    if (dias <= limite.ok)  return { texto: '✅ OK',       clase: 'est-ok',   valor: 'ok' };
+    if (dias <= limite.ok)  return { texto: '✅ OK',       clase: 'est-ok',   valor: 'ok'      };
     if (dias <= limite.dem) return { texto: '⚠️ Demorado', clase: 'est-dem',  valor: 'demorado' };
-    return                         { texto: '🔴 Crítico',  clase: 'est-crit', valor: 'critico' };
+    return                         { texto: '🔴 Crítico',  clase: 'est-crit', valor: 'critico'  };
   }
 
   function enrich(p) {
@@ -90,6 +100,7 @@ const Pedidos = (() => {
       cargado_por:   d.cargado_por,
       fecha_carga:   d.fecha_carga   || new Date().toISOString(),
       fecha_pedido:  d.fecha_pedido  || new Date().toISOString(),
+      fecha_prometida: d.fecha_prometida || null,
       fecha_retiro:  null,
     }));
     const { data, error } = await window.supabaseClient.from('pedidos').insert(rows).select();
