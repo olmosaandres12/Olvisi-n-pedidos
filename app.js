@@ -1651,6 +1651,8 @@ const App = (() => {
     onFotoSelected, clearFoto,
     abrirFotoViewer, cerrarFotoViewer,
     uploadFotoExistente, cambiarFoto, eliminarFotoConfirm,
+    // Para uso externo (agenda.js)
+    attachNumpadListeners,
   };
 })();
 
