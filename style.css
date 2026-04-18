@@ -1256,3 +1256,133 @@ select.form-control { background-image:url("data:image/svg+xml,%3Csvg xmlns='htt
 }
 
 .btn-danger-sm:active { background: #FEE2E2; }
+/* ══════════════════════════════════════════════════
+   FOTO ADJUNTA — agregar al final de style.css
+   ══════════════════════════════════════════════════ */
+
+/* ── Form: zona de upload ─────────────────────────── */
+.form-label-hint {
+  font-weight: 400; font-size: .72rem;
+  color: var(--gris-texto); text-transform: none;
+  letter-spacing: 0; margin-left: 4px;
+}
+
+.foto-upload-zone {
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px; gap: 8px;
+  background: var(--gris-bg);
+  border: 2px dashed var(--gris-borde);
+  border-radius: var(--radius-sm);
+  cursor: pointer; font-size: .88rem; color: var(--gris-texto);
+  transition: all var(--transition);
+  min-height: 54px;
+}
+.foto-upload-zone:hover,
+.foto-upload-zone:active {
+  background: var(--azul-light); border-color: var(--azul); color: var(--azul);
+}
+
+.foto-preview-wrap {
+  display: flex; align-items: center; gap: 12px; padding: 6px 0;
+}
+.foto-preview-img {
+  width: 80px; height: 80px; object-fit: cover;
+  border-radius: var(--radius-sm); border: 2px solid var(--gris-borde);
+  cursor: pointer; flex-shrink: 0;
+}
+.btn-foto-clear {
+  font-size: .78rem; font-weight: 600;
+  color: var(--rojo); background: var(--rojo-bg);
+  border: 1px solid var(--rojo-borde); border-radius: 6px;
+  padding: 5px 10px; cursor: pointer;
+  transition: background var(--transition);
+}
+.btn-foto-clear:hover { background: #fecaca; }
+
+/* ── Detalle expandido: sección foto ──────────────── */
+.foto-detalle-wrap {
+  display: flex; align-items: flex-start; gap: 10px; margin-top: 4px;
+}
+.foto-thumb {
+  width: 64px; height: 64px; object-fit: cover;
+  border-radius: var(--radius-sm); border: 2px solid var(--gris-borde);
+  cursor: pointer; flex-shrink: 0;
+  transition: opacity var(--transition);
+}
+.foto-thumb:hover { opacity: .85; }
+.foto-thumb--sm   { width: 44px; height: 44px; }
+
+.foto-detalle-btns {
+  display: flex; flex-direction: column; gap: 5px;
+}
+.btn-foto-sm {
+  font-size: .72rem; font-weight: 600; padding: 4px 9px;
+  border-radius: 6px; border: 1px solid var(--gris-borde);
+  background: var(--blanco); color: var(--gris-dark);
+  cursor: pointer; white-space: nowrap;
+  transition: background var(--transition);
+}
+.btn-foto-sm:hover       { background: var(--gris-bg); }
+.btn-foto-cambiar        { color: var(--azul); border-color: #BFD4F5; background: var(--azul-light); }
+.btn-foto-cambiar:hover  { background: #d0e4ff; }
+.btn-foto-del            { color: var(--rojo); border-color: var(--rojo-borde); background: var(--rojo-bg); }
+.btn-foto-del:hover      { background: #fecaca; }
+
+.btn-foto-upload-inline {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 12px; border-radius: var(--radius-sm);
+  border: 1.5px dashed var(--gris-borde);
+  background: var(--gris-bg); color: var(--gris-texto);
+  font-size: .78rem; font-weight: 600; cursor: pointer;
+  margin-top: 4px;
+  transition: all var(--transition);
+}
+.btn-foto-upload-inline:hover {
+  border-color: var(--azul); color: var(--azul); background: var(--azul-light);
+}
+.btn-foto-upload-inline--sm { padding: 4px 9px; font-size: .7rem; margin-top: 6px; }
+
+/* ── Sub-row par A/B ──────────────────────────────── */
+.foto-sub-wrap {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 0 6px;
+}
+
+/* ── Modal de edición ─────────────────────────────── */
+.foto-edit-wrap    { display: flex; flex-direction: column; gap: 10px; }
+.foto-edit-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ── Visor fullscreen ─────────────────────────────── */
+#foto-viewer-overlay {
+  position: fixed; inset: 0; z-index: 9500;
+  display: flex; align-items: center; justify-content: center;
+}
+.foto-viewer-bg {
+  position: absolute; inset: 0;
+  background: rgba(0,0,0,.88);
+  backdrop-filter: blur(6px);
+  cursor: pointer;
+}
+#foto-viewer-img {
+  position: relative; z-index: 1;
+  max-width: 94vw; max-height: 90vh;
+  border-radius: var(--radius);
+  object-fit: contain;
+  box-shadow: 0 8px 48px rgba(0,0,0,.6);
+  animation: fotoViewerIn .25s cubic-bezier(.34,1.56,.64,1);
+  user-select: none;
+}
+@keyframes fotoViewerIn {
+  from { opacity:0; transform:scale(.9); }
+  to   { opacity:1; transform:scale(1); }
+}
+.foto-viewer-close {
+  position: absolute; top: 16px; right: 16px; z-index: 2;
+  width: 40px; height: 40px; border-radius: 50%;
+  background: rgba(255,255,255,.15); color: #fff;
+  font-size: 1.1rem; border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(4px);
+  transition: background var(--transition);
+}
+.foto-viewer-close:hover { background: rgba(255,255,255,.28); }
