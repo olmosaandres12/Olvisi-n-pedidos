@@ -252,6 +252,63 @@ function cerrarFichaCliente() {
   }, 280);
 }
 
+// ─── GRADUACIÓN HISTÓRICA — helpers ───────────────────────────
+
+// Genera HTML de tabla de grad para el bloque histórico.
+// Usa sufijo "h" en los IDs para no colisionar con el form de pedidos.
+function _gradTablaHistHTML(dc) {
+  const id = (campo, ojo) => `g-${dc}-${campo}-${ojo}-h`;
+  return `<div class="grad-grid">
+    <div class="grad-header"></div>
+    <div class="grad-header">Esf</div>
+    <div class="grad-header">Cil</div>
+    <div class="grad-header">Eje</div>
+    <div class="grad-header">Ad.</div>
+    <div class="grad-ojo">D</div>
+    <input type="text" class="form-control grad-input grad-esf" id="${id('esf','D')}" placeholder="-1.25" readonly autocomplete="off">
+    <input type="text" class="form-control grad-input grad-cil" id="${id('cil','D')}" placeholder="-0.50" readonly autocomplete="off">
+    <input type="text" class="form-control grad-input grad-eje" id="${id('eje','D')}" placeholder="°" inputmode="numeric" autocomplete="off">
+    <input type="text" class="form-control grad-input grad-add" id="${id('add','D')}" placeholder="+2.00" readonly autocomplete="off">
+    <div class="grad-ojo">I</div>
+    <input type="text" class="form-control grad-input grad-esf" id="${id('esf','I')}" placeholder="-1.25" readonly autocomplete="off">
+    <input type="text" class="form-control grad-input grad-cil" id="${id('cil','I')}" placeholder="-0.50" readonly autocomplete="off">
+    <input type="text" class="form-control grad-input grad-eje" id="${id('eje','I')}" placeholder="°" inputmode="numeric" autocomplete="off">
+    <input type="text" class="form-control grad-input grad-add" id="${id('add','I')}" placeholder="+2.00" readonly autocomplete="off">
+  </div>`;
+}
+
+// Cambia qué tabla de grad se muestra
+function setDistanciaHist(dist) {
+  document.querySelectorAll('#dist-tabs-h .dist-tab')
+    .forEach(t => t.classList.toggle('active', t.dataset.dist === dist));
+  document.getElementById('grad-lejos-h')?.classList.toggle('hidden', dist === 'cerca');
+  document.getElementById('grad-cerca-h')?.classList.toggle('hidden', dist === 'lejos');
+}
+
+// Lee los valores de la tabla y arma el string de graduación
+function getGraduacionHist() {
+  const dist = document.querySelector('#dist-tabs-h .dist-tab.active')?.dataset.dist || 'lejos';
+  const leer = (dc) => {
+    const v = (campo, ojo) => document.getElementById(`g-${dc}-${campo}-${ojo}-h`)?.value.trim() || '';
+    const partes = [];
+    ['D', 'I'].forEach(ojo => {
+      const esf = v('esf', ojo), cil = v('cil', ojo), eje = v('eje', ojo), add = v('add', ojo);
+      if (esf || cil) {
+        let s = `O${ojo}: ${esf}`;
+        if (cil) s += ` ${cil}`;
+        if (eje) s += ` x${eje}`;
+        if (add) s += ` ADD:${add}`;
+        partes.push(s.trim());
+      }
+    });
+    return partes.join(' | ');
+  };
+  if (dist === 'lejos') return leer('L');
+  if (dist === 'cerca') return leer('C');
+  const l = leer('L'), c = leer('C');
+  return [l && `Lejos: ${l}`, c && `Cerca: ${c}`].filter(Boolean).join(' — ');
+}
+
 // ─── FORM CLIENTE ─────────────────────────────────────────────
 async function abrirFormCliente(clienteId = null) {
   const overlay = document.getElementById('cliente-form-overlay');
@@ -265,6 +322,14 @@ async function abrirFormCliente(clienteId = null) {
 
   content.innerHTML = renderFormCliente(cliente);
   setupMedicoAutocomplete();
+
+  // Conectar el numpad a los campos de graduación del bloque histórico
+  // (lo hacemos sobre todo el contenido; si el bloque está oculto igual funciona
+  // porque attachNumpadListeners solo agrega event listeners al DOM)
+  if (!cliente && typeof App !== 'undefined' && App.attachNumpadListeners) {
+    const form = document.getElementById('form-cliente');
+    if (form) App.attachNumpadListeners(form);
+  }
 
   overlay.classList.remove('hidden');
   sheet.classList.remove('hidden');
@@ -285,7 +350,6 @@ function renderFormCliente(cliente = null) {
     `<option value="${esc2(os)}" ${(cliente?.obra_social === os) ? 'selected' : ''}>${esc2(os)}</option>`
   ).join('');
 
-  // Laboratorios y tipos de lente para el bloque pedido
   const labsCache = window._agendaLabs || [];
   const labOpts = labsCache.map(l => `<option value="${esc2(l)}">${esc2(l)}</option>`).join('');
 
@@ -372,6 +436,7 @@ function renderFormCliente(cliente = null) {
         </div>
 
         <div id="bloque-pedido-historico" class="hidden">
+
           <div class="form-row" style="margin-top:12px">
             <div class="form-group">
               <label class="form-label">N° de orden</label>
@@ -421,13 +486,29 @@ function renderFormCliente(cliente = null) {
             </div>
           </div>
 
+          <!-- ── Graduación con tabla igual a pedidos ── -->
           <div class="form-group">
-            <label class="form-label">Graduación</label>
-            <input type="text" id="fc-ped-grad" class="form-control"
-                   placeholder="OD: +1.00 / -0.50 x 90 | OI: +0.75">
+            <label class="form-label">Distancia</label>
+            <div class="distancia-tabs" id="dist-tabs-h">
+              <button type="button" class="dist-tab active" data-dist="lejos"
+                      onclick="setDistanciaHist('lejos')">Lejos</button>
+              <button type="button" class="dist-tab" data-dist="cerca"
+                      onclick="setDistanciaHist('cerca')">Cerca</button>
+              <button type="button" class="dist-tab" data-dist="ambos"
+                      onclick="setDistanciaHist('ambos')">Ambos</button>
+            </div>
           </div>
 
-          <div class="form-group">
+          <div class="grad-tabla" id="grad-lejos-h">
+            <div class="grad-tabla-title">👁️ Lejos</div>
+            ${_gradTablaHistHTML('L')}
+          </div>
+          <div class="grad-tabla hidden" id="grad-cerca-h">
+            <div class="grad-tabla-title">📖 Cerca</div>
+            ${_gradTablaHistHTML('C')}
+          </div>
+
+          <div class="form-group" style="margin-top:12px">
             <label class="form-label">Armazón</label>
             <input type="text" id="fc-ped-armazon" class="form-control"
                    placeholder="Marca, material, color...">
@@ -442,7 +523,8 @@ function renderFormCliente(cliente = null) {
               <option value="Cristales pedidos a lab">Cristales pedidos a lab</option>
             </select>
           </div>
-        </div>
+
+        </div><!-- /bloque-pedido-historico -->
       </div>
       ` : ''}
 
@@ -492,7 +574,6 @@ function onMedicoInput(valor) {
 
   const q = valor.toLowerCase().trim();
   if (!q) {
-    // Mostrar todos cuando está vacío
     const lista = agendaMedicos.slice(0, 8);
     if (!lista.length) { sugEl.classList.add('hidden'); return; }
     renderMedicoSuggestions(lista, sugEl);
@@ -529,12 +610,10 @@ async function guardarCliente(e) {
   const nombreCompleto = document.getElementById('fc-nombre-completo')?.value.trim() || '';
   let nombre = nombreCompleto, apellido = '';
   if (nombreCompleto.includes(',')) {
-    // Formato "Apellido, Nombre"
     const partes = nombreCompleto.split(',');
     apellido = partes[0].trim();
     nombre   = partes.slice(1).join(',').trim();
   } else if (nombreCompleto.includes(' ')) {
-    // Última palabra como apellido
     const partes = nombreCompleto.split(' ');
     apellido = partes[partes.length - 1];
     nombre   = partes.slice(0, -1).join(' ');
@@ -583,6 +662,8 @@ async function guardarCliente(e) {
         ? new Date(fechaInput + 'T12:00:00').toISOString()
         : new Date().toISOString();
       const estadoPed  = document.getElementById('fc-ped-estado')?.value || 'Retirado';
+      // Leer graduación desde la tabla (con distancia y numpad)
+      const graduacion = getGraduacionHist() || null;
       await window.supabaseClient.from('pedidos').insert([{
         cliente:      nombreCompleto,
         cliente_id:   nuevoClienteId,
@@ -591,7 +672,7 @@ async function guardarCliente(e) {
         laboratorio:  lab,
         tipo_lente:   lente,
         tratamiento:  document.getElementById('fc-ped-trat')?.value.trim() || null,
-        graduacion:   document.getElementById('fc-ped-grad')?.value.trim() || null,
+        graduacion,
         armazon:      document.getElementById('fc-ped-armazon')?.value.trim() || null,
         estado:       estadoPed,
         urgente:      'No',
@@ -640,8 +721,6 @@ async function eliminarCliente(clienteId) {
 }
 
 // ─── AUTOCOMPLETE EN FORMULARIO DE NUEVO PEDIDO ───────────────
-// Estas funciones son llamadas desde pedidos.js
-
 let _clienteSeleccionadoId = null;
 
 function initClienteAutocompletePedido() {
@@ -668,7 +747,6 @@ async function onClienteSearchInput(valor) {
   const sugEl = document.getElementById('cliente-suggestions');
   if (!sugEl) return;
 
-  // Actualiza también el campo texto libre
   document.getElementById('campo-cliente').value = valor;
 
   const q = valor.toLowerCase().trim();
@@ -727,7 +805,6 @@ function ocultarSugerenciasCliente() {
 
 function abrirFormClienteDesdeNuevoPedido() {
   ocultarSugerenciasCliente();
-  // Abre el form de cliente; al guardar, recarga la lista de sugerencias
   abrirFormCliente();
 }
 
