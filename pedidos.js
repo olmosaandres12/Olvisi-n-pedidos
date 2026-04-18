@@ -73,24 +73,24 @@ const Pedidos = (() => {
       }
     }
     const rows = datosArray.map(d => ({
-      cliente:      d.cliente,
-      cliente_id:   d.cliente_id || null,
-      estado:       'Cristales pedidos a lab',
-      orden:        d.orden,
-      sufijo:       d.sufijo || null,
-      tipo:         d.tipo,
-      laboratorio:  d.laboratorio,
-      urgente:      d.urgente,
-      tipo_lente:   d.tipo_lente,
-      tratamiento:  d.tratamiento  || null,
-      graduacion:   d.graduacion   || null,
-      dos_etapas:   d.dos_etapas   || 'No',
-      armazon:      d.armazon      || null,
-      observaciones:d.observaciones|| null,
-      cargado_por:  d.cargado_por,
-      fecha_carga:  d.fecha_carga  || new Date().toISOString(),
-      fecha_pedido: d.fecha_pedido || new Date().toISOString(),
-      fecha_retiro: null,
+      cliente:       d.cliente,
+      cliente_id:    d.cliente_id || null,
+      estado:        'Cristales pedidos a lab',
+      orden:         d.orden,
+      sufijo:        d.sufijo || null,
+      tipo:          d.tipo,
+      laboratorio:   d.laboratorio,
+      urgente:       d.urgente,
+      tipo_lente:    d.tipo_lente,
+      tratamiento:   d.tratamiento   || null,
+      graduacion:    d.graduacion    || null,
+      dos_etapas:    d.dos_etapas    || 'No',
+      armazon:       d.armazon       || null,
+      observaciones: d.observaciones || null,
+      cargado_por:   d.cargado_por,
+      fecha_carga:   d.fecha_carga   || new Date().toISOString(),
+      fecha_pedido:  d.fecha_pedido  || new Date().toISOString(),
+      fecha_retiro:  null,
     }));
     const { data, error } = await window.supabaseClient.from('pedidos').insert(rows).select();
     if (error) throw error;
@@ -113,6 +113,47 @@ const Pedidos = (() => {
     if (error) throw error;
   }
 
+  // ── FOTO ADJUNTA ──────────────────────────────────
+
+  async function uploadFoto(id, file) {
+    const ext  = (file.name.split('.').pop() || 'jpg').toLowerCase();
+    const path = `${id}/foto.${ext}`;
+    const { error: upErr } = await window.supabaseClient.storage
+      .from('pedidos-fotos')
+      .upload(path, file, { upsert: true, contentType: file.type });
+    if (upErr) throw upErr;
+    const { data: urlData } = window.supabaseClient.storage
+      .from('pedidos-fotos').getPublicUrl(path);
+    // Timestamp para romper caché del browser
+    const fotoUrl = urlData.publicUrl + '?t=' + Date.now();
+    const { error } = await window.supabaseClient
+      .from('pedidos').update({ foto_url: fotoUrl }).eq('id', id);
+    if (error) throw error;
+    return fotoUrl;
+  }
+
+  async function eliminarFoto(id) {
+    const { data: row, error: fetchErr } = await window.supabaseClient
+      .from('pedidos').select('foto_url').eq('id', id).single();
+    if (fetchErr) throw fetchErr;
+    if (!row?.foto_url) return;
+    // Extraer path del storage desde la URL pública
+    const marker = '/pedidos-fotos/';
+    const idx = row.foto_url.indexOf(marker);
+    if (idx === -1) throw new Error('URL de foto inválida');
+    const storagePath = decodeURIComponent(
+      row.foto_url.slice(idx + marker.length).split('?')[0]
+    );
+    const { error: delErr } = await window.supabaseClient.storage
+      .from('pedidos-fotos').remove([storagePath]);
+    if (delErr) throw delErr;
+    const { error } = await window.supabaseClient
+      .from('pedidos').update({ foto_url: null }).eq('id', id);
+    if (error) throw error;
+  }
+
+  // ─────────────────────────────────────────────────
+
   function claseEstado(estado) {
     const map = {
       'Cristales pedidos a lab':     'estado-pedido',
@@ -128,5 +169,6 @@ const Pedidos = (() => {
     getPedidosActivos, getTodosPedidos, getPedidoById,
     crearPedido, actualizarPedido, actualizarEstado,
     calcEstInteligente, calcDias, enrich, claseEstado,
+    uploadFoto, eliminarFoto,
   };
 })();
