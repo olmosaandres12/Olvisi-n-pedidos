@@ -79,7 +79,7 @@ async function loadMedicosUnicos() {
 async function getPedidosDeCliente(clienteId) {
   const { data } = await window.supabaseClient
     .from('pedidos')
-    .select('id, orden, sufijo, estado, laboratorio, tipo_lente, fecha_carga, fecha_retiro')
+    .select('id, orden, sufijo, estado, laboratorio, tipo_lente, urgente, fecha_carga, fecha_pedido, fecha_retiro')
     .eq('cliente_id', clienteId)
     .order('fecha_carga', { ascending: false })
     .limit(20);
@@ -140,6 +140,22 @@ function filtrarAgenda(valor) {
   loadClientes(valor);
 }
 
+// ─── ESTADO INTELIGENTE PARA FICHA (siempre computa, incluso Retirado) ───────
+function _estInteligenteFicha(p) {
+  const LIMITES = {
+    'Bichara': { ok:2, dem:4 }, 'Sol':     { ok:5, dem:7 },
+    'Vitolen': { ok:5, dem:7 }, 'Cristian':{ ok:7, dem:10 },
+  };
+  const limite = LIMITES[p.laboratorio];
+  if (!limite) return null;
+  const desde = new Date(p.fecha_pedido || p.fecha_carga);
+  const hasta = p.fecha_retiro ? new Date(p.fecha_retiro) : new Date();
+  const dias  = Math.max(0, Math.floor((hasta - desde) / (1000 * 60 * 60 * 24)));
+  if (dias <= limite.ok)  return null; // OK → sin badge
+  if (dias <= limite.dem) return { texto: '⚠️ Demorado', bgColor: '#FEF3C7', textColor: '#92400E' };
+  return                         { texto: '🔴 Crítico',  bgColor: '#FEE2E2', textColor: '#991B1B' };
+}
+
 // ─── FICHA CLIENTE ────────────────────────────────────────────
 async function abrirFichaCliente(clienteId) {
   const overlay = document.getElementById('cliente-sheet-overlay');
@@ -181,11 +197,18 @@ function renderFichaCliente(cliente, pedidos) {
       const color  = estadoColor[p.estado] || '#888';
       const fecha  = new Date(p.fecha_carga).toLocaleDateString('es-AR', { day:'2-digit', month:'short', year:'numeric' });
       const sufijo = p.sufijo ? ` — ${p.sufijo}` : '';
+      const urgenteBadge = p.urgente === 'Si'
+        ? `<span style="font-size:.6rem;font-weight:700;background:#DC2626;color:#fff;padding:2px 6px;border-radius:8px;margin-left:5px;vertical-align:middle;letter-spacing:.02em">⚡ URGENTE</span>`
+        : '';
+      const estHist  = _estInteligenteFicha(p);
+      const demBadge = estHist
+        ? `<span style="font-size:.6rem;font-weight:700;background:${estHist.bgColor};color:${estHist.textColor};padding:2px 6px;border-radius:8px;margin-left:5px;vertical-align:middle">${estHist.texto}</span>`
+        : '';
       return `
         <div class="ficha-pedido-row">
           <div class="ficha-pedido-dot" style="background:${color}"></div>
           <div class="ficha-pedido-info">
-            <span class="ficha-pedido-orden">Orden ${p.orden}${sufijo}</span>
+            <span class="ficha-pedido-orden">Orden ${p.orden}${sufijo}${urgenteBadge}${demBadge}</span>
             <span class="ficha-pedido-lab">${p.laboratorio || ''} · ${p.tipo_lente || ''}</span>
           </div>
           <div class="ficha-pedido-meta">
