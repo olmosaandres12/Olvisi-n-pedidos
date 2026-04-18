@@ -14,6 +14,10 @@ const App = (() => {
   let _expandedId     = null;
   let _editingConfig  = null;
 
+  // ── Foto adjunta ─────────────────────────────────
+  let _fotoFiles        = {};   // { 1: File, 2: File } — pendientes en el form
+  let _fotoUploadTarget = null; // id del pedido al que se le sube foto en edición
+
   const hoy = new Date();
   let _mesActual = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
 
@@ -332,6 +336,7 @@ const App = (() => {
     });
 
     initNumpad();
+    _initFotoViewer();
     await loadConfig();
     buildBloqueFields(1);
     buildBloqueFields(2);
@@ -346,6 +351,135 @@ const App = (() => {
     setTimeout(() => initPush(), 2000);
 
     showScreen('seguimiento');
+  }
+
+  // ── FOTO ADJUNTA — core ───────────────────────────
+
+  function _initFotoViewer() {
+    // Overlay fullscreen para ver la foto
+    if (!document.getElementById('foto-viewer-overlay')) {
+      const ov = document.createElement('div');
+      ov.id = 'foto-viewer-overlay';
+      ov.className = 'hidden';
+      ov.innerHTML = `
+        <div class="foto-viewer-bg" onclick="App.cerrarFotoViewer()"></div>
+        <img id="foto-viewer-img" src="" alt="Foto del pedido">
+        <button class="foto-viewer-close" onclick="App.cerrarFotoViewer()">✕</button>`;
+      document.body.appendChild(ov);
+    }
+    // Input oculto reutilizable para subir foto a pedidos ya creados
+    if (!document.getElementById('foto-input-existente')) {
+      const fi = document.createElement('input');
+      fi.type = 'file';
+      fi.id   = 'foto-input-existente';
+      fi.accept = 'image/*';
+      fi.className = 'hidden';
+      fi.addEventListener('change', () => _handleFotoExistenteChange(fi));
+      document.body.appendChild(fi);
+    }
+  }
+
+  // Selección de foto en el formulario de nuevo pedido
+  function onFotoSelected(num, input) {
+    if (!input.files || !input.files[0]) return;
+    const file = input.files[0];
+    _fotoFiles[num] = file;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      document.getElementById(`foto-preview-wrap${num}`)?.classList.remove('hidden');
+      document.getElementById(`foto-zone${num}`)?.classList.add('hidden');
+      const img = document.getElementById(`foto-preview-img${num}`);
+      if (img) img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function clearFoto(num) {
+    _fotoFiles[num] = null;
+    document.getElementById(`foto-preview-wrap${num}`)?.classList.add('hidden');
+    document.getElementById(`foto-zone${num}`)?.classList.remove('hidden');
+    const inp = document.getElementById(`foto-finput${num}`);
+    if (inp) inp.value = '';
+  }
+
+  // Abrir visor fullscreen
+  function abrirFotoViewer(id) {
+    const p = _pedidosCache.find(x => x.id === id);
+    if (!p?.foto_url) return;
+    const ov  = document.getElementById('foto-viewer-overlay');
+    const img = document.getElementById('foto-viewer-img');
+    if (!ov || !img) return;
+    img.src = p.foto_url;
+    ov.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function cerrarFotoViewer() {
+    document.getElementById('foto-viewer-overlay')?.classList.add('hidden');
+    document.body.style.overflow = '';
+  }
+
+  // Subir foto a un pedido ya existente (si no tiene ninguna)
+  function uploadFotoExistente(id) {
+    _fotoUploadTarget = id;
+    document.getElementById('foto-input-existente')?.click();
+  }
+
+  // Cambiar foto de un pedido existente (admin)
+  function cambiarFoto(id) {
+    _fotoUploadTarget = id;
+    document.getElementById('foto-input-existente')?.click();
+  }
+
+  // Eliminar foto (admin)
+  async function eliminarFotoConfirm(id) {
+    if (!Auth.isAdmin()) return;
+    const p   = _pedidosCache.find(x => x.id === id);
+    const desc = p ? `#${p.orden}${p.sufijo?'-'+p.sufijo:''} — ${p.cliente}` : `ID ${id}`;
+    if (!confirm(`¿Eliminar la foto de ${desc}?\n\nEsta acción no se puede deshacer.`)) return;
+    try {
+      await Pedidos.eliminarFoto(id);
+      const idx = _pedidosCache.findIndex(x => x.id === id);
+      if (idx !== -1) _pedidosCache[idx] = { ..._pedidosCache[idx], foto_url: null };
+      toast('Foto eliminada', 'success');
+      _refreshTrassCambioFoto(id);
+    } catch(e) { toast('Error al eliminar foto: ' + e.message, 'error'); }
+  }
+
+  // Procesar el archivo seleccionado para un pedido existente
+  async function _handleFotoExistenteChange(input) {
+    const id = _fotoUploadTarget;
+    _fotoUploadTarget = null;
+    if (!input.files || !input.files[0] || !id) { input.value = ''; return; }
+    const file = input.files[0];
+    input.value = '';
+    try {
+      toast('Subiendo foto…', 'success');
+      const url = await Pedidos.uploadFoto(id, file);
+      const idx = _pedidosCache.findIndex(x => x.id === id);
+      if (idx !== -1) _pedidosCache[idx] = { ..._pedidosCache[idx], foto_url: url };
+      toast('Foto guardada ✓', 'success');
+      _refreshTrassCambioFoto(id);
+    } catch(e) { toast('Error al subir foto: ' + e.message, 'error'); }
+  }
+
+  // Refrescar UI tras cambio de foto sin recargar desde servidor
+  function _refreshTrassCambioFoto(id) {
+    if (_currentScreen === 'pedidos') {
+      renderPedidosList();
+    } else if (_currentScreen === 'seguimiento') {
+      const todos   = _pedidosCache;
+      const enLab   = todos.filter(p => ['Cristales pedidos a lab','Armazón enviado p/calibrado','En laboratorio'].includes(p.estado));
+      const retirar = todos.filter(p => p.estado === 'Pendiente de retirar');
+      renderSegPanel('seg-content-lab',     enLab.sort(sortPorPrioridad),   true);
+      renderSegPanel('seg-content-retirar', retirar.sort(sortPorPrioridad), false);
+      if (typeof Panel !== 'undefined') Panel.renderLabCards(todos, 'seg-labs-cards');
+    }
+    // Si el modal de edición está abierto para este pedido, recargarlo
+    const em = document.getElementById('edit-modal');
+    if (em && !em.classList.contains('hidden') && _detalleId === id) {
+      abrirEdicion();
+    }
   }
 
   // ── CONFIG CACHE ──────────────────────────────────
@@ -436,6 +570,20 @@ const App = (() => {
       <div class="form-group">
         <label class="form-label">Observaciones</label>
         <textarea id="f-obs${num}" class="form-control" rows="2" placeholder="Notas adicionales sobre este anteojo..." style="resize:vertical;font-size:1rem"></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Foto del pedido <span class="form-label-hint">(opcional — sobre / armazón)</span></label>
+        <div class="foto-upload-zone" id="foto-zone${num}" onclick="document.getElementById('foto-finput${num}').click()">
+          📷 Tocar para adjuntar foto
+          <input type="file" id="foto-finput${num}" accept="image/*" class="hidden" onchange="App.onFotoSelected(${num}, this)">
+        </div>
+        <div class="foto-preview-wrap hidden" id="foto-preview-wrap${num}">
+          <img class="foto-preview-img" id="foto-preview-img${num}" src="" alt="Vista previa" onclick="document.getElementById('foto-finput${num}').click()">
+          <div>
+            <div style="font-size:.78rem;color:var(--gris-texto);margin-bottom:6px">Foto seleccionada</div>
+            <button type="button" class="btn-foto-clear" onclick="App.clearFoto(${num})">✕ Quitar</button>
+          </div>
+        </div>
       </div>`;
 
     attachNumpadListeners(container);
@@ -593,6 +741,50 @@ const App = (() => {
     return result;
   }
 
+  // ── Helper: sección foto para el detalle expandido ──
+  function _fotoDetalle(p) {
+    const isAdmin = Auth.isAdmin();
+    if (p.foto_url) {
+      const adminBtns = isAdmin
+        ? `<button class="btn-foto-sm btn-foto-cambiar" onclick="event.stopPropagation();App.cambiarFoto(${p.id})">🔄 Cambiar</button>
+           <button class="btn-foto-sm btn-foto-del"     onclick="event.stopPropagation();App.eliminarFotoConfirm(${p.id})">🗑</button>`
+        : '';
+      return `<div class="prd-item prd-item--full">
+        <span class="prd-label">Foto</span>
+        <div class="foto-detalle-wrap">
+          <img class="foto-thumb" src="${esc(p.foto_url)}" alt="Foto" loading="lazy"
+               onclick="event.stopPropagation();App.abrirFotoViewer(${p.id})">
+          <div class="foto-detalle-btns">
+            <button class="btn-foto-sm" onclick="event.stopPropagation();App.abrirFotoViewer(${p.id})">👁 Ver</button>
+            ${adminBtns}
+          </div>
+        </div>
+      </div>`;
+    }
+    return `<div class="prd-item prd-item--full">
+      <span class="prd-label">Foto</span>
+      <button class="btn-foto-upload-inline" onclick="event.stopPropagation();App.uploadFotoExistente(${p.id})">📷 Adjuntar foto</button>
+    </div>`;
+  }
+
+  // ── Helper: sección foto compacta para sub-row par ──
+  function _fotoSubRow(p) {
+    const isAdmin = Auth.isAdmin();
+    if (p.foto_url) {
+      const adminBtns = isAdmin
+        ? `<button class="btn-foto-sm btn-foto-cambiar" onclick="event.stopPropagation();App.cambiarFoto(${p.id})">🔄</button>
+           <button class="btn-foto-sm btn-foto-del"     onclick="event.stopPropagation();App.eliminarFotoConfirm(${p.id})">🗑</button>`
+        : '';
+      return `<div class="foto-sub-wrap">
+        <img class="foto-thumb foto-thumb--sm" src="${esc(p.foto_url)}" alt="Foto" loading="lazy"
+             onclick="event.stopPropagation();App.abrirFotoViewer(${p.id})">
+        ${adminBtns}
+      </div>`;
+    }
+    return `<button class="btn-foto-upload-inline btn-foto-upload-inline--sm"
+              onclick="event.stopPropagation();App.uploadFotoExistente(${p.id})">📷 Foto</button>`;
+  }
+
   function renderCompactRow(p) {
     const sufijo    = p.sufijo ? `-${p.sufijo}` : '';
     const isOpen    = _expandedId === p.id;
@@ -616,6 +808,7 @@ const App = (() => {
           ${p.observaciones?`<div class="prd-item prd-item--full"><span class="prd-label">Observaciones</span><span class="prd-val" style="font-style:italic;color:var(--gris-texto)">${esc(p.observaciones)}</span></div>`:''}
           <div class="prd-item"><span class="prd-label">Estado inteligente</span><span class="prd-val">${p._est.texto}</span></div>
           <div class="prd-item"><span class="prd-label">Cargado por</span><span class="prd-val">${esc(p.cargado_por||'—')}</span></div>
+          ${_fotoDetalle(p)}
         </div>
         <div class="ped-row-detail-actions">
           <select class="estado-select ${scls} estado-select-inline" data-id="${p.id}" data-prev="${esc(p.estado)}" onclick="event.stopPropagation()">${opts}</select>
@@ -634,6 +827,7 @@ const App = (() => {
           <span class="ped-card-orden">#${esc(p.orden)}${sufijo}</span>
           ${p.laboratorio?`<span class="meta-dot">·</span><span>${esc(p.laboratorio)}</span>`:''}
           <span class="meta-dot">·</span><span>${fechaCorta}</span>
+          ${p.foto_url ? '<span class="meta-dot">·</span><span style="font-size:.72rem">📷</span>' : ''}
         </div>
       </div>
       ${detalle}
@@ -670,6 +864,7 @@ const App = (() => {
         </div>
         ${p.graduacion?`<div class="ped-pair-grad">${esc(p.graduacion).replace(/\|/g,' | ')}</div>`:''}
         ${p.observaciones?`<div class="ped-pair-obs">💬 ${esc(p.observaciones)}</div>`:''}
+        ${_fotoSubRow(p)}
         <div class="ped-pair-actions">
           <select class="estado-select ${scls} estado-select-inline" data-id="${p.id}" data-prev="${esc(p.estado)}" onclick="event.stopPropagation()">${opts}</select>
           ${Auth.isAdmin()?`<button class="ped-row-edit-btn" onclick="event.stopPropagation();App._abrirDetalleRapido(${p.id})">✏️</button>`:''}
@@ -677,6 +872,7 @@ const App = (() => {
         </div>
       </div>`;
     };
+    const tienenFoto = pA.foto_url || pB.foto_url;
     return `<div class="ped-row ped-card ped-card--${borderCls} ped-row--pair" data-pair-id="${pairId}" onclick="App.togglePedidoRow('${pairId}')">
       <div class="ped-card-main">
         <div class="ped-card-top-row">
@@ -689,7 +885,11 @@ const App = (() => {
           </div>
         </div>
         <div class="ped-card-cliente">${esc(pA.cliente)}</div>
-        <div class="ped-card-meta"><span class="ped-card-orden">#${esc(pA.orden)}</span><span class="meta-dot">·</span><span>${fechaCorta}</span></div>
+        <div class="ped-card-meta">
+          <span class="ped-card-orden">#${esc(pA.orden)}</span>
+          <span class="meta-dot">·</span><span>${fechaCorta}</span>
+          ${tienenFoto ? '<span class="meta-dot">·</span><span style="font-size:.72rem">📷</span>' : ''}
+        </div>
       </div>
       <div class="ped-row-detail ${isOpen?'':'hidden'}" onclick="event.stopPropagation()">
         ${subRow(pA,'azul')}${subRow(pB,'teal')}
@@ -923,6 +1123,10 @@ const App = (() => {
     eb.innerHTML='<div style="padding:32px;text-align:center;color:#888">Cargando...</div>';
     try {
       const p=await Pedidos.getPedidoById(id);
+      // Actualizar cache con datos frescos (incluye foto_url actualizada)
+      const idx=_pedidosCache.findIndex(x=>x.id===id);
+      if (idx!==-1) _pedidosCache[idx]=p;
+
       const labs=_configCache.laboratorios.map(l=>`<option value="${esc(l)}"${l===p.laboratorio?' selected':''}>${esc(l)}</option>`).join('');
       const lentes=['Monofocal','Bifocal','Ocupacional','Progresivo','Teñido'].map(l=>`<option value="${l}"${l===p.tipo_lente?' selected':''}>${l}</option>`).join('');
       const tipos=['Cristales','Armazón + Cristales','Armazón'].map(t=>`<option value="${t}"${t===p.tipo?' selected':''}>${t}</option>`).join('');
@@ -930,6 +1134,19 @@ const App = (() => {
       const etapas=['No','Si'].map(u=>`<option value="${u}"${u===p.dos_etapas?' selected':''}>${u==='Si'?'Sí':'No'}</option>`).join('');
       const ESTADOS=['Cristales pedidos a lab','Armazón enviado p/calibrado','En laboratorio','Pendiente de retirar','Retirado'];
       const estados=ESTADOS.map(e=>`<option value="${e}"${e===p.estado?' selected':''}>${e}</option>`).join('');
+
+      // Sección foto en el modal de edición
+      const fotoSection = p.foto_url
+        ? `<div class="foto-edit-wrap">
+            <img class="foto-thumb--edit" src="${esc(p.foto_url)}" alt="Foto del pedido" loading="lazy"
+                 onclick="App.abrirFotoViewer(${p.id})" style="cursor:pointer;border-radius:var(--radius-sm);border:2px solid var(--gris-borde);max-width:100%;object-fit:cover;height:140px;">
+            <div class="foto-edit-actions" style="margin-top:10px">
+              <button type="button" class="btn btn-secondary btn-sm" onclick="App.cambiarFoto(${p.id})">🔄 Cambiar foto</button>
+              <button type="button" class="btn btn-danger btn-sm"    onclick="App.eliminarFotoConfirm(${p.id})">🗑 Eliminar</button>
+            </div>
+          </div>`
+        : `<button type="button" class="btn btn-secondary btn-full" style="border-style:dashed" onclick="App.uploadFotoExistente(${p.id})">📷 Adjuntar foto del pedido</button>`;
+
       eb.innerHTML=`
         <div class="form-section"><div class="form-section-title">Cliente</div>
           <div class="form-group"><label class="form-label">Nombre</label><input type="text" id="e-cliente" class="form-control" value="${esc(p.cliente||'')}"></div>
@@ -956,6 +1173,9 @@ const App = (() => {
         </div>
         <div class="form-section"><div class="form-section-title">Estado</div>
           <div class="form-group"><label class="form-label">Estado actual</label><select id="e-estado" class="form-control">${estados}</select></div>
+        </div>
+        <div class="form-section"><div class="form-section-title">Foto</div>
+          ${fotoSection}
         </div>
         <button class="edit-save-btn" onclick="App.guardarEdicion(${p.id})">Guardar cambios</button>`;
     } catch(e){eb.innerHTML=`<p style="padding:16px;color:var(--rojo)">Error: ${e.message}</p>`;}
@@ -1190,10 +1410,13 @@ const App = (() => {
     if(data.doble){
       html+=`<div style="margin:10px 0 4px;font-size:.78rem;font-weight:700;color:var(--azul)">ANTEOJO A</div>`;
       html+=rf('Lab',data.ant1.laboratorio)+rf('Lente',data.ant1.tipo_lente)+rf('Tratamiento',data.ant1.tratamiento)+rf('Graduación',data.ant1.graduacion)+rf('Armazón',data.ant1.armazon)+rf('Obs.',data.ant1.observaciones);
+      if(_fotoFiles[1]) html+=`<div class="modal-row"><span class="modal-label">Foto A</span><span class="modal-value">📷 ${esc(_fotoFiles[1].name)}</span></div>`;
       html+=`<div style="margin:10px 0 4px;font-size:.78rem;font-weight:700;color:var(--azul)">ANTEOJO B</div>`;
       html+=rf('Lab',data.ant2.laboratorio)+rf('Lente',data.ant2.tipo_lente)+rf('Tratamiento',data.ant2.tratamiento)+rf('Graduación',data.ant2.graduacion)+rf('Armazón',data.ant2.armazon)+rf('Obs.',data.ant2.observaciones);
+      if(_fotoFiles[2]) html+=`<div class="modal-row"><span class="modal-label">Foto B</span><span class="modal-value">📷 ${esc(_fotoFiles[2].name)}</span></div>`;
     } else {
       html+=rf('Laboratorio',data.ant1.laboratorio)+rf('Lente',data.ant1.tipo_lente)+rf('Tratamiento',data.ant1.tratamiento)+rf('Graduación',data.ant1.graduacion)+rf('Armazón',data.ant1.armazon)+rf('Obs.',data.ant1.observaciones);
+      if(_fotoFiles[1]) html+=`<div class="modal-row"><span class="modal-label">Foto</span><span class="modal-value">📷 ${esc(_fotoFiles[1].name)}</span></div>`;
     }
     document.getElementById('modal-body-content').innerHTML=html;
     _pendingGuardar=data;
@@ -1231,7 +1454,23 @@ const App = (() => {
         cargado_por:nombre, fecha_carga:fechaISO, fecha_pedido:fechaISO,
       });
       const rows=data.doble?[buildRow(data.ant1,'A'),buildRow(data.ant2,'B')]:[buildRow(data.ant1,null)];
-      await Pedidos.crearPedido(rows);
+      const creados = await Pedidos.crearPedido(rows);
+
+      // Subir fotos si hay archivos pendientes
+      if (data.doble) {
+        if (_fotoFiles[1] && creados?.[0]) {
+          try { await Pedidos.uploadFoto(creados[0].id, _fotoFiles[1]); } catch(fe) { console.warn('Foto A:', fe); }
+        }
+        if (_fotoFiles[2] && creados?.[1]) {
+          try { await Pedidos.uploadFoto(creados[1].id, _fotoFiles[2]); } catch(fe) { console.warn('Foto B:', fe); }
+        }
+      } else {
+        if (_fotoFiles[1] && creados?.[0]) {
+          try { await Pedidos.uploadFoto(creados[0].id, _fotoFiles[1]); } catch(fe) { console.warn('Foto:', fe); }
+        }
+      }
+      _fotoFiles = {};
+
       enviarNotificacion('📋 Nuevo pedido — OLVISIÓN',`${nombre} cargó un pedido para ${data.base.cliente}`,true);
       closeModal(); toast('Pedido guardado ✓','success'); resetForm();
       showScreen('seguimiento');
@@ -1246,7 +1485,13 @@ const App = (() => {
     document.getElementById('bloque1-title').textContent='Anteojo';
     document.querySelectorAll('.form-control').forEach(el=>el.classList.remove('error'));
     document.querySelectorAll('.form-error').forEach(el=>el.classList.remove('visible'));
-    [1,2].forEach(n=>{ try{setDistancia(n,'lejos');}catch{} document.getElementById(`f-armazon-nuevo${n}`)?.classList.add('hidden'); document.getElementById(`f-armazon-cliente${n}`)?.classList.add('hidden'); });
+    [1,2].forEach(n=>{
+      try{setDistancia(n,'lejos');}catch{}
+      document.getElementById(`f-armazon-nuevo${n}`)?.classList.add('hidden');
+      document.getElementById(`f-armazon-cliente${n}`)?.classList.add('hidden');
+      clearFoto(n);
+    });
+    _fotoFiles = {};
     _pendingGuardar=null;
     // Limpiar cliente vinculado
     if (typeof limpiarClienteForm === 'function') limpiarClienteForm();
@@ -1402,6 +1647,10 @@ const App = (() => {
     _abrirDetalleRapido,
     onClienteInput, seleccionarCliente, crearClienteDesdeNuevo, limpiarClienteForm,
     initClienteSearch,
+    // Foto adjunta
+    onFotoSelected, clearFoto,
+    abrirFotoViewer, cerrarFotoViewer,
+    uploadFotoExistente, cambiarFoto, eliminarFotoConfirm,
   };
 })();
 
