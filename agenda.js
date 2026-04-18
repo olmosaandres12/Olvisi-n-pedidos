@@ -79,7 +79,7 @@ async function loadMedicosUnicos() {
 async function getPedidosDeCliente(clienteId) {
   const { data } = await window.supabaseClient
     .from('pedidos')
-    .select('id, orden, sufijo, estado, laboratorio, tipo_lente, urgente, fecha_carga, fecha_pedido, fecha_retiro')
+    .select('id, orden, sufijo, estado, laboratorio, tipo_lente, urgente, fecha_carga, fecha_pedido, fecha_prometida, fecha_retiro')
     .eq('cliente_id', clienteId)
     .order('fecha_carga', { ascending: false })
     .limit(20);
@@ -142,6 +142,17 @@ function filtrarAgenda(valor) {
 
 // ─── ESTADO INTELIGENTE PARA FICHA (siempre computa, incluso Retirado) ───────
 function _estInteligenteFicha(p) {
+  // Prioridad: fecha prometida
+  if (p.fecha_prometida) {
+    const ref  = p.fecha_retiro ? new Date(p.fecha_retiro) : new Date();
+    ref.setHours(0,0,0,0);
+    const prom   = new Date(p.fecha_prometida + 'T00:00:00');
+    const atraso = Math.floor((ref - prom) / (1000*60*60*24));
+    if (atraso <= 0) return null;
+    if (atraso <= 1) return { texto: '⚠️ Demorado', bgColor: '#FEF3C7', textColor: '#92400E' };
+    return                  { texto: '🔴 Crítico',  bgColor: '#FEE2E2', textColor: '#991B1B' };
+  }
+  // Fallback: límites por laboratorio
   const LIMITES = {
     'Bichara': { ok:2, dem:4 }, 'Sol':     { ok:5, dem:7 },
     'Vitolen': { ok:5, dem:7 }, 'Cristian':{ ok:7, dem:10 },
@@ -150,8 +161,8 @@ function _estInteligenteFicha(p) {
   if (!limite) return null;
   const desde = new Date(p.fecha_pedido || p.fecha_carga);
   const hasta = p.fecha_retiro ? new Date(p.fecha_retiro) : new Date();
-  const dias  = Math.max(0, Math.floor((hasta - desde) / (1000 * 60 * 60 * 24)));
-  if (dias <= limite.ok)  return null; // OK → sin badge
+  const dias  = Math.max(0, Math.floor((hasta - desde) / (1000*60*60*24)));
+  if (dias <= limite.ok)  return null;
   if (dias <= limite.dem) return { texto: '⚠️ Demorado', bgColor: '#FEF3C7', textColor: '#92400E' };
   return                         { texto: '🔴 Crítico',  bgColor: '#FEE2E2', textColor: '#991B1B' };
 }
@@ -509,6 +520,11 @@ function renderFormCliente(cliente = null) {
             </div>
           </div>
 
+          <div class="form-group">
+            <label class="form-label">Fecha prometida <span class="form-label-hint">(cuándo iba a estar listo)</span></label>
+            <input type="date" id="fc-ped-fecha-prom" class="form-control">
+          </div>
+
           <!-- ── Graduación con tabla igual a pedidos ── -->
           <div class="form-group">
             <label class="form-label">Distancia</label>
@@ -697,6 +713,7 @@ async function guardarCliente(e) {
         tratamiento:  document.getElementById('fc-ped-trat')?.value.trim() || null,
         graduacion,
         armazon:      document.getElementById('fc-ped-armazon')?.value.trim() || null,
+        fecha_prometida: document.getElementById('fc-ped-fecha-prom')?.value || null,
         estado:       estadoPed,
         urgente:      'No',
         cargado_por:  typeof Auth !== 'undefined' ? Auth.getNombre() : 'Agenda',
