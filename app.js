@@ -794,7 +794,7 @@ const App = (() => {
     const scls      = Pedidos.claseEstado(p.estado);
     const fechaCorta = new Date(p.fecha_carga).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'});
     const daysBadge = cfg.advertencia ? `<span class="ped-warning-badge">⚠️ ${cfg.dh}dh</span>` : `<span class="ped-days-badge">${cfg.dh}dh</span>`;
-    const urgenteBadge = p.urgente==='Si' ? '<span class="ped-urgente-chip">⚡ URGENTE</span>' : '';
+    const urgenteBadge = p.urgente==='Si' && p.estado !== 'Retirado' ? '<span class="ped-urgente-chip">⚡ URGENTE</span>' : '';
     const detalle = `
       <div class="ped-row-detail ${isOpen?'':'hidden'}" onclick="event.stopPropagation()">
         <div class="ped-row-detail-grid">
@@ -844,7 +844,8 @@ const App = (() => {
     const prioB = BORDER_PRIO.indexOf(cfgB.borderCls);
     const borderCls = BORDER_PRIO[Math.min(prioA < 0 ? 99 : prioA, prioB < 0 ? 99 : prioB)] || 'gris';
     const worstCfg = (prioA <= prioB ? prioA : prioB) === prioA ? cfgA : cfgB;
-    const urgente  = pA.urgente==='Si' || pB.urgente==='Si';
+    const ambosRetirados = pA.estado === 'Retirado' && pB.estado === 'Retirado';
+    const urgente  = (pA.urgente==='Si' || pB.urgente==='Si') && !ambosRetirados;
     const dhMax    = Math.max(cfgA.dh, cfgB.dh);
     const advertencia = cfgA.advertencia || cfgB.advertencia;
     const fechaCorta  = new Date(pA.fecha_carga).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'});
