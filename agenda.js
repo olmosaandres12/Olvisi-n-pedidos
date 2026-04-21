@@ -288,8 +288,6 @@ function cerrarFichaCliente() {
 
 // ─── GRADUACIÓN HISTÓRICA — helpers ───────────────────────────
 
-// Genera HTML de tabla de grad para el bloque histórico.
-// Usa sufijo "h" en los IDs para no colisionar con el form de pedidos.
 function _gradTablaHistHTML(dc) {
   const id = (campo, ojo) => `g-${dc}-${campo}-${ojo}-h`;
   return `<div class="grad-grid">
@@ -311,7 +309,6 @@ function _gradTablaHistHTML(dc) {
   </div>`;
 }
 
-// Cambia qué tabla de grad se muestra
 function setDistanciaHist(dist) {
   document.querySelectorAll('#dist-tabs-h .dist-tab')
     .forEach(t => t.classList.toggle('active', t.dataset.dist === dist));
@@ -319,7 +316,6 @@ function setDistanciaHist(dist) {
   document.getElementById('grad-cerca-h')?.classList.toggle('hidden', dist === 'lejos');
 }
 
-// Lee los valores de la tabla y arma el string de graduación
 function getGraduacionHist() {
   const dist = document.querySelector('#dist-tabs-h .dist-tab.active')?.dataset.dist || 'lejos';
   const leer = (dc) => {
@@ -357,9 +353,6 @@ async function abrirFormCliente(clienteId = null) {
   content.innerHTML = renderFormCliente(cliente);
   setupMedicoAutocomplete();
 
-  // Conectar el numpad a los campos de graduación del bloque histórico
-  // (lo hacemos sobre todo el contenido; si el bloque está oculto igual funciona
-  // porque attachNumpadListeners solo agrega event listeners al DOM)
   if (!cliente && typeof App !== 'undefined' && App.attachNumpadListeners) {
     const form = document.getElementById('form-cliente');
     if (form) App.attachNumpadListeners(form);
@@ -375,7 +368,6 @@ function renderFormCliente(cliente = null) {
   const esc2 = (s) => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   const v = (campo) => esc2(cliente?.[campo] || '');
 
-  // Nombre completo combinado
   const nombreCompleto = cliente
     ? esc2([cliente.nombre, cliente.apellido].filter(Boolean).join(' '))
     : '';
@@ -672,6 +664,22 @@ async function guardarCliente(e) {
   const btn = document.getElementById('btn-guardar-cliente');
   if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
 
+  // ── Validar teléfono duplicado (solo al crear, no al editar) ──
+  if (!clienteId && datos.telefono) {
+    const { data: existente } = await window.supabaseClient
+      .from('clientes')
+      .select('id, nombre, apellido')
+      .eq('telefono', datos.telefono)
+      .maybeSingle();
+
+    if (existente) {
+      const nombreExistente = [existente.nombre, existente.apellido].filter(Boolean).join(' ');
+      showToast(`Ya existe "${nombreExistente}" con ese número de celular.`, 'error');
+      if (btn) { btn.disabled = false; btn.textContent = '+ Crear cliente'; }
+      return;
+    }
+  }
+
   let nuevoClienteId = clienteId;
   let error;
 
@@ -685,7 +693,11 @@ async function guardarCliente(e) {
   }
 
   if (error) {
-    showToast('Error al guardar el cliente.', 'error');
+    // Detectar violación de unique constraint (por si acaso llegó igual)
+    const msg = error.code === '23505'
+      ? 'Ya existe un cliente con ese número de celular.'
+      : 'Error al guardar el cliente.';
+    showToast(msg, 'error');
     if (btn) { btn.disabled = false; btn.textContent = clienteId ? 'Guardar cambios' : '+ Crear cliente'; }
     return;
   }
@@ -701,7 +713,6 @@ async function guardarCliente(e) {
         ? new Date(fechaInput + 'T12:00:00').toISOString()
         : new Date().toISOString();
       const estadoPed  = document.getElementById('fc-ped-estado')?.value || 'Retirado';
-      // Leer graduación desde la tabla (con distancia y numpad)
       const graduacion = getGraduacionHist() || null;
       await window.supabaseClient.from('pedidos').insert([{
         cliente:      nombreCompleto,
