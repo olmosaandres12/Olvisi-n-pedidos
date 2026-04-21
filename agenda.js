@@ -230,7 +230,7 @@ function renderFichaCliente(cliente, pedidos) {
     }).join('');
   }
 
-  const esAdmin = currentPerfil?.rol === 'admin';
+  const esAdmin = typeof Auth !== 'undefined' && Auth.isAdmin();
 
   return `
     <div class="ficha-header">
