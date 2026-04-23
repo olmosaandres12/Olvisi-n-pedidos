@@ -14,9 +14,8 @@ const App = (() => {
   let _expandedId     = null;
   let _editingConfig  = null;
 
-  // ── Foto adjunta ─────────────────────────────────
-  let _fotoFiles        = {};   // { 1: File, 2: File } — pendientes en el form
-  let _fotoUploadTarget = null; // id del pedido al que se le sube foto en edición
+  let _fotoFiles        = {};
+  let _fotoUploadTarget = null;
 
   const hoy = new Date();
   let _mesActual = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
@@ -42,32 +41,25 @@ const App = (() => {
         if (npHeader) npHeader.insertAdjacentElement('afterend', ind);
       }
     }
-
     document.getElementById('numpad-close')?.addEventListener('click', closeNumpad);
     document.getElementById('numpad-ok')?.addEventListener('click', confirmNumpad);
-
     const ok = document.getElementById('numpad-ok');
-
     if (ok && !document.getElementById('numpad-siguiente')) {
       const sig = document.createElement('button');
-      sig.id = 'numpad-siguiente';
-      sig.type = 'button';
+      sig.id = 'numpad-siguiente'; sig.type = 'button';
       sig.className = 'numpad-siguiente-btn hidden';
       sig.innerHTML = 'Siguiente <span class="np-sig-arrow">›</span>';
       ok.parentNode.insertBefore(sig, ok);
       sig.addEventListener('click', siguienteNumpad);
     }
-
     if (ok && !document.getElementById('numpad-ambos')) {
       const amb = document.createElement('button');
-      amb.id = 'numpad-ambos';
-      amb.type = 'button';
+      amb.id = 'numpad-ambos'; amb.type = 'button';
       amb.className = 'numpad-ambos-btn hidden';
       amb.innerHTML = '👁️ Copiar a ambos ojos';
       ok.parentNode.insertBefore(amb, ok);
       amb.addEventListener('click', copiarAmbosOjos);
     }
-
     const bm = document.getElementById('numpad-step-minus');
     const bp = document.getElementById('numpad-step-plus');
     if (bm) { bm.addEventListener('pointerdown', () => _numpadStartRepeat(-0.25)); bm.addEventListener('pointerup', _numpadStopRepeat); bm.addEventListener('pointerleave', _numpadStopRepeat); }
@@ -164,13 +156,8 @@ const App = (() => {
     setTimeout(() => {
       ov.classList.add('hidden'); ov.style.display = '';
       if (!next) return;
-      if (next.classList.contains('grad-eje')) {
-        next.focus();
-        setTimeout(() => next.select(), 50);
-      } else {
-        const label = next.classList.contains('grad-esf') ? 'Esfera' : 'Cilindro';
-        openNumpad(next, label);
-      }
+      if (next.classList.contains('grad-eje')) { next.focus(); setTimeout(() => next.select(), 50); }
+      else { const label = next.classList.contains('grad-esf') ? 'Esfera' : 'Cilindro'; openNumpad(next, label); }
     }, 160);
   }
 
@@ -312,7 +299,6 @@ const App = (() => {
     const fechaEl = document.getElementById('f-fecha-carga');
     if (fechaEl) {
       fechaEl.value = todayStr();
-      // Inyectar campo "Fecha prometida" justo después del campo de fecha de carga
       if (!document.getElementById('f-fecha-prometida')) {
         const promGroup = document.createElement('div');
         promGroup.className = 'form-group';
@@ -338,7 +324,6 @@ const App = (() => {
     document.getElementById('btn-cerrar-edit').addEventListener('click', cerrarEdicion);
     document.getElementById('edit-modal').addEventListener('click', (e) => { if (e.target===document.getElementById('edit-modal')) cerrarEdicion(); });
 
-    // ── Agenda sheets ─────────────────────────────
     document.getElementById('cliente-sheet-overlay')?.addEventListener('click', () => {
       if (typeof cerrarFichaCliente === 'function') cerrarFichaCliente();
     });
@@ -352,7 +337,6 @@ const App = (() => {
     buildBloqueFields(1);
     buildBloqueFields(2);
 
-    // Inicializar agenda
     if (typeof initAgenda === 'function') initAgenda();
     initClienteSearch();
 
@@ -364,33 +348,24 @@ const App = (() => {
     showScreen('seguimiento');
   }
 
-  // ── FOTO ADJUNTA — core ───────────────────────────
-
+  // ── FOTO ADJUNTA ─────────────────────────────────
   function _initFotoViewer() {
-    // Overlay fullscreen para ver la foto
     if (!document.getElementById('foto-viewer-overlay')) {
       const ov = document.createElement('div');
-      ov.id = 'foto-viewer-overlay';
-      ov.className = 'hidden';
-      ov.innerHTML = `
-        <div class="foto-viewer-bg" onclick="App.cerrarFotoViewer()"></div>
+      ov.id = 'foto-viewer-overlay'; ov.className = 'hidden';
+      ov.innerHTML = `<div class="foto-viewer-bg" onclick="App.cerrarFotoViewer()"></div>
         <img id="foto-viewer-img" src="" alt="Foto del pedido">
         <button class="foto-viewer-close" onclick="App.cerrarFotoViewer()">✕</button>`;
       document.body.appendChild(ov);
     }
-    // Input oculto reutilizable para subir foto a pedidos ya creados
     if (!document.getElementById('foto-input-existente')) {
       const fi = document.createElement('input');
-      fi.type = 'file';
-      fi.id   = 'foto-input-existente';
-      fi.accept = 'image/*';
-      fi.className = 'hidden';
+      fi.type = 'file'; fi.id = 'foto-input-existente'; fi.accept = 'image/*'; fi.className = 'hidden';
       fi.addEventListener('change', () => _handleFotoExistenteChange(fi));
       document.body.appendChild(fi);
     }
   }
 
-  // Selección de foto en el formulario de nuevo pedido
   function onFotoSelected(num, input) {
     if (!input.files || !input.files[0]) return;
     const file = input.files[0];
@@ -413,11 +388,10 @@ const App = (() => {
     if (inp) inp.value = '';
   }
 
-  // Abrir visor fullscreen
   function abrirFotoViewer(id) {
     const p = _pedidosCache.find(x => x.id === id);
     if (!p?.foto_url) return;
-    const ov  = document.getElementById('foto-viewer-overlay');
+    const ov = document.getElementById('foto-viewer-overlay');
     const img = document.getElementById('foto-viewer-img');
     if (!ov || !img) return;
     img.src = p.foto_url;
@@ -430,22 +404,12 @@ const App = (() => {
     document.body.style.overflow = '';
   }
 
-  // Subir foto a un pedido ya existente (si no tiene ninguna)
-  function uploadFotoExistente(id) {
-    _fotoUploadTarget = id;
-    document.getElementById('foto-input-existente')?.click();
-  }
+  function uploadFotoExistente(id) { _fotoUploadTarget = id; document.getElementById('foto-input-existente')?.click(); }
+  function cambiarFoto(id) { _fotoUploadTarget = id; document.getElementById('foto-input-existente')?.click(); }
 
-  // Cambiar foto de un pedido existente (admin)
-  function cambiarFoto(id) {
-    _fotoUploadTarget = id;
-    document.getElementById('foto-input-existente')?.click();
-  }
-
-  // Eliminar foto (admin)
   async function eliminarFotoConfirm(id) {
     if (!Auth.isAdmin()) return;
-    const p   = _pedidosCache.find(x => x.id === id);
+    const p = _pedidosCache.find(x => x.id === id);
     const desc = p ? `#${p.orden}${p.sufijo?'-'+p.sufijo:''} — ${p.cliente}` : `ID ${id}`;
     if (!confirm(`¿Eliminar la foto de ${desc}?\n\nEsta acción no se puede deshacer.`)) return;
     try {
@@ -457,13 +421,10 @@ const App = (() => {
     } catch(e) { toast('Error al eliminar foto: ' + e.message, 'error'); }
   }
 
-  // Procesar el archivo seleccionado para un pedido existente
   async function _handleFotoExistenteChange(input) {
-    const id = _fotoUploadTarget;
-    _fotoUploadTarget = null;
+    const id = _fotoUploadTarget; _fotoUploadTarget = null;
     if (!input.files || !input.files[0] || !id) { input.value = ''; return; }
-    const file = input.files[0];
-    input.value = '';
+    const file = input.files[0]; input.value = '';
     try {
       toast('Subiendo foto…', 'success');
       const url = await Pedidos.uploadFoto(id, file);
@@ -474,23 +435,18 @@ const App = (() => {
     } catch(e) { toast('Error al subir foto: ' + e.message, 'error'); }
   }
 
-  // Refrescar UI tras cambio de foto sin recargar desde servidor
   function _refreshTrassCambioFoto(id) {
-    if (_currentScreen === 'pedidos') {
-      renderPedidosList();
-    } else if (_currentScreen === 'seguimiento') {
-      const todos   = _pedidosCache;
-      const enLab   = todos.filter(p => ['Cristales pedidos a lab','Armazón enviado p/calibrado','En laboratorio'].includes(p.estado));
+    if (_currentScreen === 'pedidos') { renderPedidosList(); }
+    else if (_currentScreen === 'seguimiento') {
+      const todos = _pedidosCache;
+      const enLab = todos.filter(p => ['Cristales pedidos a lab','Armazón enviado p/calibrado','En laboratorio'].includes(p.estado));
       const retirar = todos.filter(p => p.estado === 'Pendiente de retirar');
-      renderSegPanel('seg-content-lab',     enLab.sort(sortPorPrioridad),   true);
+      renderSegPanel('seg-content-lab', enLab.sort(sortPorPrioridad), true);
       renderSegPanel('seg-content-retirar', retirar.sort(sortPorPrioridad), false);
       if (typeof Panel !== 'undefined') Panel.renderLabCards(todos, 'seg-labs-cards');
     }
-    // Si el modal de edición está abierto para este pedido, recargarlo
     const em = document.getElementById('edit-modal');
-    if (em && !em.classList.contains('hidden') && _detalleId === id) {
-      abrirEdicion();
-    }
+    if (em && !em.classList.contains('hidden') && _detalleId === id) abrirEdicion();
   }
 
   // ── CONFIG CACHE ──────────────────────────────────
@@ -648,24 +604,21 @@ const App = (() => {
     if (fab) fab.style.display=(name==='inicio'||name==='agenda')?'none':'flex';
   }
 
-  // ── HELPERS DE COLOR POR ESTADO ───────────────────
   function estadoRowClass(estado) {
     const map = {
-      'Cristales pedidos a lab':      'ped-row--estado-cristales',
-      'Armazón enviado p/calibrado':  'ped-row--estado-armazon',
-      'En laboratorio':               'ped-row--estado-lab',
-      'Pendiente de retirar':         'ped-row--estado-retirar',
-      'Retirado':                     'ped-row--estado-retirado',
+      'Cristales pedidos a lab': 'ped-row--estado-cristales',
+      'Armazón enviado p/calibrado': 'ped-row--estado-armazon',
+      'En laboratorio': 'ped-row--estado-lab',
+      'Pendiente de retirar': 'ped-row--estado-retirar',
+      'Retirado': 'ped-row--estado-retirado',
     };
     return map[estado] || '';
   }
 
   function calcDiasHabiles(fecha) {
     if (!fecha) return 0;
-    const inicio = new Date(fecha);
-    inicio.setHours(0, 0, 0, 0);
-    const hoyDate = new Date();
-    hoyDate.setHours(0, 0, 0, 0);
+    const inicio = new Date(fecha); inicio.setHours(0,0,0,0);
+    const hoyDate = new Date(); hoyDate.setHours(0,0,0,0);
     let dias = 0;
     const cur = new Date(inicio);
     while (cur < hoyDate) {
@@ -688,7 +641,7 @@ const App = (() => {
     const dh = calcDiasHabiles(p.fecha_pedido || p.fecha_carga);
     let advertencia = dh >= 5 && p.estado !== 'Retirado';
     if (p.fecha_prometida && p.estado !== 'Retirado') {
-      const hoy  = new Date(); hoy.setHours(0,0,0,0);
+      const hoy = new Date(); hoy.setHours(0,0,0,0);
       const prom = new Date(p.fecha_prometida + 'T00:00:00');
       advertencia = hoy > prom;
     }
@@ -757,63 +710,53 @@ const App = (() => {
     return result;
   }
 
-  // ── Helper: sección foto para el detalle expandido ──
   function _fotoDetalle(p) {
     const isAdmin = Auth.isAdmin();
     if (p.foto_url) {
       const adminBtns = isAdmin
         ? `<button class="btn-foto-sm btn-foto-cambiar" onclick="event.stopPropagation();App.cambiarFoto(${p.id})">🔄 Cambiar</button>
-           <button class="btn-foto-sm btn-foto-del"     onclick="event.stopPropagation();App.eliminarFotoConfirm(${p.id})">🗑</button>`
+           <button class="btn-foto-sm btn-foto-del" onclick="event.stopPropagation();App.eliminarFotoConfirm(${p.id})">🗑</button>`
         : '';
-      return `<div class="prd-item prd-item--full">
-        <span class="prd-label">Foto</span>
+      return `<div class="prd-item prd-item--full"><span class="prd-label">Foto</span>
         <div class="foto-detalle-wrap">
-          <img class="foto-thumb" src="${esc(p.foto_url)}" alt="Foto" loading="lazy"
-               onclick="event.stopPropagation();App.abrirFotoViewer(${p.id})">
+          <img class="foto-thumb" src="${esc(p.foto_url)}" alt="Foto" loading="lazy" onclick="event.stopPropagation();App.abrirFotoViewer(${p.id})">
           <div class="foto-detalle-btns">
             <button class="btn-foto-sm" onclick="event.stopPropagation();App.abrirFotoViewer(${p.id})">👁 Ver</button>
             ${adminBtns}
           </div>
-        </div>
-      </div>`;
+        </div></div>`;
     }
-    return `<div class="prd-item prd-item--full">
-      <span class="prd-label">Foto</span>
-      <button class="btn-foto-upload-inline" onclick="event.stopPropagation();App.uploadFotoExistente(${p.id})">📷 Adjuntar foto</button>
-    </div>`;
+    return `<div class="prd-item prd-item--full"><span class="prd-label">Foto</span>
+      <button class="btn-foto-upload-inline" onclick="event.stopPropagation();App.uploadFotoExistente(${p.id})">📷 Adjuntar foto</button></div>`;
   }
 
-  // ── Helper: sección foto compacta para sub-row par ──
   function _fotoSubRow(p) {
     const isAdmin = Auth.isAdmin();
     if (p.foto_url) {
       const adminBtns = isAdmin
         ? `<button class="btn-foto-sm btn-foto-cambiar" onclick="event.stopPropagation();App.cambiarFoto(${p.id})">🔄</button>
-           <button class="btn-foto-sm btn-foto-del"     onclick="event.stopPropagation();App.eliminarFotoConfirm(${p.id})">🗑</button>`
+           <button class="btn-foto-sm btn-foto-del" onclick="event.stopPropagation();App.eliminarFotoConfirm(${p.id})">🗑</button>`
         : '';
       return `<div class="foto-sub-wrap">
-        <img class="foto-thumb foto-thumb--sm" src="${esc(p.foto_url)}" alt="Foto" loading="lazy"
-             onclick="event.stopPropagation();App.abrirFotoViewer(${p.id})">
-        ${adminBtns}
-      </div>`;
+        <img class="foto-thumb foto-thumb--sm" src="${esc(p.foto_url)}" alt="Foto" loading="lazy" onclick="event.stopPropagation();App.abrirFotoViewer(${p.id})">
+        ${adminBtns}</div>`;
     }
-    return `<button class="btn-foto-upload-inline btn-foto-upload-inline--sm"
-              onclick="event.stopPropagation();App.uploadFotoExistente(${p.id})">📷 Foto</button>`;
+    return `<button class="btn-foto-upload-inline btn-foto-upload-inline--sm" onclick="event.stopPropagation();App.uploadFotoExistente(${p.id})">📷 Foto</button>`;
   }
 
   function renderCompactRow(p) {
-    const sufijo    = p.sufijo ? `-${p.sufijo}` : '';
-    const isOpen    = _expandedId === p.id;
-    const cfg       = getCardConfig(p);
-    const ESTADOS   = ['Cristales pedidos a lab','Armazón enviado p/calibrado','En laboratorio','Pendiente de retirar','Retirado'];
-    const opts      = ESTADOS.map(e=>`<option value="${e}"${e===p.estado?' selected':''}>${e}</option>`).join('');
-    const scls      = Pedidos.claseEstado(p.estado);
+    const sufijo = p.sufijo ? `-${p.sufijo}` : '';
+    const isOpen = _expandedId === p.id;
+    const cfg    = getCardConfig(p);
+    const ESTADOS = ['Cristales pedidos a lab','Armazón enviado p/calibrado','En laboratorio','Pendiente de retirar','Retirado'];
+    const opts   = ESTADOS.map(e=>`<option value="${e}"${e===p.estado?' selected':''}>${e}</option>`).join('');
+    const scls   = Pedidos.claseEstado(p.estado);
     const fechaCorta = new Date(p.fecha_carga).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'});
     const daysBadge = cfg.advertencia ? `<span class="ped-warning-badge">⚠️ ${cfg.dh}dh</span>` : `<span class="ped-days-badge">${cfg.dh}dh</span>`;
     const urgenteBadge = p.urgente==='Si' && p.estado !== 'Retirado' ? '<span class="ped-urgente-chip">⚡ URGENTE</span>' : '';
     const promBadge = (() => {
       if (!p.fecha_prometida || p.estado === 'Retirado') return '';
-      const hoy  = new Date(); hoy.setHours(0,0,0,0);
+      const hoy = new Date(); hoy.setHours(0,0,0,0);
       const prom = new Date(p.fecha_prometida + 'T00:00:00');
       const diff = Math.floor((prom - hoy) / (1000*60*60*24));
       const str  = prom.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'});
@@ -834,7 +777,7 @@ const App = (() => {
           ${p.observaciones?`<div class="prd-item prd-item--full"><span class="prd-label">Observaciones</span><span class="prd-val" style="font-style:italic;color:var(--gris-texto)">${esc(p.observaciones)}</span></div>`:''}
           <div class="prd-item"><span class="prd-label">Estado inteligente</span><span class="prd-val">${p._est.texto}</span></div>
           ${p.fecha_prometida ? (() => {
-            const hoy  = new Date(); hoy.setHours(0,0,0,0);
+            const hoy = new Date(); hoy.setHours(0,0,0,0);
             const prom = new Date(p.fecha_prometida + 'T00:00:00');
             const ok   = prom >= hoy;
             const str  = prom.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'});
@@ -869,21 +812,21 @@ const App = (() => {
   }
 
   function renderPairedRow(pA, pB) {
-    const pairId   = `pair-${pA.orden}`;
-    const isOpen   = _expandedId === pairId;
-    const cfgA     = getCardConfig(pA);
-    const cfgB     = getCardConfig(pB);
+    const pairId = `pair-${pA.orden}`;
+    const isOpen = _expandedId === pairId;
+    const cfgA   = getCardConfig(pA);
+    const cfgB   = getCardConfig(pB);
     const BORDER_PRIO = ['rojo','naranja','amarillo','indigo','azul','verde','teal','morado','gris'];
     const prioA = BORDER_PRIO.indexOf(cfgA.borderCls);
     const prioB = BORDER_PRIO.indexOf(cfgB.borderCls);
     const borderCls = BORDER_PRIO[Math.min(prioA < 0 ? 99 : prioA, prioB < 0 ? 99 : prioB)] || 'gris';
-    const worstCfg = (prioA <= prioB ? prioA : prioB) === prioA ? cfgA : cfgB;
+    const worstCfg  = (prioA <= prioB ? prioA : prioB) === prioA ? cfgA : cfgB;
     const ambosRetirados = pA.estado === 'Retirado' && pB.estado === 'Retirado';
-    const urgente  = (pA.urgente==='Si' || pB.urgente==='Si') && !ambosRetirados;
-    const dhMax    = Math.max(cfgA.dh, cfgB.dh);
+    const urgente    = (pA.urgente==='Si' || pB.urgente==='Si') && !ambosRetirados;
+    const dhMax      = Math.max(cfgA.dh, cfgB.dh);
     const advertencia = cfgA.advertencia || cfgB.advertencia;
     const fechaCorta  = new Date(pA.fecha_carga).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'});
-    const ESTADOS  = ['Cristales pedidos a lab','Armazón enviado p/calibrado','En laboratorio','Pendiente de retirar','Retirado'];
+    const ESTADOS = ['Cristales pedidos a lab','Armazón enviado p/calibrado','En laboratorio','Pendiente de retirar','Retirado'];
     const daysBadge = advertencia ? `<span class="ped-warning-badge">⚠️ ${dhMax}dh</span>` : `<span class="ped-days-badge">${dhMax}dh</span>`;
     const subRow = (p, color) => {
       const opts = ESTADOS.map(e=>`<option value="${e}"${e===p.estado?' selected':''}>${e}</option>`).join('');
@@ -898,7 +841,7 @@ const App = (() => {
           ${(() => {
             if (!p.fecha_prometida || p.estado === 'Retirado')
               return pcfg.advertencia ? `<span class="ped-warning-badge">⚠️ ${pcfg.dh}dh</span>` : `<span class="ped-days-badge">${pcfg.dh}dh</span>`;
-            const hoy  = new Date(); hoy.setHours(0,0,0,0);
+            const hoy = new Date(); hoy.setHours(0,0,0,0);
             const prom = new Date(p.fecha_prometida + 'T00:00:00');
             const diff = Math.floor((prom - hoy) / (1000*60*60*24));
             const str  = prom.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'});
@@ -960,8 +903,7 @@ const App = (() => {
       { key:'listo',       label:'✅ Listos para retirar', color:'#16A34A' },
       { key:'retirado',    label:'✔ Retirados',            color:'#9CA3AF' },
     ];
-    const buckets = {};
-    CATS.forEach(c => { buckets[c.key] = []; });
+    const buckets = {}; CATS.forEach(c => { buckets[c.key] = []; });
     groups.forEach(g => {
       const p = g.type==='pair' ? g.a : g.p;
       const key = getCategoryKey(p);
@@ -985,7 +927,6 @@ const App = (() => {
     document.getElementById('seg-content-retirar').classList.toggle('hidden',tab!=='retirar');
   }
 
-  // ── HISTORIAL ────────────────────────────────────
   function mesLabel(d) { return d.toLocaleDateString('es-AR',{month:'long',year:'numeric'}).replace(/^\w/,c=>c.toUpperCase()); }
 
   function renderMesNav() {
@@ -1096,7 +1037,6 @@ const App = (() => {
     });
   }
 
-  // ── Detalle / Edición ─────────────────────────────
   async function _abrirDetalleRapido(id) { _detalleId=id; abrirEdicion(); }
 
   async function abrirDetalle(id) {
@@ -1168,10 +1108,8 @@ const App = (() => {
     eb.innerHTML='<div style="padding:32px;text-align:center;color:#888">Cargando...</div>';
     try {
       const p=await Pedidos.getPedidoById(id);
-      // Actualizar cache con datos frescos (incluye foto_url actualizada)
       const idx=_pedidosCache.findIndex(x=>x.id===id);
       if (idx!==-1) _pedidosCache[idx]=p;
-
       const labs=_configCache.laboratorios.map(l=>`<option value="${esc(l)}"${l===p.laboratorio?' selected':''}>${esc(l)}</option>`).join('');
       const lentes=['Monofocal','Bifocal','Ocupacional','Progresivo','Teñido'].map(l=>`<option value="${l}"${l===p.tipo_lente?' selected':''}>${l}</option>`).join('');
       const tipos=['Cristales','Armazón + Cristales','Armazón'].map(t=>`<option value="${t}"${t===p.tipo?' selected':''}>${t}</option>`).join('');
@@ -1179,19 +1117,15 @@ const App = (() => {
       const etapas=['No','Si'].map(u=>`<option value="${u}"${u===p.dos_etapas?' selected':''}>${u==='Si'?'Sí':'No'}</option>`).join('');
       const ESTADOS=['Cristales pedidos a lab','Armazón enviado p/calibrado','En laboratorio','Pendiente de retirar','Retirado'];
       const estados=ESTADOS.map(e=>`<option value="${e}"${e===p.estado?' selected':''}>${e}</option>`).join('');
-
-      // Sección foto en el modal de edición
       const fotoSection = p.foto_url
         ? `<div class="foto-edit-wrap">
             <img class="foto-thumb--edit" src="${esc(p.foto_url)}" alt="Foto del pedido" loading="lazy"
                  onclick="App.abrirFotoViewer(${p.id})" style="cursor:pointer;border-radius:var(--radius-sm);border:2px solid var(--gris-borde);max-width:100%;object-fit:cover;height:140px;">
             <div class="foto-edit-actions" style="margin-top:10px">
               <button type="button" class="btn btn-secondary btn-sm" onclick="App.cambiarFoto(${p.id})">🔄 Cambiar foto</button>
-              <button type="button" class="btn btn-danger btn-sm"    onclick="App.eliminarFotoConfirm(${p.id})">🗑 Eliminar</button>
-            </div>
-          </div>`
+              <button type="button" class="btn btn-danger btn-sm" onclick="App.eliminarFotoConfirm(${p.id})">🗑 Eliminar</button>
+            </div></div>`
         : `<button type="button" class="btn btn-secondary btn-full" style="border-style:dashed" onclick="App.uploadFotoExistente(${p.id})">📷 Adjuntar foto del pedido</button>`;
-
       eb.innerHTML=`
         <div class="form-section"><div class="form-section-title">Cliente</div>
           <div class="form-group"><label class="form-label">Nombre</label><input type="text" id="e-cliente" class="form-control" value="${esc(p.cliente||'')}"></div>
@@ -1220,9 +1154,7 @@ const App = (() => {
         <div class="form-section"><div class="form-section-title">Estado</div>
           <div class="form-group"><label class="form-label">Estado actual</label><select id="e-estado" class="form-control">${estados}</select></div>
         </div>
-        <div class="form-section"><div class="form-section-title">Foto</div>
-          ${fotoSection}
-        </div>
+        <div class="form-section"><div class="form-section-title">Foto</div>${fotoSection}</div>
         <button class="edit-save-btn" onclick="App.guardarEdicion(${p.id})">Guardar cambios</button>`;
     } catch(e){eb.innerHTML=`<p style="padding:16px;color:var(--rojo)">Error: ${e.message}</p>`;}
   }
@@ -1258,7 +1190,6 @@ const App = (() => {
 
   function cerrarEdicion() { document.getElementById('edit-modal').classList.add('hidden'); }
 
-  // ── PANEL ─────────────────────────────────────────
   async function refreshPanel() {
     if (!Auth.isAdmin()) return;
     await Panel.render(); updateBadge();
@@ -1278,10 +1209,7 @@ const App = (() => {
   async function loadConfigScreen() {
     _editingConfig = null;
     await loadConfig();
-    renderConfigLabs();
-    renderConfigMarcas();
-    renderConfigMateriales();
-    loadConfigTratamientos();
+    renderConfigLabs(); renderConfigMarcas(); renderConfigMateriales(); loadConfigTratamientos();
   }
 
   function _configItemNormal(label, onEdit, onDelete) {
@@ -1477,7 +1405,6 @@ const App = (() => {
     btn.classList.add('btn-loading'); btn.disabled=true;
     try {
       const nombre=Auth.getNombre(), fechaISO=new Date(data.base.fecha_carga+'T12:00:00').toISOString();
-      // Si no hay cliente_id, crear cliente nuevo en la agenda
       let clienteId = data.base.cliente_id;
       if (!clienteId && data.base.cliente) {
         try {
@@ -1503,22 +1430,13 @@ const App = (() => {
       });
       const rows=data.doble?[buildRow(data.ant1,'A'),buildRow(data.ant2,'B')]:[buildRow(data.ant1,null)];
       const creados = await Pedidos.crearPedido(rows);
-
-      // Subir fotos si hay archivos pendientes
       if (data.doble) {
-        if (_fotoFiles[1] && creados?.[0]) {
-          try { await Pedidos.uploadFoto(creados[0].id, _fotoFiles[1]); } catch(fe) { console.warn('Foto A:', fe); }
-        }
-        if (_fotoFiles[2] && creados?.[1]) {
-          try { await Pedidos.uploadFoto(creados[1].id, _fotoFiles[2]); } catch(fe) { console.warn('Foto B:', fe); }
-        }
+        if (_fotoFiles[1] && creados?.[0]) { try { await Pedidos.uploadFoto(creados[0].id, _fotoFiles[1]); } catch(fe) { console.warn('Foto A:', fe); } }
+        if (_fotoFiles[2] && creados?.[1]) { try { await Pedidos.uploadFoto(creados[1].id, _fotoFiles[2]); } catch(fe) { console.warn('Foto B:', fe); } }
       } else {
-        if (_fotoFiles[1] && creados?.[0]) {
-          try { await Pedidos.uploadFoto(creados[0].id, _fotoFiles[1]); } catch(fe) { console.warn('Foto:', fe); }
-        }
+        if (_fotoFiles[1] && creados?.[0]) { try { await Pedidos.uploadFoto(creados[0].id, _fotoFiles[1]); } catch(fe) { console.warn('Foto:', fe); } }
       }
       _fotoFiles = {};
-
       enviarNotificacion('📋 Nuevo pedido — OLVISIÓN',`${nombre} cargó un pedido para ${data.base.cliente}`,true);
       closeModal(); toast('Pedido guardado ✓','success'); resetForm();
       showScreen('seguimiento');
@@ -1541,12 +1459,7 @@ const App = (() => {
     });
     _fotoFiles = {};
     _pendingGuardar=null;
-    // Limpiar cliente vinculado
-    if (typeof limpiarClienteForm === 'function') limpiarClienteForm();
-    else {
-      document.getElementById('campo-cliente-id') && (document.getElementById('campo-cliente-id').value='');
-      document.getElementById('cliente-seleccionado')?.classList.add('hidden');
-    }
+    limpiarClienteForm();
     ['f-cliente-cel','f-cliente-dni'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
     const selOs=document.getElementById('f-cliente-os'); if(selOs) selOs.value='';
   }
@@ -1570,10 +1483,10 @@ const App = (() => {
     } catch(e){if(btn){btn.textContent='🔔 Activar notificaciones push';btn.disabled=false;}if(status)status.textContent=`Error: ${e.message}`;}
   }
 
-  // ── CLIENTE AUTOCOMPLETE (agenda) ─────────────────
+  // ── CLIENTE AUTOCOMPLETE ──────────────────────────
   let _clienteSearchTimer = null;
   let _obrasSocialesCache = [];
-  let _clientesSugData = [];
+  let _clientesSugData    = [];
 
   async function _cargarObrasSocialesForm() {
     if (_obrasSocialesCache.length) { _poblarSelectOS(); return; }
@@ -1619,42 +1532,87 @@ const App = (() => {
         .order('apellido').limit(6);
       _clientesSugData = data || [];
       if (!_clientesSugData.length) {
-        sugEl.innerHTML = `<div class="sug-item sug-nuevo" onclick="App.crearClienteDesdeNuevo()">+ Crear cliente nuevo</div>`;
-        sugEl.classList.remove('hidden'); return;
+        // Sin resultados — permitir escribir libremente sin redirigir
+        sugEl.classList.add('hidden');
+        return;
       }
       sugEl.innerHTML = _clientesSugData.map(cl => {
-        const det = [cl.telefono?`📱 ${cl.telefono}`:'', cl.obra_social||''].filter(Boolean).join(' · ');
-        return `<div class="sug-item" onclick="App.seleccionarCliente(${cl.id})">
-          <div><div style="font-weight:600">${esc(cl.apellido)}, ${esc(cl.nombre)}</div>
-          ${det?`<div style="font-size:.78rem;color:var(--gris-texto);margin-top:2px">${det}</div>`:''}</div>
+        const det = [cl.telefono ? `📱 ${cl.telefono}` : '', cl.obra_social || ''].filter(Boolean).join(' · ');
+        return `<div class="sug-item" onclick="App.seleccionarCliente('${cl.id}')">
+          <div>
+            <div style="font-weight:600">${esc(cl.apellido)}, ${esc(cl.nombre)}</div>
+            ${det ? `<div style="font-size:.78rem;color:var(--gris-texto);margin-top:2px">${det}</div>` : ''}
+          </div>
         </div>`;
-      }).join('') + `<div class="sug-item sug-nuevo" onclick="App.crearClienteDesdeNuevo()">+ Crear cliente nuevo</div>`;
+      }).join('') +
+      `<div class="sug-item" style="color:var(--gris-texto);font-size:.82rem;border-top:1px solid var(--gris-borde);padding:10px 14px;text-align:center"
+            onclick="document.getElementById('cliente-suggestions').classList.add('hidden')">
+        Ninguno de estos — continuar con este nombre
+      </div>`;
       sugEl.classList.remove('hidden');
     }, 280);
   }
 
-  function seleccionarCliente(id) {
-    const cl = _clientesSugData.find(x => x.id === id);
-    if (!cl) return;
-    const nombre = `${cl.apellido}, ${cl.nombre}`;
-    document.getElementById('f-cliente').value = nombre;
-    document.getElementById('campo-cliente-id').value = cl.id;
-    if (cl.telefono) document.getElementById('f-cliente-cel') && (document.getElementById('f-cliente-cel').value = cl.telefono);
-    if (cl.dni)      document.getElementById('f-cliente-dni') && (document.getElementById('f-cliente-dni').value = cl.dni);
-    if (cl.obra_social) { const sel=document.getElementById('f-cliente-os'); if(sel) sel.value=cl.obra_social; }
-    document.getElementById('cliente-chip-nombre').textContent = nombre;
-    const det = document.getElementById('cliente-chip-detalle');
-    if (det) det.textContent = [cl.telefono?'📱 '+cl.telefono:'', cl.obra_social].filter(Boolean).join(' · ');
+  // ── CLAVE: seleccionarCliente completa todos los campos ──
+  async function seleccionarCliente(id) {
+    // Buscar en cache local primero, si no ir a la DB
+    let cl = _clientesSugData.find(x => x.id === id || x.id === String(id));
+    if (!cl) {
+      const { data } = await window.supabaseClient
+        .from('clientes')
+        .select('id,nombre,apellido,telefono,dni,obra_social')
+        .eq('id', id)
+        .single();
+      if (!data) return;
+      cl = data;
+    }
+
+    const nombre = [cl.apellido, cl.nombre].filter(Boolean).join(', ');
+
+    // Completar campo nombre
+    const fCliente = document.getElementById('f-cliente');
+    if (fCliente) fCliente.value = nombre;
+
+    // Completar campo cliente_id oculto
+    const fId = document.getElementById('campo-cliente-id');
+    if (fId) fId.value = cl.id;
+
+    // ── Completar datos de contacto ──
+    const celEl = document.getElementById('f-cliente-cel');
+    const dniEl = document.getElementById('f-cliente-dni');
+    const osEl  = document.getElementById('f-cliente-os');
+    if (celEl && cl.telefono) celEl.value = cl.telefono;
+    if (dniEl && cl.dni)      dniEl.value = cl.dni;
+    if (osEl  && cl.obra_social) {
+      // Asegurarse de que el select esté cargado
+      await _cargarObrasSocialesForm();
+      osEl.value = cl.obra_social;
+    }
+
+    // Mostrar chip de cliente vinculado
+    const chipNombre = document.getElementById('cliente-chip-nombre');
+    if (chipNombre) chipNombre.textContent = nombre;
+
+    const chipDet = document.getElementById('cliente-chip-detalle');
+    if (chipDet) {
+      chipDet.textContent = [
+        cl.telefono ? '📱 ' + cl.telefono : '',
+        cl.obra_social || ''
+      ].filter(Boolean).join(' · ');
+    }
+
     document.getElementById('cliente-seleccionado')?.classList.remove('hidden');
     document.getElementById('cliente-suggestions')?.classList.add('hidden');
+
+    toast(`✓ ${nombre}${cl.telefono ? ' · ' + cl.telefono : ''}`, 'success');
   }
 
   function limpiarClienteForm() {
     ['f-cliente','f-cliente-cel','f-cliente-dni'].forEach(id => {
-      const el = document.getElementById(id); if(el) el.value='';
+      const el = document.getElementById(id); if (el) el.value = '';
     });
-    document.getElementById('campo-cliente-id').value = '';
-    const sel = document.getElementById('f-cliente-os'); if(sel) sel.value='';
+    const idEl = document.getElementById('campo-cliente-id'); if (idEl) idEl.value = '';
+    const sel  = document.getElementById('f-cliente-os'); if (sel) sel.value = '';
     document.getElementById('cliente-seleccionado')?.classList.add('hidden');
     document.getElementById('cliente-suggestions')?.classList.add('hidden');
     document.getElementById('f-cliente')?.focus();
@@ -1664,7 +1622,6 @@ const App = (() => {
     document.getElementById('cliente-suggestions')?.classList.add('hidden');
     if (typeof abrirFormCliente === 'function') abrirFormCliente();
   }
-
 
   // ── UTILS ─────────────────────────────────────────
   function todayStr() { return new Date().toISOString().slice(0,10); }
@@ -1695,11 +1652,9 @@ const App = (() => {
     _abrirDetalleRapido,
     onClienteInput, seleccionarCliente, crearClienteDesdeNuevo, limpiarClienteForm,
     initClienteSearch,
-    // Foto adjunta
     onFotoSelected, clearFoto,
     abrirFotoViewer, cerrarFotoViewer,
     uploadFotoExistente, cambiarFoto, eliminarFotoConfirm,
-    // Para uso externo (agenda.js)
     attachNumpadListeners,
   };
 })();
