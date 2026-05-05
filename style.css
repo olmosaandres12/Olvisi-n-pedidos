@@ -820,3 +820,14 @@ select.form-control { background-image:url("data:image/svg+xml,%3Csvg xmlns='htt
   transition: background var(--transition);
 }
 .seg-td--arrow:hover { background: var(--gris-bg); }
+
+/* ── Chip tipo lente en pares A/B ────────────────── */
+.ped-pair-lente-chip {
+  font-size: .68rem; font-weight: 700;
+  padding: 2px 8px; border-radius: 10px;
+  background: rgba(255,255,255,.75);
+  color: var(--azul);
+  border: 1px solid rgba(3,66,145,.2);
+  white-space: nowrap; flex-shrink: 0;
+  text-transform: uppercase; letter-spacing: .03em;
+}
