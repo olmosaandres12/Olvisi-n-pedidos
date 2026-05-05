@@ -866,14 +866,31 @@ const App = (() => {
   function setSeguimientoFilter(type) {
     _labFilter = null; _segSearch = '';
     _renderSegChips(_pedidosCache);
-    _renderSeguimientoFiltered();
     switchSegTab('lab');
-    if (type !== 'todos') {
-      setTimeout(() => {
-        const ids = { urgentes:'sg-urgentes', atencion:'sg-atencion' };
-        document.getElementById(ids[type])?.scrollIntoView({ behavior:'smooth', block:'start' });
-      }, 150);
+
+    if (type === 'todos') {
+      // Expandir todo
+      _collapsedSections = {};
+    } else if (type === 'urgentes') {
+      _collapsedSections = { atencion: true, lab: true };
+    } else if (type === 'atencion') {
+      _collapsedSections = { urgentes: true, lab: true };
     }
+
+    _renderSeguimientoFiltered();
+
+    // Scroll al header de la sección correspondiente
+    setTimeout(() => {
+      const ids = { urgentes:'sg-urgentes', atencion:'sg-atencion', todos:null };
+      const elId = ids[type];
+      if (elId) {
+        const el = document.getElementById(elId);
+        if (el) el.scrollIntoView({ behavior:'smooth', block:'start' });
+      } else {
+        // "todos" → scroll al top de la lista
+        document.getElementById('seg-content-lab')?.scrollIntoView({ behavior:'smooth', block:'start' });
+      }
+    }, 150);
   }
 
   function _renderSegList(containerId, pedidos, conGrupos) {
