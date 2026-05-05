@@ -721,28 +721,33 @@ const App = (() => {
     const urgentes = activos.filter(p => p.urgente === 'Si');
     const atencion = activos.filter(p => p.urgente !== 'Si' && (p._est?.valor === 'critico' || p._est?.valor === 'demorado'));
     const retirar  = todos.filter(p => p.estado === 'Pendiente de retirar');
+    // Contar filas (grupos A/B cuentan como 1)
+    const contarFilas = (lista) => {
+      const groups = groupPedidos(lista);
+      return groups.length;
+    };
     el.innerHTML = `<div class="seg-kpi-grid">
       <div class="seg-kpi-card" onclick="App.setSeguimientoFilter('todos')">
         <div class="seg-kpi-icon-bg">📋</div>
-        <div class="seg-kpi-val">${activos.length}</div>
+        <div class="seg-kpi-val">${contarFilas(activos)}</div>
         <div class="seg-kpi-label">Pedidos activos</div>
         <div class="seg-kpi-link">Ver todos →</div>
       </div>
       <div class="seg-kpi-card seg-kpi-card--red" onclick="App.setSeguimientoFilter('urgentes')">
         <div class="seg-kpi-icon-bg">🚨</div>
-        <div class="seg-kpi-val seg-kpi-val--red">${urgentes.length}</div>
+        <div class="seg-kpi-val seg-kpi-val--red">${contarFilas(urgentes)}</div>
         <div class="seg-kpi-label">Urgentes</div>
         <div class="seg-kpi-link seg-kpi-link--red">Ver urgentes →</div>
       </div>
       <div class="seg-kpi-card seg-kpi-card--amber" onclick="App.setSeguimientoFilter('atencion')">
         <div class="seg-kpi-icon-bg">⚠️</div>
-        <div class="seg-kpi-val seg-kpi-val--amber">${atencion.length}</div>
+        <div class="seg-kpi-val seg-kpi-val--amber">${contarFilas(atencion)}</div>
         <div class="seg-kpi-label">Requieren atención</div>
         <div class="seg-kpi-link seg-kpi-link--amber">Ver pendientes →</div>
       </div>
       <div class="seg-kpi-card seg-kpi-card--green" onclick="App.switchSegTab('retirar')">
         <div class="seg-kpi-icon-bg">📅</div>
-        <div class="seg-kpi-val seg-kpi-val--green">${retirar.length}</div>
+        <div class="seg-kpi-val seg-kpi-val--green">${contarFilas(retirar)}</div>
         <div class="seg-kpi-label">Listos para retirar</div>
         <div class="seg-kpi-link seg-kpi-link--green">Ir a para retirar →</div>
       </div>
@@ -789,8 +794,8 @@ const App = (() => {
     }
     const cntEl  = document.getElementById('seg-count-lab');
     const cntRet = document.getElementById('seg-count-retirar');
-    if (cntEl)  cntEl.textContent = enLab.length;
-    if (cntRet) cntRet.textContent = retirar.length;
+    if (cntEl)  cntEl.textContent = groupPedidos(enLab).length;
+    if (cntRet) cntRet.textContent = groupPedidos(retirar).length;
     _renderSegList('seg-content-lab',     enLab.sort(sortPorPrioridad),   true);
     _renderSegList('seg-content-retirar', retirar.sort(sortPorPrioridad), false);
   }
@@ -803,6 +808,8 @@ const App = (() => {
 
   function onSegSearch(val) {
     _segSearch = val.trim().toLowerCase();
+    // Al buscar, expandir todas las secciones para mostrar resultados
+    if (_segSearch) _collapsedSections = {};
     _renderSeguimientoFiltered();
   }
 
