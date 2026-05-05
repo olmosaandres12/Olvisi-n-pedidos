@@ -780,22 +780,72 @@ const App = (() => {
 
   function _renderSeguimientoFiltered() {
     const todos = _pedidosCache;
+    const searchPanel = document.getElementById('seg-search-results');
+    const tabsEl      = document.querySelector('#screen-seguimiento .seg-tabs');
+    const contentLab  = document.getElementById('seg-content-lab');
+    const contentRet  = document.getElementById('seg-content-retirar');
+
+    if (_segSearch) {
+      // ── Búsqueda global: todos los pedidos ──────────
+      const q = _segSearch;
+      const match = p => p.cliente?.toLowerCase().includes(q) || String(p.orden).toLowerCase().includes(q);
+      let resultados = todos.filter(match);
+      if (_labFilter) resultados = resultados.filter(p => p.laboratorio === _labFilter);
+
+      // Ocultar tabs y contenido normal, mostrar panel global
+      if (tabsEl)     tabsEl.style.display     = 'none';
+      if (contentLab) contentLab.style.display  = 'none';
+      if (contentRet) contentRet.style.display  = 'none';
+
+      if (!searchPanel) {
+        const div = document.createElement('div');
+        div.id = 'seg-search-results';
+        contentLab?.parentNode.appendChild(div);
+      }
+      const panel = document.getElementById('seg-search-results');
+      if (!panel) return;
+      panel.style.display = 'block';
+
+      if (!resultados.length) {
+        panel.innerHTML = `<div class="empty-state"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><h3>Sin resultados</h3><p>No se encontró ningún pedido para "${esc(_segSearch)}"</p></div>`;
+        return;
+      }
+
+      const sorted = [...resultados].sort((a,b) => {
+        // Activos primero, luego retirados; dentro de cada grupo por fecha desc
+        const aR = a.estado === 'Retirado' ? 1 : 0;
+        const bR = b.estado === 'Retirado' ? 1 : 0;
+        if (aR !== bR) return aR - bR;
+        return new Date(b.fecha_carga) - new Date(a.fecha_carga);
+      });
+      const groups = groupPedidos(sorted);
+      panel.innerHTML = `
+        <div class="seg-search-header">
+          <span class="seg-search-res-label">🔍 ${groups.length} resultado${groups.length!==1?'s':''} en toda la app</span>
+        </div>
+        <div class="seg-list">${groups.map(g => g.type==='pair' ? _renderSegPair(g.a,g.b) : _renderSegRow(g.p)).join('')}</div>`;
+      attachInlineSelects(panel);
+      return;
+    }
+
+    // ── Sin búsqueda: vista normal por tabs ──────────
+    if (tabsEl)     tabsEl.style.display     = '';
+    if (contentLab) contentLab.style.display  = '';
+    if (contentRet) contentRet.style.display  = '';
+    if (searchPanel) searchPanel.style.display = 'none';
+
     let enLab   = todos.filter(p => ['Cristales pedidos a lab','Armazón enviado p/calibrado','En laboratorio'].includes(p.estado));
     let retirar = todos.filter(p => p.estado === 'Pendiente de retirar');
     if (_labFilter) {
       enLab   = enLab.filter(p => p.laboratorio === _labFilter);
       retirar = retirar.filter(p => p.laboratorio === _labFilter);
     }
-    if (_segSearch) {
-      const q = _segSearch.toLowerCase();
-      const match = p => p.cliente?.toLowerCase().includes(q) || String(p.orden).toLowerCase().includes(q);
-      enLab   = enLab.filter(match);
-      retirar = retirar.filter(match);
-    }
+
     const cntEl  = document.getElementById('seg-count-lab');
     const cntRet = document.getElementById('seg-count-retirar');
     if (cntEl)  cntEl.textContent = groupPedidos(enLab).length;
     if (cntRet) cntRet.textContent = groupPedidos(retirar).length;
+
     _renderSegList('seg-content-lab',     enLab.sort(sortPorPrioridad),   true);
     _renderSegList('seg-content-retirar', retirar.sort(sortPorPrioridad), false);
   }
