@@ -655,3 +655,18 @@ select.form-control { background-image:url("data:image/svg+xml,%3Csvg xmlns='htt
   .seg-search-input:focus { width:200px; }
   .seg-row-inner { padding:13px 16px; }
 }
+
+/* ── Secciones desplegables ──────────────────────── */
+.seg-gh--clickable { cursor: pointer; user-select: none; transition: background var(--transition); }
+.seg-gh--clickable:hover { filter: brightness(.97); }
+
+.seg-gh-arrow {
+  font-size: 1rem; font-weight: 700;
+  color: var(--gc, var(--gris-texto));
+  opacity: .6; flex-shrink: 0;
+  transition: transform .22s cubic-bezier(.34,1.56,.64,1);
+  display: inline-block;
+}
+.seg-gh-arrow--open { transform: rotate(90deg); }
+
+.seg-section-body { display: block; }
