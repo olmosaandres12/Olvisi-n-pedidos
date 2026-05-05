@@ -915,6 +915,7 @@ const App = (() => {
       </div>`;
       if (!isCollapsed) {
         html += `<div class="seg-section-body">`;
+        html += _segTableHeader();
         html += items.map(g => g.type==='pair' ? _renderSegPair(g.a,g.b) : _renderSegRow(g.p)).join('');
         html += `</div>`;
       }
@@ -929,18 +930,29 @@ const App = (() => {
     _renderSeguimientoFiltered();
   }
 
+  // ── Header de columnas ────────────────────────────
+  function _segTableHeader() {
+    return `<div class="seg-th-row">
+      <div class="seg-th seg-th--orden"># ORDEN</div>
+      <div class="seg-th seg-th--paciente">PACIENTE</div>
+      <div class="seg-th seg-th--estado">ESTADO</div>
+      <div class="seg-th seg-th--tiempo">TIEMPO</div>
+      <div class="seg-th seg-th--arrow"></div>
+    </div>`;
+  }
+
   function _renderSegRow(p) {
-    const sufijo  = p.sufijo ? `-${p.sufijo}` : '';
-    const isOpen  = _expandedId === p.id;
-    const cfg     = getCardConfig(p);
-    const d       = new Date(p.fecha_carga);
-    const fecha   = `${d.getDate()}/${d.getMonth()+1}`;
+    const sufijo   = p.sufijo ? `-${p.sufijo}` : '';
+    const isOpen   = _expandedId === p.id;
+    const cfg      = getCardConfig(p);
+    const d        = new Date(p.fecha_carga);
+    const fecha    = `${d.getDate()}/${d.getMonth()+1}`;
     const labColor = getLabColor(p.laboratorio);
     const isUrgente = p.urgente === 'Si' && p.estado !== 'Retirado';
-    // días: rojo si urgente o crítico, naranja si demorado, gris si ok
-    let daysCls = 'seg-d';
-    if (isUrgente || cfg.advertencia || p._est?.valor === 'critico') daysCls = 'seg-d seg-d--red';
-    else if (p._est?.valor === 'demorado') daysCls = 'seg-d seg-d--amber';
+    let daysCls = 'seg-time';
+    if (isUrgente || cfg.advertencia || p._est?.valor === 'critico') daysCls = 'seg-time seg-time--red';
+    else if (p._est?.valor === 'demorado') daysCls = 'seg-time seg-time--amber';
+    const timeLabel = (isUrgente || cfg.advertencia) ? 'Demorado' : 'En curso';
 
     const ESTADOS = ['Cristales pedidos a lab','Armazón enviado p/calibrado','En laboratorio','Pendiente de retirar','Retirado'];
     const opts = ESTADOS.map(e=>`<option value="${e}"${e===p.estado?' selected':''}>${e}</option>`).join('');
@@ -967,19 +979,26 @@ const App = (() => {
     </div>`;
 
     return `<div class="seg-row ped-row${isUrgente?' seg-row--urg':''}" data-id="${p.id}" onclick="App.togglePedidoRow(${p.id})">
-      <div class="seg-row-inner">
-        <div class="seg-row-left">
-          <div class="seg-row-name">${isUrgente?'<span class="seg-urg-ic">⚡</span>':''}${esc(p.cliente)}</div>
-          <div class="seg-row-meta">
-            <span class="seg-row-ord">#${esc(p.orden)}${sufijo}</span>
-            ${p.laboratorio?`<span class="seg-sep">·</span><span class="seg-row-lab"><span class="seg-lab-dot-sm" style="background:${labColor}"></span>${esc(p.laboratorio)}</span>`:''}
-            <span class="seg-sep">·</span><span class="seg-row-date">${fecha}</span>
-            ${p.foto_url?'<span class="seg-sep">·</span><span style="font-size:.68rem">📷</span>':''}
+      <div class="seg-tr">
+        <div class="seg-td seg-td--orden">
+          <span class="seg-orden-num">#${esc(p.orden)}${sufijo}</span>
+          ${p.foto_url?'<span class="seg-foto-ic" title="Tiene foto">📷</span>':''}
+        </div>
+        <div class="seg-td seg-td--paciente">
+          <div class="seg-pac-name">${isUrgente?'<span class="seg-urg-ic">⚡</span>':''}${esc(p.cliente)}</div>
+          <div class="seg-pac-meta">
+            ${p.laboratorio?`<span class="seg-row-lab"><span class="seg-lab-dot-sm" style="background:${labColor}"></span>${esc(p.laboratorio)}</span><span class="seg-sep">·</span>`:''}
+            <span class="seg-row-date">${fecha}</span>
           </div>
         </div>
-        <div class="seg-row-right">
+        <div class="seg-td seg-td--estado">
           <span class="seg-badge badge--${cfg.badgeCls}">${cfg.label}</span>
+        </div>
+        <div class="seg-td seg-td--tiempo">
           <span class="${daysCls}">${cfg.dh}dh</span>
+          <span class="seg-time-label">${timeLabel}</span>
+        </div>
+        <div class="seg-td seg-td--arrow">
           <span class="ped-row-arrow ${isOpen?'open':''}">›</span>
         </div>
       </div>
@@ -988,23 +1007,24 @@ const App = (() => {
   }
 
   function _renderSegPair(pA, pB) {
-    const pairId  = `pair-${pA.orden}`;
-    const isOpen  = _expandedId === pairId;
-    const cfgA    = getCardConfig(pA);
-    const cfgB    = getCardConfig(pB);
-    const dhMax   = Math.max(cfgA.dh, cfgB.dh);
+    const pairId   = `pair-${pA.orden}`;
+    const isOpen   = _expandedId === pairId;
+    const cfgA     = getCardConfig(pA);
+    const cfgB     = getCardConfig(pB);
+    const dhMax    = Math.max(cfgA.dh, cfgB.dh);
     const advertencia = cfgA.advertencia || cfgB.advertencia;
     const BORDER_PRIO = ['rojo','naranja','amarillo','indigo','azul','verde','teal','morado','gris'];
-    const prioA = BORDER_PRIO.indexOf(cfgA.borderCls);
-    const prioB = BORDER_PRIO.indexOf(cfgB.borderCls);
+    const prioA    = BORDER_PRIO.indexOf(cfgA.borderCls);
+    const prioB    = BORDER_PRIO.indexOf(cfgB.borderCls);
     const worstCfg = prioA <= prioB ? cfgA : cfgB;
     const urgente  = pA.urgente==='Si' || pB.urgente==='Si';
     const d        = new Date(pA.fecha_carga);
     const fecha    = `${d.getDate()}/${d.getMonth()+1}`;
     const labColor = getLabColor(pA.laboratorio);
-    let daysCls = 'seg-d';
-    if (advertencia || worstCfg._est?.valor === 'critico') daysCls = 'seg-d seg-d--red';
-    else if (worstCfg._est?.valor === 'demorado') daysCls = 'seg-d seg-d--amber';
+    let daysCls = 'seg-time';
+    if (urgente || advertencia || worstCfg._est?.valor === 'critico') daysCls = 'seg-time seg-time--red';
+    else if (worstCfg._est?.valor === 'demorado') daysCls = 'seg-time seg-time--amber';
+    const timeLabel = (urgente || advertencia) ? 'Demorado' : 'En curso';
 
     const ESTADOS = ['Cristales pedidos a lab','Armazón enviado p/calibrado','En laboratorio','Pendiente de retirar','Retirado'];
     const subRow = (p, color) => {
@@ -1033,19 +1053,26 @@ const App = (() => {
     };
 
     return `<div class="seg-row ped-row ped-row--pair${urgente?' seg-row--urg':''}" data-pair-id="${pairId}" onclick="App.togglePedidoRow('${pairId}')">
-      <div class="seg-row-inner">
-        <div class="seg-row-left">
-          <div class="seg-row-name">${urgente?'<span class="seg-urg-ic">⚡</span>':''}${esc(pA.cliente)}</div>
-          <div class="seg-row-meta">
-            <span class="seg-row-ord">#${esc(pA.orden)}</span>
-            ${pA.laboratorio?`<span class="seg-sep">·</span><span class="seg-row-lab"><span class="seg-lab-dot-sm" style="background:${labColor}"></span>${esc(pA.laboratorio)}</span>`:''}
-            <span class="seg-sep">·</span><span class="seg-row-date">${fecha}</span>
+      <div class="seg-tr">
+        <div class="seg-td seg-td--orden">
+          <span class="seg-orden-num">#${esc(pA.orden)}</span>
+        </div>
+        <div class="seg-td seg-td--paciente">
+          <div class="seg-pac-name">${urgente?'<span class="seg-urg-ic">⚡</span>':''}${esc(pA.cliente)}</div>
+          <div class="seg-pac-meta">
+            ${pA.laboratorio?`<span class="seg-row-lab"><span class="seg-lab-dot-sm" style="background:${labColor}"></span>${esc(pA.laboratorio)}</span><span class="seg-sep">·</span>`:''}
+            <span class="seg-row-date">${fecha}</span>
+            <span class="ped-pair-ab-badge" style="margin-left:4px">A · B</span>
           </div>
         </div>
-        <div class="seg-row-right">
+        <div class="seg-td seg-td--estado">
           <span class="seg-badge badge--${worstCfg.badgeCls}">${worstCfg.label}</span>
+        </div>
+        <div class="seg-td seg-td--tiempo">
           <span class="${daysCls}">${dhMax}dh</span>
-          <span class="ped-pair-ab-badge">A · B</span>
+          <span class="seg-time-label">${timeLabel}</span>
+        </div>
+        <div class="seg-td seg-td--arrow">
           <span class="ped-row-arrow ${isOpen?'open':''}">›</span>
         </div>
       </div>
