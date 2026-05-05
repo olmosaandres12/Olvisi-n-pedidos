@@ -17,6 +17,7 @@ const App = (() => {
   // Seguimiento filters
   let _labFilter  = null;
   let _segSearch  = '';
+  let _collapsedSections = {};
 
   let _fotoFiles        = {};
   let _fotoUploadTarget = null;
@@ -637,11 +638,11 @@ const App = (() => {
   }
 
   const CARD_ESTADO_MAP = {
-    'Cristales pedidos a lab':     { badgeCls: 'amarillo', icono: '⏳', label: 'CRISTALES PEDIDOS',   borderCls: 'amarillo' },
-    'Armazón enviado p/calibrado': { badgeCls: 'indigo',   icono: '📦', label: 'ARMAZÓN EN TRÁNSITO', borderCls: 'indigo'   },
-    'En laboratorio':              { badgeCls: 'azul',     icono: '🔵', label: 'EN LABORATORIO',      borderCls: 'azul'     },
-    'Pendiente de retirar':        { badgeCls: 'verde',    icono: '✅', label: 'LISTO PARA RETIRAR',  borderCls: 'verde'    },
-    'Retirado':                    { badgeCls: 'morado',   icono: '✔️', label: 'RETIRADO',            borderCls: 'morado'   },
+    'Cristales pedidos a lab':     { badgeCls: 'amarillo', icono: '⏳', label: 'CRISTALES',   borderCls: 'amarillo' },
+    'Armazón enviado p/calibrado': { badgeCls: 'indigo',   icono: '📦', label: 'EN TRÁNSITO', borderCls: 'indigo'   },
+    'En laboratorio':              { badgeCls: 'azul',     icono: '🔵', label: 'EN LAB',       borderCls: 'azul'     },
+    'Pendiente de retirar':        { badgeCls: 'verde',    icono: '✅', label: 'LISTO',        borderCls: 'verde'    },
+    'Retirado':                    { badgeCls: 'morado',   icono: '✔️', label: 'RETIRADO',     borderCls: 'morado'   },
   };
 
   function getCardConfig(p) {
@@ -829,30 +830,46 @@ const App = (() => {
       el.innerHTML = `<div class="seg-list">${groups.map(g => g.type==='pair' ? _renderSegPair(g.a,g.b) : _renderSegRow(g.p)).join('')}</div>`;
       attachInlineSelects(el); return;
     }
-    // Con grupos: URGENTES → ATENCIÓN → EN LAB
     const SEG_CATS = [
-      { key:'urgentes', id:'sg-urgentes', icon:'⚡', label:'URGENTES',           color:'#DC2626', bg:'#FFF5F5' },
-      { key:'atencion', id:'sg-atencion', icon:'⚠️', label:'REQUIEREN ATENCIÓN', color:'#D97706', bg:'#FFFBEB' },
-      { key:'lab',      id:'sg-lab',      icon:'●',  label:'EN LABORATORIO',     color:'#034291', bg:'#F0F6FF' },
+      { key:'urgentes', id:'sg-urgentes', icon:'⚡', label:'URGENTES',           color:'#DC2626', bg:'#FFF0F0' },
+      { key:'atencion', id:'sg-atencion', icon:'⚠️', label:'REQUIEREN ATENCIÓN', color:'#B45309', bg:'#FFFBEB' },
+      { key:'lab',      id:'sg-lab',      icon:'●',  label:'EN LABORATORIO',     color:'#034291', bg:'#EFF6FF' },
     ];
     const buckets = { urgentes:[], atencion:[], lab:[] };
     groups.forEach(g => {
       const p = g.type==='pair' ? g.a : g.p;
       (buckets[getSegCatKey(p)] || buckets.lab).push(g);
     });
+    // Ordenar cada bucket por días hábiles descendente
+    const getDh = g => g.type==='pair'
+      ? Math.max(getCardConfig(g.a).dh, getCardConfig(g.b).dh)
+      : getCardConfig(g.p).dh;
+    Object.keys(buckets).forEach(k => buckets[k].sort((a,b) => getDh(b) - getDh(a)));
+
     let html = '<div class="seg-list">';
     SEG_CATS.forEach(cat => {
       const items = buckets[cat.key]; if (!items.length) return;
-      html += `<div class="seg-gh" id="${cat.id}" style="--gc:${cat.color};--gb:${cat.bg}">
+      const isCollapsed = !!_collapsedSections[cat.key];
+      html += `<div class="seg-gh seg-gh--clickable" id="${cat.id}" style="--gc:${cat.color};--gb:${cat.bg}" onclick="App.toggleSegSection('${cat.key}')">
         <span class="seg-gh-icon">${cat.icon}</span>
         <span class="seg-gh-label">${cat.label}</span>
         <span class="seg-gh-count">(${items.length})</span>
+        <span class="seg-gh-arrow${isCollapsed?'':' seg-gh-arrow--open'}">›</span>
       </div>`;
-      html += items.map(g => g.type==='pair' ? _renderSegPair(g.a,g.b) : _renderSegRow(g.p)).join('');
+      if (!isCollapsed) {
+        html += `<div class="seg-section-body">`;
+        html += items.map(g => g.type==='pair' ? _renderSegPair(g.a,g.b) : _renderSegRow(g.p)).join('');
+        html += `</div>`;
+      }
     });
     html += '</div>';
     el.innerHTML = html;
     attachInlineSelects(el);
+  }
+
+  function toggleSegSection(key) {
+    _collapsedSections[key] = !_collapsedSections[key];
+    _renderSeguimientoFiltered();
   }
 
   function _renderSegRow(p) {
@@ -863,9 +880,9 @@ const App = (() => {
     const fecha   = `${d.getDate()}/${d.getMonth()+1}`;
     const labColor = getLabColor(p.laboratorio);
     const isUrgente = p.urgente === 'Si' && p.estado !== 'Retirado';
-    // días: rojo si alerta, naranja si demorado, gris si ok
+    // días: rojo si urgente o crítico, naranja si demorado, gris si ok
     let daysCls = 'seg-d';
-    if (cfg.advertencia || p._est?.valor === 'critico') daysCls = 'seg-d seg-d--red';
+    if (isUrgente || cfg.advertencia || p._est?.valor === 'critico') daysCls = 'seg-d seg-d--red';
     else if (p._est?.valor === 'demorado') daysCls = 'seg-d seg-d--amber';
 
     const ESTADOS = ['Cristales pedidos a lab','Armazón enviado p/calibrado','En laboratorio','Pendiente de retirar','Retirado'];
@@ -1899,7 +1916,7 @@ const App = (() => {
     uploadFotoExistente, cambiarFoto, eliminarFotoConfirm,
     attachNumpadListeners,
     // Seguimiento nuevas funciones
-    setLabFilter, onSegSearch, setSeguimientoFilter,
+    setLabFilter, onSegSearch, setSeguimientoFilter, toggleSegSection,
   };
 })();
 
