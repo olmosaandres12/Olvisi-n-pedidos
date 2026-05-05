@@ -670,3 +670,14 @@ select.form-control { background-image:url("data:image/svg+xml,%3Csvg xmlns='htt
 .seg-gh-arrow--open { transform: rotate(90deg); }
 
 .seg-section-body { display: block; }
+
+/* ── Búsqueda global ─────────────────────────────── */
+#seg-search-results { margin-top: 0; }
+.seg-search-header {
+  display: flex; align-items: center;
+  padding: 10px 2px 8px;
+}
+.seg-search-res-label {
+  font-size: .8rem; font-weight: 600;
+  color: var(--gris-texto);
+}
