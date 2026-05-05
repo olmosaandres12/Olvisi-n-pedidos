@@ -14,25 +14,11 @@ const App = (() => {
   let _expandedId     = null;
   let _editingConfig  = null;
 
-  // Seguimiento filters
-  let _labFilter  = null;
-  let _segSearch  = '';
-
   let _fotoFiles        = {};
   let _fotoUploadTarget = null;
 
   const hoy = new Date();
   let _mesActual = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
-
-  // ── Lab colors ────────────────────────────────────
-  const LAB_COLORS = { Sol:'#2563EB', Bichara:'#DC2626', Cristian:'#16A34A', Vitolen:'#7C3AED' };
-  function getLabColor(lab) { return LAB_COLORS[lab] || '#6B7280'; }
-
-  function getSegCatKey(p) {
-    if (p.urgente === 'Si') return 'urgentes';
-    if (p._est?.valor === 'critico' || p._est?.valor === 'demorado') return 'atencion';
-    return 'lab';
-  }
 
   // ── Numpad ───────────────────────────────────────
   let _numpadTarget = null, _numpadSign = '+', _numpadRaw = '', _numpadNext = null;
@@ -451,7 +437,14 @@ const App = (() => {
 
   function _refreshTrassCambioFoto(id) {
     if (_currentScreen === 'pedidos') { renderPedidosList(); }
-    else if (_currentScreen === 'seguimiento') { _renderSeguimientoFiltered(); }
+    else if (_currentScreen === 'seguimiento') {
+      const todos = _pedidosCache;
+      const enLab = todos.filter(p => ['Cristales pedidos a lab','Armazón enviado p/calibrado','En laboratorio'].includes(p.estado));
+      const retirar = todos.filter(p => p.estado === 'Pendiente de retirar');
+      renderSegPanel('seg-content-lab', enLab.sort(sortPorPrioridad), true);
+      renderSegPanel('seg-content-retirar', retirar.sort(sortPorPrioridad), false);
+      if (typeof Panel !== 'undefined') Panel.renderLabCards(todos, 'seg-labs-cards');
+    }
     const em = document.getElementById('edit-modal');
     if (em && !em.classList.contains('hidden') && _detalleId === id) abrirEdicion();
   }
@@ -681,334 +674,26 @@ const App = (() => {
     return new Date(b.fecha_carga) - new Date(a.fecha_carga);
   }
 
-  // ═══════════════════════════════════════════════
-  //  SEGUIMIENTO — nuevo diseño
-  // ═══════════════════════════════════════════════
-
-  function _initSeguimientoHeader() {
-    const labsCards = document.getElementById('seg-labs-cards');
-    if (!labsCards) return;
-    if (document.getElementById('seg-kpis-wrap')) return;
-    labsCards.innerHTML = `
-      <div id="seg-kpis-wrap"></div>
-      <div id="seg-chips-wrap"></div>`;
-  }
-
+  // ── SEGUIMIENTO ───────────────────────────────────
   async function loadSeguimiento() {
     try {
-      const todos = await Pedidos.getPedidosActivos();
-      _pedidosCache = todos;
-
-      _initSeguimientoHeader();
-      renderSeguimientoKPIs(todos);
-      renderLabChips(todos);
-      _renderSeguimientoFiltered();
+      const todos=await Pedidos.getPedidosActivos();
+      _pedidosCache=todos;
+      const enLab=todos.filter(p=>['Cristales pedidos a lab','Armazón enviado p/calibrado','En laboratorio'].includes(p.estado));
+      const retirar=todos.filter(p=>p.estado==='Pendiente de retirar');
+      document.getElementById('seg-count-lab').textContent=enLab.length;
+      document.getElementById('seg-count-retirar').textContent=retirar.length;
+      renderSegPanel('seg-content-lab',     enLab.sort(sortPorPrioridad),   true);
+      renderSegPanel('seg-content-retirar', retirar.sort(sortPorPrioridad), false);
       updateBadge();
-
-      const criticos = todos.filter(p => p._est.valor === 'critico');
-      const demorados = todos.filter(p => p._est.valor === 'demorado');
-      if (criticos.length > 0) enviarNotificacion('🔴 Pedidos críticos — OLVISIÓN', `${criticos.length} pedido${criticos.length>1?'s':''} superó el tiempo límite`, true);
-      else if (demorados.length > 0) enviarNotificacion('⚠️ Demorados — OLVISIÓN', `${demorados.length} pedido${demorados.length>1?'s':''} demorado en laboratorio`, true);
-    } catch(e) { toast('Error: ' + e.message, 'error'); }
+      if (typeof Panel !== 'undefined') Panel.renderLabCards(todos, 'seg-labs-cards');
+      const criticos=todos.filter(p=>p._est.valor==='critico');
+      const demorados=todos.filter(p=>p._est.valor==='demorado');
+      if (criticos.length>0)  enviarNotificacion('🔴 Pedidos críticos — OLVISIÓN',`${criticos.length} pedido${criticos.length>1?'s':''} superó el tiempo límite`,true);
+      else if (demorados.length>0) enviarNotificacion('⚠️ Demorados — OLVISIÓN',`${demorados.length} pedido${demorados.length>1?'s':''} demorado en laboratorio`,true);
+    } catch(e){toast('Error: '+e.message,'error');}
   }
 
-  function renderSeguimientoKPIs(todos) {
-    const el = document.getElementById('seg-kpis-wrap'); if (!el) return;
-    const activos  = todos.filter(p => p.estado !== 'Retirado');
-    const urgentes = activos.filter(p => p.urgente === 'Si');
-    const atencion = activos.filter(p => p.urgente !== 'Si' && (p._est?.valor === 'critico' || p._est?.valor === 'demorado'));
-    const retirar  = todos.filter(p => p.estado === 'Pendiente de retirar');
-
-    el.innerHTML = `
-      <div class="seg-kpi-grid">
-        <div class="seg-kpi-card" onclick="App.setSeguimientoFilter('todos')">
-          <div class="seg-kpi-icon-bg">📋</div>
-          <div class="seg-kpi-val">${activos.length}</div>
-          <div class="seg-kpi-label">Pedidos activos</div>
-          <div class="seg-kpi-link">Ver todos →</div>
-        </div>
-        <div class="seg-kpi-card seg-kpi-card--red" onclick="App.setSeguimientoFilter('urgentes')">
-          <div class="seg-kpi-icon-bg">⚠️</div>
-          <div class="seg-kpi-val seg-kpi-val--red">${urgentes.length}</div>
-          <div class="seg-kpi-label">Urgentes</div>
-          <div class="seg-kpi-link seg-kpi-link--red">Ver urgentes →</div>
-        </div>
-        <div class="seg-kpi-card seg-kpi-card--amber" onclick="App.setSeguimientoFilter('atencion')">
-          <div class="seg-kpi-icon-bg">⚠️</div>
-          <div class="seg-kpi-val seg-kpi-val--amber">${atencion.length}</div>
-          <div class="seg-kpi-label">Requieren atención</div>
-          <div class="seg-kpi-link seg-kpi-link--amber">Ver pendientes →</div>
-        </div>
-        <div class="seg-kpi-card seg-kpi-card--green" onclick="App.switchSegTab('retirar')">
-          <div class="seg-kpi-icon-bg">📅</div>
-          <div class="seg-kpi-val seg-kpi-val--green">${retirar.length}</div>
-          <div class="seg-kpi-label">Listos para retirar</div>
-          <div class="seg-kpi-link seg-kpi-link--green">Ir a para retirar →</div>
-        </div>
-      </div>`;
-  }
-
-  function renderLabChips(todos) {
-    const el = document.getElementById('seg-chips-wrap'); if (!el) return;
-    const activos = todos.filter(p => p.estado !== 'Retirado');
-    const labCounts = {};
-    activos.forEach(p => { if (p.laboratorio) labCounts[p.laboratorio] = (labCounts[p.laboratorio] || 0) + 1; });
-    const labs = Object.keys(labCounts).sort();
-
-    el.innerHTML = `
-      <div class="seg-chips-row">
-        <div class="seg-chips-scroll">
-          <span class="seg-chip-label">Laboratorios</span>
-          ${labs.map(lab => `
-            <button class="seg-lab-chip ${_labFilter === lab ? 'seg-lab-chip--active' : ''}"
-                    onclick="App.setLabFilter('${esc(lab)}')">
-              <span class="seg-lab-dot-sm" style="background:${getLabColor(lab)}"></span>
-              ${esc(lab)} <span class="seg-chip-count">${labCounts[lab]}</span>
-            </button>`).join('')}
-        </div>
-        <div class="seg-search-box">
-          <svg class="seg-search-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8">
-            <circle cx="8.5" cy="8.5" r="5.5"/><line x1="13" y1="13" x2="17" y2="17"/>
-          </svg>
-          <input type="text" class="seg-search-input" placeholder="Buscar pedido..."
-                 value="${esc(_segSearch)}" oninput="App.onSegSearch(this.value)" autocomplete="off">
-        </div>
-      </div>`;
-  }
-
-  function _renderSeguimientoFiltered() {
-    const todos = _pedidosCache;
-    let enLab  = todos.filter(p => ['Cristales pedidos a lab','Armazón enviado p/calibrado','En laboratorio'].includes(p.estado));
-    let retirar = todos.filter(p => p.estado === 'Pendiente de retirar');
-
-    if (_labFilter) {
-      enLab   = enLab.filter(p => p.laboratorio === _labFilter);
-      retirar = retirar.filter(p => p.laboratorio === _labFilter);
-    }
-    if (_segSearch) {
-      const q = _segSearch.toLowerCase();
-      const match = p => p.cliente?.toLowerCase().includes(q) || String(p.orden)?.toLowerCase().includes(q);
-      enLab   = enLab.filter(match);
-      retirar = retirar.filter(match);
-    }
-
-    const cntEl  = document.getElementById('seg-count-lab');
-    const cntRet = document.getElementById('seg-count-retirar');
-    if (cntEl)  cntEl.textContent  = enLab.length;
-    if (cntRet) cntRet.textContent = retirar.length;
-
-    renderNewSegPanel('seg-content-lab',     enLab.sort(sortPorPrioridad),   true);
-    renderNewSegPanel('seg-content-retirar', retirar.sort(sortPorPrioridad), false);
-  }
-
-  function setLabFilter(lab) {
-    _labFilter = _labFilter === lab ? null : lab;
-    renderLabChips(_pedidosCache);
-    _renderSeguimientoFiltered();
-  }
-
-  function onSegSearch(val) {
-    _segSearch = val.trim().toLowerCase();
-    _renderSeguimientoFiltered();
-  }
-
-  function setSeguimientoFilter(type) {
-    // 'urgentes' → scroll to urgentes section; 'atencion' → scroll to atencion; 'todos' → noop
-    _labFilter = null;
-    _segSearch = '';
-    renderLabChips(_pedidosCache);
-    _renderSeguimientoFiltered();
-    switchSegTab('lab');
-    // After render, try to scroll to the relevant section
-    if (type !== 'todos') {
-      setTimeout(() => {
-        const KEY_MAP = { urgentes: 'seg-group--urgentes', atencion: 'seg-group--atencion' };
-        const el = document.getElementById(KEY_MAP[type]);
-        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 150);
-    }
-  }
-
-  // ── Render seguimiento: new panel ─────────────────
-  function renderNewSegPanel(id, pedidos, conGrupos) {
-    const el = document.getElementById(id); if (!el) return;
-    if (!pedidos.length) {
-      el.innerHTML = `<div class="empty-state"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><h3>Sin pedidos</h3><p>No hay pedidos en este estado</p></div>`;
-      return;
-    }
-    const groups = groupPedidos(pedidos);
-
-    if (!conGrupos) {
-      el.innerHTML = `<div class="ped-compact-list">${groups.map(g => g.type==='pair' ? renderSegPairRow(g.a,g.b) : renderSegRow(g.p)).join('')}</div>`;
-      attachInlineSelects(el);
-      return;
-    }
-
-    const SEG_CATS = [
-      { key:'urgentes', id:'seg-group--urgentes', label:'⚡ URGENTES',            color:'#DC2626', bg:'#FEF2F2' },
-      { key:'atencion', id:'seg-group--atencion', label:'⚠️ REQUIEREN ATENCIÓN', color:'#D97706', bg:'#FFFBEB' },
-      { key:'lab',      id:'seg-group--lab',      label:'🔵 EN LABORATORIO',      color:'#034291', bg:'#EFF6FF' },
-    ];
-    const buckets = { urgentes:[], atencion:[], lab:[] };
-    groups.forEach(g => {
-      const p = g.type==='pair' ? g.a : g.p;
-      const key = getSegCatKey(p);
-      (buckets[key] || buckets.lab).push(g);
-    });
-
-    let html = '<div class="ped-compact-list">';
-    SEG_CATS.forEach(cat => {
-      const items = buckets[cat.key]; if (!items.length) return;
-      html += `<div class="seg-group-header" id="${cat.id}" style="--grp-color:${cat.color};--grp-bg:${cat.bg}">
-        <span class="seg-group-dot" style="background:${cat.color}"></span>
-        <span class="seg-group-label">${cat.label}</span>
-        <span class="seg-group-count">${items.length}</span>
-      </div>`;
-      html += items.map(g => g.type==='pair' ? renderSegPairRow(g.a,g.b) : renderSegRow(g.p)).join('');
-    });
-    html += '</div>';
-    el.innerHTML = html;
-    attachInlineSelects(el);
-  }
-
-  // ── New compact row for seguimiento ──────────────
-  function renderSegRow(p) {
-    const sufijo = p.sufijo ? `-${p.sufijo}` : '';
-    const isOpen = _expandedId === p.id;
-    const cfg    = getCardConfig(p);
-    const d      = new Date(p.fecha_carga);
-    const fechaCorta = `${d.getDate()}/${d.getMonth()+1}`;
-    const urgenteBadge = p.urgente === 'Si' && p.estado !== 'Retirado'
-      ? '<span class="seg-urgente-dot" title="Urgente">⚡</span>' : '';
-    const daysCls = cfg.advertencia ? 'seg-days seg-days--warn' : 'seg-days';
-    const labColor = getLabColor(p.laboratorio);
-
-    const ESTADOS = ['Cristales pedidos a lab','Armazón enviado p/calibrado','En laboratorio','Pendiente de retirar','Retirado'];
-    const opts = ESTADOS.map(e=>`<option value="${e}"${e===p.estado?' selected':''}>${e}</option>`).join('');
-
-    const detalle = `
-      <div class="ped-row-detail ${isOpen?'':'hidden'}" onclick="event.stopPropagation()">
-        <div class="ped-row-detail-grid">
-          ${p.tipo_lente ?`<div class="prd-item"><span class="prd-label">Lente</span><span class="prd-val">${esc(p.tipo_lente)}</span></div>`:''}
-          ${p.tratamiento?`<div class="prd-item"><span class="prd-label">Tratamiento</span><span class="prd-val">${esc(p.tratamiento)}</span></div>`:''}
-          ${p.tipo       ?`<div class="prd-item"><span class="prd-label">Tipo</span><span class="prd-val">${esc(p.tipo)}</span></div>`:''}
-          ${p.dos_etapas==='Si'?`<div class="prd-item"><span class="prd-label">Etapas</span><span class="prd-val">2 etapas</span></div>`:''}
-          ${p.graduacion ?`<div class="prd-item prd-item--full"><span class="prd-label">Graduación</span><span class="prd-val" style="font-family:var(--font-mono);font-size:.8rem">${esc(p.graduacion).replace(/\|/g,' | ')}</span></div>`:''}
-          ${p.armazon    ?`<div class="prd-item prd-item--full"><span class="prd-label">Armazón</span><span class="prd-val">${esc(p.armazon)}</span></div>`:''}
-          ${p.observaciones?`<div class="prd-item prd-item--full"><span class="prd-label">Observaciones</span><span class="prd-val" style="font-style:italic;color:var(--gris-texto)">${esc(p.observaciones)}</span></div>`:''}
-          <div class="prd-item"><span class="prd-label">Estado inteligente</span><span class="prd-val">${p._est.texto}</span></div>
-          ${p.fecha_prometida ? (() => {
-            const hoy = new Date(); hoy.setHours(0,0,0,0);
-            const prom = new Date(p.fecha_prometida + 'T00:00:00');
-            const ok   = prom >= hoy;
-            const str  = prom.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'});
-            return `<div class="prd-item"><span class="prd-label">Fecha prometida</span><span class="prd-val" style="font-weight:600;color:${ok?'#16A34A':'#DC2626'}">📅 ${str}</span></div>`;
-          })() : ''}
-          <div class="prd-item"><span class="prd-label">Cargado por</span><span class="prd-val">${esc(p.cargado_por||'—')}</span></div>
-          ${_fotoDetalle(p)}
-        </div>
-        <div class="ped-row-detail-actions">
-          <select class="estado-select ${Pedidos.claseEstado(p.estado)} estado-select-inline" data-id="${p.id}" data-prev="${esc(p.estado)}" onclick="event.stopPropagation()">${opts}</select>
-          ${Auth.isAdmin()?`<button class="ped-row-edit-btn" onclick="event.stopPropagation();App._abrirDetalleRapido(${p.id})">✏️ Editar</button>`:''}
-          ${Auth.isAdmin()?`<button class="ped-row-del-btn" onclick="event.stopPropagation();App.eliminarPedido(${p.id})">🗑️</button>`:''}
-        </div>
-      </div>`;
-
-    return `<div class="seg-row ped-row" data-id="${p.id}" onclick="App.togglePedidoRow(${p.id})">
-      <div class="seg-row-main">
-        <div class="seg-row-left">
-          <div class="seg-row-cliente">${urgenteBadge}${esc(p.cliente)}</div>
-          <div class="seg-row-bottom">
-            <span class="seg-row-orden">#${esc(p.orden)}${sufijo}</span>
-            ${p.laboratorio ? `<span class="seg-row-sep">·</span>
-              <span class="seg-row-lab-info">
-                <span class="seg-lab-dot-sm" style="background:${labColor}"></span>
-                <span class="seg-lab-name-sm">${esc(p.laboratorio)}</span>
-              </span>` : ''}
-            <span class="seg-row-sep">·</span>
-            <span class="seg-row-fecha">${fechaCorta}</span>
-            ${p.foto_url ? '<span class="seg-row-sep">·</span><span style="font-size:.68rem">📷</span>' : ''}
-          </div>
-        </div>
-        <div class="seg-row-right">
-          <span class="ped-status-badge badge--${cfg.badgeCls}">${cfg.label}</span>
-          <span class="${daysCls}">${cfg.dh}dh</span>
-          <span class="ped-row-arrow ${isOpen?'open':''}">›</span>
-        </div>
-      </div>
-      ${detalle}
-    </div>`;
-  }
-
-  function renderSegPairRow(pA, pB) {
-    const pairId = `pair-${pA.orden}`;
-    const isOpen = _expandedId === pairId;
-    const cfgA   = getCardConfig(pA);
-    const cfgB   = getCardConfig(pB);
-    const BORDER_PRIO = ['rojo','naranja','amarillo','indigo','azul','verde','teal','morado','gris'];
-    const prioA  = BORDER_PRIO.indexOf(cfgA.borderCls);
-    const prioB  = BORDER_PRIO.indexOf(cfgB.borderCls);
-    const worstCfg = (prioA <= prioB ? prioA : prioB) === prioA ? cfgA : cfgB;
-    const dhMax  = Math.max(cfgA.dh, cfgB.dh);
-    const advertencia = cfgA.advertencia || cfgB.advertencia;
-    const urgente = (pA.urgente==='Si' || pB.urgente==='Si');
-    const d = new Date(pA.fecha_carga);
-    const fechaCorta = `${d.getDate()}/${d.getMonth()+1}`;
-    const labColor = getLabColor(pA.laboratorio);
-    const daysCls = advertencia ? 'seg-days seg-days--warn' : 'seg-days';
-
-    const ESTADOS = ['Cristales pedidos a lab','Armazón enviado p/calibrado','En laboratorio','Pendiente de retirar','Retirado'];
-    const subRow = (p, color) => {
-      const opts = ESTADOS.map(e=>`<option value="${e}"${e===p.estado?' selected':''}>${e}</option>`).join('');
-      const pcfg = getCardConfig(p);
-      return `<div class="ped-pair-sub ped-pair-sub--${color}">
-        <div class="ped-pair-header">
-          <span class="ped-pair-badge ped-pair-badge--${color}">${p.sufijo}</span>
-          <span class="ped-status-badge badge--${pcfg.badgeCls}" style="font-size:.6rem;padding:2px 8px">${pcfg.icono} ${pcfg.label}</span>
-          ${p.laboratorio?`<span class="ped-row-lab">${esc(p.laboratorio)}</span>`:''}
-          <span class="ped-pair-spacer"></span>
-          <span class="${pcfg.advertencia?'seg-days seg-days--warn':'seg-days'}">${pcfg.dh}dh</span>
-        </div>
-        ${p.graduacion?`<div class="ped-pair-grad">${esc(p.graduacion).replace(/\|/g,' | ')}</div>`:''}
-        ${p.observaciones?`<div class="ped-pair-obs">💬 ${esc(p.observaciones)}</div>`:''}
-        ${_fotoSubRow(p)}
-        <div class="ped-pair-actions">
-          <select class="estado-select ${Pedidos.claseEstado(p.estado)} estado-select-inline" data-id="${p.id}" data-prev="${esc(p.estado)}" onclick="event.stopPropagation()">${opts}</select>
-          ${Auth.isAdmin()?`<button class="ped-row-edit-btn" onclick="event.stopPropagation();App._abrirDetalleRapido(${p.id})">✏️</button>`:''}
-          ${Auth.isAdmin()?`<button class="ped-row-del-btn" onclick="event.stopPropagation();App.eliminarPedido(${p.id})">🗑️</button>`:''}
-        </div>
-      </div>`;
-    };
-
-    return `<div class="seg-row ped-row ped-row--pair" data-pair-id="${pairId}" onclick="App.togglePedidoRow('${pairId}')">
-      <div class="seg-row-main">
-        <div class="seg-row-left">
-          <div class="seg-row-cliente">${urgente?'<span class="seg-urgente-dot">⚡</span>':''}${esc(pA.cliente)}</div>
-          <div class="seg-row-bottom">
-            <span class="seg-row-orden">#${esc(pA.orden)}</span>
-            ${pA.laboratorio ? `<span class="seg-row-sep">·</span>
-              <span class="seg-row-lab-info">
-                <span class="seg-lab-dot-sm" style="background:${labColor}"></span>
-                <span class="seg-lab-name-sm">${esc(pA.laboratorio)}</span>
-              </span>` : ''}
-            <span class="seg-row-sep">·</span>
-            <span class="seg-row-fecha">${fechaCorta}</span>
-          </div>
-        </div>
-        <div class="seg-row-right">
-          <span class="ped-status-badge badge--${worstCfg.badgeCls}">${worstCfg.label}</span>
-          <span class="${daysCls}">${dhMax}dh</span>
-          <span class="ped-pair-ab-badge">A · B</span>
-          <span class="ped-row-arrow ${isOpen?'open':''}">›</span>
-        </div>
-      </div>
-      <div class="ped-row-detail ${isOpen?'':'hidden'}" onclick="event.stopPropagation()">
-        ${subRow(pA,'azul')}${subRow(pB,'teal')}
-      </div>
-    </div>`;
-  }
-
-  // ── Legacy renderSegPanel (historial sigue usando renderCompactRow) ──
   function groupPedidos(list) {
     const result = [], seen = new Set();
     for (const p of list) {
@@ -1059,7 +744,6 @@ const App = (() => {
     return `<button class="btn-foto-upload-inline btn-foto-upload-inline--sm" onclick="event.stopPropagation();App.uploadFotoExistente(${p.id})">📷 Foto</button>`;
   }
 
-  // ── Compact row (used by Historial / Pedidos screen) ─
   function renderCompactRow(p) {
     const sufijo = p.sufijo ? `-${p.sufijo}` : '';
     const isOpen = _expandedId === p.id;
@@ -1201,6 +885,41 @@ const App = (() => {
     </div>`;
   }
 
+  function renderSegPanel(id, pedidos, conGrupos=false) {
+    const el = document.getElementById(id); if (!el) return;
+    if (!pedidos.length) {
+      el.innerHTML=`<div class="empty-state"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><h3>Sin pedidos</h3><p>No hay pedidos en este estado</p></div>`;
+      return;
+    }
+    const groups = groupPedidos(pedidos);
+    if (!conGrupos) {
+      el.innerHTML=`<div class="ped-compact-list">${groups.map(g=>g.type==='pair'?renderPairedRow(g.a,g.b):renderCompactRow(g.p)).join('')}</div>`;
+      attachInlineSelects(el); return;
+    }
+    const CATS = [
+      { key:'advertencia', label:'⚠️ Requieren atención', color:'#DC2626' },
+      { key:'espera',      label:'⏳ En espera',           color:'#D97706' },
+      { key:'lab',         label:'🔵 En laboratorio',      color:'#034291' },
+      { key:'listo',       label:'✅ Listos para retirar', color:'#16A34A' },
+      { key:'retirado',    label:'✔ Retirados',            color:'#9CA3AF' },
+    ];
+    const buckets = {}; CATS.forEach(c => { buckets[c.key] = []; });
+    groups.forEach(g => {
+      const p = g.type==='pair' ? g.a : g.p;
+      const key = getCategoryKey(p);
+      if (buckets[key]) buckets[key].push(g);
+    });
+    let html = '<div class="ped-compact-list">';
+    CATS.forEach(cat => {
+      const items = buckets[cat.key]; if (!items.length) return;
+      html += `<div class="ped-group-header"><span class="ped-group-dot" style="background:${cat.color}"></span><span>${cat.label}</span><span class="ped-group-count">${items.length}</span></div>`;
+      html += items.map(g => g.type==='pair' ? renderPairedRow(g.a,g.b) : renderCompactRow(g.p)).join('');
+    });
+    html += '</div>';
+    el.innerHTML = html;
+    attachInlineSelects(el);
+  }
+
   function switchSegTab(tab) {
     _segTab=tab;
     document.querySelectorAll('.seg-tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===tab));
@@ -1307,11 +1026,7 @@ const App = (() => {
           if (est==='Retirado'&&p) enviarNotificacion('✅ Retirado — OLVISIÓN',`#${p.orden} de ${p.cliente}`,false);
           _pedidosCache=await Pedidos.getTodosPedidos();
           if (_currentScreen==='pedidos') renderPedidosList();
-          if (_currentScreen==='seguimiento') {
-            renderSeguimientoKPIs(_pedidosCache);
-            renderLabChips(_pedidosCache);
-            _renderSeguimientoFiltered();
-          }
+          if (_currentScreen==='seguimiento') loadSeguimiento();
           updateBadge();
         } catch(err){
           toast(`Error: ${err.message}`,'error');
@@ -1817,6 +1532,7 @@ const App = (() => {
         .order('apellido').limit(6);
       _clientesSugData = data || [];
       if (!_clientesSugData.length) {
+        // Sin resultados — permitir escribir libremente sin redirigir
         sugEl.classList.add('hidden');
         return;
       }
@@ -1837,7 +1553,9 @@ const App = (() => {
     }, 280);
   }
 
+  // ── CLAVE: seleccionarCliente completa todos los campos ──
   async function seleccionarCliente(id) {
+    // Buscar en cache local primero, si no ir a la DB
     let cl = _clientesSugData.find(x => x.id === id || x.id === String(id));
     if (!cl) {
       const { data } = await window.supabaseClient
@@ -1848,22 +1566,33 @@ const App = (() => {
       if (!data) return;
       cl = data;
     }
+
     const nombre = [cl.apellido, cl.nombre].filter(Boolean).join(', ');
+
+    // Completar campo nombre
     const fCliente = document.getElementById('f-cliente');
     if (fCliente) fCliente.value = nombre;
+
+    // Completar campo cliente_id oculto
     const fId = document.getElementById('campo-cliente-id');
     if (fId) fId.value = cl.id;
+
+    // ── Completar datos de contacto ──
     const celEl = document.getElementById('f-cliente-cel');
     const dniEl = document.getElementById('f-cliente-dni');
     const osEl  = document.getElementById('f-cliente-os');
     if (celEl && cl.telefono) celEl.value = cl.telefono;
     if (dniEl && cl.dni)      dniEl.value = cl.dni;
     if (osEl  && cl.obra_social) {
+      // Asegurarse de que el select esté cargado
       await _cargarObrasSocialesForm();
       osEl.value = cl.obra_social;
     }
+
+    // Mostrar chip de cliente vinculado
     const chipNombre = document.getElementById('cliente-chip-nombre');
     if (chipNombre) chipNombre.textContent = nombre;
+
     const chipDet = document.getElementById('cliente-chip-detalle');
     if (chipDet) {
       chipDet.textContent = [
@@ -1871,8 +1600,10 @@ const App = (() => {
         cl.obra_social || ''
       ].filter(Boolean).join(' · ');
     }
+
     document.getElementById('cliente-seleccionado')?.classList.remove('hidden');
     document.getElementById('cliente-suggestions')?.classList.add('hidden');
+
     toast(`✓ ${nombre}${cl.telefono ? ' · ' + cl.telefono : ''}`, 'success');
   }
 
@@ -1925,8 +1656,6 @@ const App = (() => {
     abrirFotoViewer, cerrarFotoViewer,
     uploadFotoExistente, cambiarFoto, eliminarFotoConfirm,
     attachNumpadListeners,
-    // Seguimiento nuevas funciones
-    setLabFilter, onSegSearch, setSeguimientoFilter,
   };
 })();
 
