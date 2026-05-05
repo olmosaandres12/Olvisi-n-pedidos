@@ -1690,9 +1690,19 @@ const App = (() => {
       let clienteId = data.base.cliente_id;
       if (!clienteId && data.base.cliente) {
         try {
+          // Si tiene coma: "Apellido, Nombre" → separar. Si no: todo va a apellido
+          const nombreCompleto = data.base.cliente.trim();
+          let apellido = '', nombre = '';
+          if (nombreCompleto.includes(',')) {
+            apellido = nombreCompleto.split(',')[0].trim();
+            nombre   = nombreCompleto.split(',').slice(1).join(',').trim();
+          } else {
+            // Sin coma: todo como apellido para que la agenda muestre sin coma al inicio
+            apellido = nombreCompleto;
+            nombre   = '';
+          }
           const { data: nuevo } = await window.supabaseClient.from('clientes').insert([{
-            nombre:      data.base.cliente.includes(',') ? data.base.cliente.split(',')[1].trim() : data.base.cliente,
-            apellido:    data.base.cliente.includes(',') ? data.base.cliente.split(',')[0].trim() : '',
+            nombre, apellido,
             telefono:    data.base.celular || '—',
             dni:         data.base.dni || null,
             obra_social: data.base.obra_social || null,
