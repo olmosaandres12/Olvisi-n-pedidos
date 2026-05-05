@@ -1036,6 +1036,7 @@ const App = (() => {
       return `<div class="ped-pair-sub ped-pair-sub--${color}">
         <div class="ped-pair-header">
           <span class="ped-pair-badge ped-pair-badge--${color}">${p.sufijo}</span>
+          ${p.tipo_lente?`<span class="ped-pair-lente-chip">${esc(p.tipo_lente)}</span>`:''}
           <span class="seg-badge badge--${pcfg.badgeCls}" style="font-size:.6rem;padding:2px 8px">${pcfg.icono} ${pcfg.label}</span>
           ${p.laboratorio?`<span class="ped-row-lab">${esc(p.laboratorio)}</span>`:''}
           <span class="ped-pair-spacer"></span>
@@ -1225,6 +1226,7 @@ const App = (() => {
       return `<div class="ped-pair-sub ped-pair-sub--${color}">
         <div class="ped-pair-header">
           <span class="ped-pair-badge ped-pair-badge--${color}">${p.sufijo}</span>
+          ${p.tipo_lente?`<span class="ped-pair-lente-chip">${esc(p.tipo_lente)}</span>`:''}
           <span class="ped-status-badge badge--${pcfg.badgeCls}" style="font-size:.6rem;padding:2px 8px">${pcfg.icono} ${pcfg.label}</span>
           ${p.laboratorio?`<span class="ped-row-lab">${esc(p.laboratorio)}</span>`:''}
           <span class="ped-pair-spacer"></span>
