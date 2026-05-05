@@ -978,7 +978,7 @@ const App = (() => {
       </div>
     </div>`;
 
-    return `<div class="seg-row ped-row${isUrgente?' seg-row--urg':''}" data-id="${p.id}" onclick="App.togglePedidoRow(${p.id})">
+    return `<div class="seg-row ped-row${isUrgente?' seg-row--urg':''}" data-id="${p.id}">
       <div class="seg-tr">
         <div class="seg-td seg-td--orden">
           <span class="seg-orden-num">#${esc(p.orden)}${sufijo}</span>
@@ -991,14 +991,14 @@ const App = (() => {
             <span class="seg-row-date">${fecha}</span>
           </div>
         </div>
-        <div class="seg-td seg-td--estado">
-          <span class="seg-badge badge--${cfg.badgeCls}">${cfg.label}</span>
+        <div class="seg-td seg-td--estado" onclick="event.stopPropagation()">
+          <select class="seg-estado-select estado-select ${Pedidos.claseEstado(p.estado)}" data-id="${p.id}" data-prev="${esc(p.estado)}">${opts}</select>
         </div>
         <div class="seg-td seg-td--tiempo">
           <span class="${daysCls}">${cfg.dh}dh</span>
           <span class="seg-time-label">${timeLabel}</span>
         </div>
-        <div class="seg-td seg-td--arrow">
+        <div class="seg-td seg-td--arrow" onclick="event.stopPropagation();App.togglePedidoRow(${p.id})">
           <span class="ped-row-arrow ${isOpen?'open':''}">›</span>
         </div>
       </div>
@@ -1052,7 +1052,7 @@ const App = (() => {
       </div>`;
     };
 
-    return `<div class="seg-row ped-row ped-row--pair${urgente?' seg-row--urg':''}" data-pair-id="${pairId}" onclick="App.togglePedidoRow('${pairId}')">
+    return `<div class="seg-row ped-row ped-row--pair${urgente?' seg-row--urg':''}" data-pair-id="${pairId}">
       <div class="seg-tr">
         <div class="seg-td seg-td--orden">
           <span class="seg-orden-num">#${esc(pA.orden)}</span>
@@ -1065,14 +1065,14 @@ const App = (() => {
             <span class="ped-pair-ab-badge" style="margin-left:4px">A · B</span>
           </div>
         </div>
-        <div class="seg-td seg-td--estado">
+        <div class="seg-td seg-td--estado" onclick="event.stopPropagation()">
           <span class="seg-badge badge--${worstCfg.badgeCls}">${worstCfg.label}</span>
         </div>
         <div class="seg-td seg-td--tiempo">
           <span class="${daysCls}">${dhMax}dh</span>
           <span class="seg-time-label">${timeLabel}</span>
         </div>
-        <div class="seg-td seg-td--arrow">
+        <div class="seg-td seg-td--arrow" onclick="event.stopPropagation();App.togglePedidoRow('${pairId}')">
           <span class="ped-row-arrow ${isOpen?'open':''}">›</span>
         </div>
       </div>
@@ -1369,7 +1369,7 @@ const App = (() => {
   }
 
   function attachInlineSelects(container) {
-    container.querySelectorAll('.estado-select-inline').forEach(sel=>{
+    container.querySelectorAll('.estado-select-inline, .seg-estado-select').forEach(sel=>{
       sel.addEventListener('change', async(e)=>{
         e.stopPropagation();
         const id=parseInt(e.target.dataset.id), est=e.target.value, prev=e.target.dataset.prev;
