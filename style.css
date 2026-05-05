@@ -772,3 +772,22 @@ select.form-control { background-image:url("data:image/svg+xml,%3Csvg xmlns='htt
   .seg-orden-num  { font-size: .9rem; }
   .seg-time       { font-size: .88rem; }
 }
+
+/* ── Fix: apuntar a .seg-tr directamente ─────────── */
+.seg-tr {
+  display: grid;
+  grid-template-columns: 90px 1fr 130px 90px 28px;
+  gap: 0;
+  align-items: center;
+  padding: 12px 14px;
+  width: 100%;
+}
+.seg-row--urg > .seg-tr { padding-left: 11px; }
+/* Override del mobile que apilaba */
+@media (min-width: 601px) {
+  .seg-td--orden    { grid-row: unset; grid-column: unset; }
+  .seg-td--paciente { grid-row: unset; grid-column: unset; }
+  .seg-td--estado   { grid-row: unset; grid-column: unset; }
+  .seg-td--tiempo   { grid-row: unset; grid-column: unset; }
+  .seg-td--arrow    { grid-row: unset; grid-column: unset; }
+}
