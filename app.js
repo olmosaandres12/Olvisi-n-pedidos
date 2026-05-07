@@ -14,6 +14,9 @@ const App = (() => {
   let _expandedId     = null;
   let _editingConfig  = null;
 
+  // ── Duplicados ────────────────────────────────────
+  let _pendingDuplicadoWarning = null;
+
   // Seguimiento filters
   let _labFilter  = null;
   let _segSearch  = '';
@@ -347,6 +350,7 @@ const App = (() => {
     });
 
     initNumpad();
+    _inyectarModalDuplicado();
     _initFotoViewer();
     await loadConfig();
     buildBloqueFields(1);
@@ -687,7 +691,6 @@ const App = (() => {
   // ═══════════════════════════════════════════════
 
   function _buildSegHeader() {
-    // Inyecta KPIs + chips ANTES de los tabs, en el screen de seguimiento
     const screen = document.getElementById('screen-seguimiento');
     if (!screen || document.getElementById('seg-kpis-wrap')) return;
     const tabs = screen.querySelector('.seg-tabs');
@@ -707,7 +710,6 @@ const App = (() => {
       _renderSegChips(todos);
       _renderSeguimientoFiltered();
       updateBadge();
-      // notificaciones
       const criticos = todos.filter(p => p._est.valor === 'critico');
       const demorados = todos.filter(p => p._est.valor === 'demorado');
       if (criticos.length > 0) enviarNotificacion('🔴 Pedidos críticos — OLVISIÓN', `${criticos.length} pedido${criticos.length>1?'s':''} superó el tiempo límite`, true);
@@ -721,11 +723,7 @@ const App = (() => {
     const urgentes = activos.filter(p => p.urgente === 'Si');
     const atencion = activos.filter(p => p.urgente !== 'Si' && (p._est?.valor === 'critico' || p._est?.valor === 'demorado'));
     const retirar  = todos.filter(p => p.estado === 'Pendiente de retirar');
-    // Contar filas (grupos A/B cuentan como 1)
-    const contarFilas = (lista) => {
-      const groups = groupPedidos(lista);
-      return groups.length;
-    };
+    const contarFilas = (lista) => { const groups = groupPedidos(lista); return groups.length; };
     el.innerHTML = `<div class="seg-kpi-grid">
       <div class="seg-kpi-card" onclick="App.setSeguimientoFilter('todos')">
         <div class="seg-kpi-icon-bg">📋</div>
@@ -786,13 +784,11 @@ const App = (() => {
     const contentRet  = document.getElementById('seg-content-retirar');
 
     if (_segSearch) {
-      // ── Búsqueda global: todos los pedidos ──────────
       const q = _segSearch;
       const match = p => p.cliente?.toLowerCase().includes(q) || String(p.orden).toLowerCase().includes(q);
       let resultados = todos.filter(match);
       if (_labFilter) resultados = resultados.filter(p => p.laboratorio === _labFilter);
 
-      // Ocultar tabs y contenido normal, mostrar panel global
       if (tabsEl)     tabsEl.style.display     = 'none';
       if (contentLab) contentLab.style.display  = 'none';
       if (contentRet) contentRet.style.display  = 'none';
@@ -812,7 +808,6 @@ const App = (() => {
       }
 
       const sorted = [...resultados].sort((a,b) => {
-        // Activos primero, luego retirados; dentro de cada grupo por fecha desc
         const aR = a.estado === 'Retirado' ? 1 : 0;
         const bR = b.estado === 'Retirado' ? 1 : 0;
         if (aR !== bR) return aR - bR;
@@ -828,7 +823,6 @@ const App = (() => {
       return;
     }
 
-    // ── Sin búsqueda: vista normal por tabs ──────────
     if (tabsEl)     tabsEl.style.display     = '';
     if (contentLab) contentLab.style.display  = '';
     if (contentRet) contentRet.style.display  = '';
@@ -858,7 +852,6 @@ const App = (() => {
 
   function onSegSearch(val) {
     _segSearch = val.trim().toLowerCase();
-    // Al buscar, expandir todas las secciones para mostrar resultados
     if (_segSearch) _collapsedSections = {};
     _renderSeguimientoFiltered();
   }
@@ -869,7 +862,6 @@ const App = (() => {
     switchSegTab('lab');
 
     if (type === 'todos') {
-      // Expandir todo
       _collapsedSections = {};
     } else if (type === 'urgentes') {
       _collapsedSections = { atencion: true, lab: true };
@@ -879,7 +871,6 @@ const App = (() => {
 
     _renderSeguimientoFiltered();
 
-    // Scroll al header de la sección correspondiente
     setTimeout(() => {
       const ids = { urgentes:'sg-urgentes', atencion:'sg-atencion', todos:null };
       const elId = ids[type];
@@ -887,7 +878,6 @@ const App = (() => {
         const el = document.getElementById(elId);
         if (el) el.scrollIntoView({ behavior:'smooth', block:'start' });
       } else {
-        // "todos" → scroll al top de la lista
         document.getElementById('seg-content-lab')?.scrollIntoView({ behavior:'smooth', block:'start' });
       }
     }, 150);
@@ -914,7 +904,6 @@ const App = (() => {
       const p = g.type==='pair' ? g.a : g.p;
       (buckets[getSegCatKey(p)] || buckets.lab).push(g);
     });
-    // Ordenar cada bucket por días hábiles descendente
     const getDh = g => g.type==='pair'
       ? Math.max(getCardConfig(g.a).dh, getCardConfig(g.b).dh)
       : getCardConfig(g.p).dh;
@@ -947,7 +936,6 @@ const App = (() => {
     _renderSeguimientoFiltered();
   }
 
-  // ── Header de columnas ────────────────────────────
   function _segTableHeader() {
     return `<div class="seg-th-row">
       <div class="seg-th seg-th--orden"># ORDEN</div>
@@ -1100,7 +1088,6 @@ const App = (() => {
     </div>`;
   }
 
-  // ── Legacy renderSegPanel (historial sigue usando renderCompactRow) ──
   function groupPedidos(list) {
     const result = [], seen = new Set();
     for (const p of list) {
@@ -1151,7 +1138,6 @@ const App = (() => {
     return `<button class="btn-foto-upload-inline btn-foto-upload-inline--sm" onclick="event.stopPropagation();App.uploadFotoExistente(${p.id})">📷 Foto</button>`;
   }
 
-  // ── Compact row (used by Historial / Pedidos screen) ─
   function renderCompactRow(p) {
     const sufijo = p.sufijo ? `-${p.sufijo}` : '';
     const isOpen = _expandedId === p.id;
@@ -1755,26 +1741,330 @@ const App = (() => {
     return valid;
   }
 
+  // ══════════════════════════════════════════════════
+  //  DETECCIÓN DE DUPLICADOS
+  // ══════════════════════════════════════════════════
+
+  /**
+   * Inyecta el modal de duplicado en el DOM (se llama una vez al init).
+   */
+  function _inyectarModalDuplicado() {
+    if (document.getElementById('dup-modal')) return;
+    const el = document.createElement('div');
+    el.id = 'dup-modal';
+    el.className = 'confirm-modal hidden';
+    el.style.cssText = 'z-index:9999';
+    el.innerHTML = `
+      <div class="confirm-sheet" style="max-width:440px;padding:28px 20px 24px">
+        <div id="dup-icon" style="font-size:2.8rem;text-align:center;margin-bottom:12px;line-height:1"></div>
+        <div id="dup-title" style="font-size:1.05rem;font-weight:700;color:var(--azul);text-align:center;margin-bottom:6px"></div>
+        <div id="dup-subtitle" style="font-size:.85rem;color:var(--gris-texto);text-align:center;margin-bottom:18px;line-height:1.5"></div>
+        <div id="dup-body" style="margin-bottom:20px;max-height:220px;overflow-y:auto"></div>
+        <div id="dup-actions" style="display:flex;flex-direction:column;gap:10px"></div>
+      </div>`;
+    document.body.appendChild(el);
+    // Cerrar al tocar el fondo
+    el.addEventListener('click', (e) => { if (e.target === el) _cerrarModalDuplicado(); });
+  }
+
+  /**
+   * Chequea duplicados antes de guardar.
+   * Retorna null si no hay duplicados.
+   * Retorna { tipo:'orden_duplicada', pedidos:[] } si el número de orden ya existe.
+   * Retorna { tipo:'cliente_activo', cliente:{}, pedidos:[], match:'' } si el cliente ya tiene pedidos activos.
+   */
+  async function checkDuplicados(data) {
+    const orden    = data.base.orden?.trim();
+    const celular  = data.base.celular?.trim();
+    const dni      = data.base.dni?.trim();
+    const nombre   = data.base.cliente?.trim();
+    const clienteId = data.base.cliente_id;
+
+    // ── 1. Número de orden: bloqueo duro ─────────────
+    // Nunca pueden existir dos pedidos con el mismo número de orden
+    const { data: existeOrden } = await window.supabaseClient
+      .from('pedidos')
+      .select('id,cliente,estado,fecha_carga,sufijo')
+      .eq('orden', orden)
+      .limit(5);
+
+    if (existeOrden?.length) {
+      return { tipo: 'orden_duplicada', pedidos: existeOrden, orden };
+    }
+
+    // ── 2. Cliente con pedidos activos: advertencia suave ──
+    let pedidosActivos = [];
+    let clienteEncontrado = null;
+    let matchPor = '';
+
+    if (clienteId) {
+      // Cliente seleccionado del autocomplete — verificar sus pedidos activos
+      const { data: peds } = await window.supabaseClient
+        .from('pedidos')
+        .select('id,orden,sufijo,estado,fecha_carga,laboratorio')
+        .eq('cliente_id', clienteId)
+        .neq('estado', 'Retirado')
+        .limit(5);
+      if (peds?.length) {
+        pedidosActivos = peds;
+        clienteEncontrado = { displayName: nombre };
+        matchPor = 'cliente seleccionado';
+      }
+    } else {
+      // Sin cliente_id: buscar por celular en tabla clientes
+      if (celular && celular !== '—' && celular.length >= 6) {
+        const { data: cl } = await window.supabaseClient
+          .from('clientes')
+          .select('id,nombre,apellido,telefono,dni')
+          .eq('telefono', celular)
+          .maybeSingle();
+        if (cl) {
+          clienteEncontrado = cl;
+          matchPor = 'celular ' + celular;
+          const { data: peds } = await window.supabaseClient
+            .from('pedidos')
+            .select('id,orden,sufijo,estado,fecha_carga,laboratorio')
+            .eq('cliente_id', cl.id)
+            .neq('estado', 'Retirado')
+            .limit(5);
+          pedidosActivos = peds || [];
+        }
+      }
+
+      // Buscar por DNI si todavía no encontramos
+      if (!clienteEncontrado && dni && dni.length >= 4) {
+        const { data: cl } = await window.supabaseClient
+          .from('clientes')
+          .select('id,nombre,apellido,telefono,dni')
+          .eq('dni', dni)
+          .maybeSingle();
+        if (cl) {
+          clienteEncontrado = cl;
+          matchPor = 'DNI ' + dni;
+          const { data: peds } = await window.supabaseClient
+            .from('pedidos')
+            .select('id,orden,sufijo,estado,fecha_carga,laboratorio')
+            .eq('cliente_id', cl.id)
+            .neq('estado', 'Retirado')
+            .limit(5);
+          pedidosActivos = peds || [];
+        }
+      }
+
+      // Fallback: buscar por nombre exacto en columna cliente de pedidos
+      if (!clienteEncontrado && nombre && nombre.length >= 3) {
+        const { data: peds } = await window.supabaseClient
+          .from('pedidos')
+          .select('id,orden,sufijo,estado,fecha_carga,laboratorio,cliente')
+          .ilike('cliente', nombre)
+          .neq('estado', 'Retirado')
+          .limit(3);
+        if (peds?.length) {
+          pedidosActivos = peds;
+          clienteEncontrado = { displayName: nombre };
+          matchPor = 'nombre "' + nombre + '"';
+        }
+      }
+    }
+
+    if (pedidosActivos.length > 0) {
+      // Armar displayName
+      let displayName = nombre;
+      if (clienteEncontrado?.apellido) {
+        displayName = [clienteEncontrado.apellido, clienteEncontrado.nombre].filter(Boolean).join(', ');
+      } else if (clienteEncontrado?.displayName) {
+        displayName = clienteEncontrado.displayName;
+      }
+      return {
+        tipo: 'cliente_activo',
+        cliente: { ...clienteEncontrado, displayName },
+        pedidos: pedidosActivos,
+        matchPor,
+      };
+    }
+
+    return null; // Sin duplicados
+  }
+
+  /**
+   * Muestra el modal de error cuando el número de orden ya existe.
+   * Bloqueo duro — no se puede continuar.
+   */
+  function _mostrarModalDuplicadoOrden(dup) {
+    const modal = document.getElementById('dup-modal');
+    if (!modal) return;
+
+    document.getElementById('dup-icon').textContent = '🚫';
+    document.getElementById('dup-title').textContent = `Número de orden duplicado`;
+    document.getElementById('dup-subtitle').textContent =
+      `Ya existe un pedido con el número #${esc(String(dup.orden))}. No se puede usar el mismo número dos veces.`;
+
+    const ESTADO_SHORT = {
+      'Cristales pedidos a lab': '🔬 Cristales',
+      'Armazón enviado p/calibrado': '📦 En tránsito',
+      'En laboratorio': '🏭 En lab.',
+      'Pendiente de retirar': '✅ Listo',
+      'Retirado': '✔️ Retirado',
+    };
+
+    document.getElementById('dup-body').innerHTML = dup.pedidos.map(p => {
+      const sufijo = p.sufijo ? `-${p.sufijo}` : '';
+      const fecha  = new Date(p.fecha_carga).toLocaleDateString('es-AR', {day:'2-digit',month:'2-digit',year:'numeric'});
+      return `<div style="background:#FFF0F0;border:1.5px solid #FECACA;border-radius:12px;padding:12px 14px;margin-bottom:8px">
+        <div style="font-weight:700;color:#DC2626;font-size:.95rem">Orden #${esc(String(p.orden))}${esc(sufijo)}</div>
+        <div style="font-size:.85rem;color:#555;margin-top:4px;font-weight:500">${esc(p.cliente || '—')}</div>
+        <div style="font-size:.78rem;color:#888;margin-top:3px">${esc(ESTADO_SHORT[p.estado] || p.estado)} · ${fecha}</div>
+      </div>`;
+    }).join('');
+
+    document.getElementById('dup-actions').innerHTML = `
+      <button class="btn btn-primary" onclick="App._cerrarModalDuplicado()"
+              style="width:100%;font-size:1rem;padding:14px">
+        ← Volver y cambiar el número
+      </button>`;
+
+    modal.classList.remove('hidden');
+  }
+
+  /**
+   * Muestra el modal de advertencia cuando el cliente ya tiene pedidos activos.
+   * El usuario puede elegir continuar de todas formas o volver a revisar.
+   */
+  function _mostrarModalDuplicadoCliente(dup) {
+    const modal = document.getElementById('dup-modal');
+    if (!modal) return;
+
+    const displayName = dup.cliente.displayName || 'Este cliente';
+    const matchTxt = dup.matchPor ? ` (coincidencia por ${dup.matchPor})` : '';
+
+    document.getElementById('dup-icon').textContent = '⚠️';
+    document.getElementById('dup-title').textContent = `${displayName} ya tiene pedidos activos`;
+    document.getElementById('dup-subtitle').textContent =
+      `Se detectó un posible duplicado${matchTxt}. Revisá si realmente es un pedido nuevo antes de continuar.`;
+
+    const ESTADO_SHORT = {
+      'Cristales pedidos a lab': '🔬 Cristales',
+      'Armazón enviado p/calibrado': '📦 En tránsito',
+      'En laboratorio': '🏭 En lab.',
+      'Pendiente de retirar': '✅ Listo para retirar',
+    };
+
+    document.getElementById('dup-body').innerHTML = dup.pedidos.map(p => {
+      const sufijo = p.sufijo ? `-${p.sufijo}` : '';
+      const fecha  = new Date(p.fecha_carga).toLocaleDateString('es-AR', {day:'2-digit',month:'2-digit',year:'numeric'});
+      return `<div style="background:#FFFBEB;border:1.5px solid #FDE68A;border-radius:12px;padding:12px 14px;margin-bottom:8px">
+        <div style="font-weight:700;color:#92400E;font-size:.9rem">Orden #${esc(String(p.orden))}${esc(sufijo)}</div>
+        <div style="font-size:.8rem;color:#555;margin-top:3px">${esc(ESTADO_SHORT[p.estado] || p.estado)}</div>
+        <div style="font-size:.75rem;color:#888;margin-top:2px">
+          ${p.laboratorio ? esc(p.laboratorio) + ' · ' : ''}${fecha}
+        </div>
+      </div>`;
+    }).join('');
+
+    document.getElementById('dup-actions').innerHTML = `
+      <button class="btn btn-secondary" onclick="App._cerrarModalDuplicado()"
+              style="width:100%;font-size:.95rem;padding:13px;font-weight:600">
+        ← Volver y revisar
+      </button>
+      <button onclick="App._confirmarSinImportarDuplicado()"
+              style="width:100%;padding:13px;border-radius:var(--radius-md,12px);border:none;cursor:pointer;
+                     background:#B45309;color:#fff;font-size:.9rem;font-weight:600;
+                     font-family:inherit">
+        Es un pedido nuevo — Continuar igual →
+      </button>`;
+
+    modal.classList.remove('hidden');
+  }
+
+  /**
+   * Cierra el modal de duplicado y limpia el estado.
+   */
+  function _cerrarModalDuplicado() {
+    document.getElementById('dup-modal')?.classList.add('hidden');
+    _pendingDuplicadoWarning = null;
+  }
+
+  /**
+   * El usuario eligió continuar a pesar de la advertencia de duplicado.
+   * Muestra el modal de confirmación normal.
+   */
+  function _confirmarSinImportarDuplicado() {
+    document.getElementById('dup-modal')?.classList.add('hidden');
+    const data = _pendingDuplicadoWarning;
+    _pendingDuplicadoWarning = null;
+    if (!data) return;
+    _mostrarConfirmModal(data);
+  }
+
+  /**
+   * Construye y muestra el modal de confirmación con el resumen del pedido.
+   * Usado tanto en el flujo normal como después de ignorar una advertencia de duplicado.
+   */
+  function _mostrarConfirmModal(data) {
+    const rf = (label, val) => val
+      ? `<div class="modal-row"><span class="modal-label">${label}</span><span class="modal-value">${esc(String(val))}</span></div>`
+      : '';
+
+    let html = rf('Cliente', data.base.cliente)
+      + rf('Orden', data.doble ? `${data.base.orden}-A / -B` : data.base.orden)
+      + rf('Tipo', data.base.tipo)
+      + rf('Urgente', data.base.urgente)
+      + rf('Fecha', data.base.fecha_carga)
+      + rf('Fecha prometida', data.base.fecha_prometida);
+
+    if (data.doble) {
+      html += `<div style="margin:10px 0 4px;font-size:.78rem;font-weight:700;color:var(--azul)">ANTEOJO A</div>`;
+      html += rf('Lab', data.ant1.laboratorio) + rf('Lente', data.ant1.tipo_lente) + rf('Tratamiento', data.ant1.tratamiento) + rf('Graduación', data.ant1.graduacion) + rf('Armazón', data.ant1.armazon) + rf('Obs.', data.ant1.observaciones);
+      if (_fotoFiles[1]) html += `<div class="modal-row"><span class="modal-label">Foto A</span><span class="modal-value">📷 ${esc(_fotoFiles[1].name)}</span></div>`;
+      html += `<div style="margin:10px 0 4px;font-size:.78rem;font-weight:700;color:var(--azul)">ANTEOJO B</div>`;
+      html += rf('Lab', data.ant2.laboratorio) + rf('Lente', data.ant2.tipo_lente) + rf('Tratamiento', data.ant2.tratamiento) + rf('Graduación', data.ant2.graduacion) + rf('Armazón', data.ant2.armazon) + rf('Obs.', data.ant2.observaciones);
+      if (_fotoFiles[2]) html += `<div class="modal-row"><span class="modal-label">Foto B</span><span class="modal-value">📷 ${esc(_fotoFiles[2].name)}</span></div>`;
+    } else {
+      html += rf('Laboratorio', data.ant1.laboratorio) + rf('Lente', data.ant1.tipo_lente) + rf('Tratamiento', data.ant1.tratamiento) + rf('Graduación', data.ant1.graduacion) + rf('Armazón', data.ant1.armazon) + rf('Obs.', data.ant1.observaciones);
+      if (_fotoFiles[1]) html += `<div class="modal-row"><span class="modal-label">Foto</span><span class="modal-value">📷 ${esc(_fotoFiles[1].name)}</span></div>`;
+    }
+
+    document.getElementById('modal-body-content').innerHTML = html;
+    _pendingGuardar = data;
+    document.getElementById('confirm-modal').classList.remove('hidden');
+  }
+
+  // ── FORM SUBMIT con detección de duplicados ───────
   async function handleFormSubmit(e) {
     e.preventDefault();
-    const data=getFormData();
-    if (!validateForm(data)){toast('Completá los campos obligatorios','warn');return;}
-    const rf=(label,val)=>val?`<div class="modal-row"><span class="modal-label">${label}</span><span class="modal-value">${esc(String(val))}</span></div>`:'';
-    let html=rf('Cliente',data.base.cliente)+rf('Orden',data.doble?`${data.base.orden}-A / -B`:data.base.orden)+rf('Tipo',data.base.tipo)+rf('Urgente',data.base.urgente)+rf('Fecha',data.base.fecha_carga)+rf('Fecha prometida',data.base.fecha_prometida);
-    if(data.doble){
-      html+=`<div style="margin:10px 0 4px;font-size:.78rem;font-weight:700;color:var(--azul)">ANTEOJO A</div>`;
-      html+=rf('Lab',data.ant1.laboratorio)+rf('Lente',data.ant1.tipo_lente)+rf('Tratamiento',data.ant1.tratamiento)+rf('Graduación',data.ant1.graduacion)+rf('Armazón',data.ant1.armazon)+rf('Obs.',data.ant1.observaciones);
-      if(_fotoFiles[1]) html+=`<div class="modal-row"><span class="modal-label">Foto A</span><span class="modal-value">📷 ${esc(_fotoFiles[1].name)}</span></div>`;
-      html+=`<div style="margin:10px 0 4px;font-size:.78rem;font-weight:700;color:var(--azul)">ANTEOJO B</div>`;
-      html+=rf('Lab',data.ant2.laboratorio)+rf('Lente',data.ant2.tipo_lente)+rf('Tratamiento',data.ant2.tratamiento)+rf('Graduación',data.ant2.graduacion)+rf('Armazón',data.ant2.armazon)+rf('Obs.',data.ant2.observaciones);
-      if(_fotoFiles[2]) html+=`<div class="modal-row"><span class="modal-label">Foto B</span><span class="modal-value">📷 ${esc(_fotoFiles[2].name)}</span></div>`;
-    } else {
-      html+=rf('Laboratorio',data.ant1.laboratorio)+rf('Lente',data.ant1.tipo_lente)+rf('Tratamiento',data.ant1.tratamiento)+rf('Graduación',data.ant1.graduacion)+rf('Armazón',data.ant1.armazon)+rf('Obs.',data.ant1.observaciones);
-      if(_fotoFiles[1]) html+=`<div class="modal-row"><span class="modal-label">Foto</span><span class="modal-value">📷 ${esc(_fotoFiles[1].name)}</span></div>`;
+    const data = getFormData();
+    if (!validateForm(data)) { toast('Completá los campos obligatorios', 'warn'); return; }
+
+    // Mostrar estado "verificando" en el botón de submit
+    const submitBtn = document.querySelector('#form-nuevo-pedido [type="submit"], #form-nuevo-pedido button[type="submit"]');
+    const btnTextoOriginal = submitBtn?.textContent;
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Verificando...'; }
+
+    try {
+      const dup = await checkDuplicados(data);
+
+      if (dup) {
+        if (dup.tipo === 'orden_duplicada') {
+          // Bloqueo duro: no se puede continuar con este número de orden
+          _mostrarModalDuplicadoOrden(dup);
+          return;
+        }
+        if (dup.tipo === 'cliente_activo') {
+          // Advertencia suave: guardar estado y mostrar aviso
+          _pendingDuplicadoWarning = data;
+          _mostrarModalDuplicadoCliente(dup);
+          return;
+        }
+      }
+    } catch (err) {
+      // Si falla el chequeo de duplicados, continuamos de todas formas (no bloqueamos)
+      console.warn('Error al verificar duplicados:', err);
+    } finally {
+      if (submitBtn) { submitBtn.disabled = false; if (btnTextoOriginal) submitBtn.textContent = btnTextoOriginal; }
     }
-    document.getElementById('modal-body-content').innerHTML=html;
-    _pendingGuardar=data;
-    document.getElementById('confirm-modal').classList.remove('hidden');
+
+    // Sin duplicados: mostrar modal de confirmación normal
+    _mostrarConfirmModal(data);
   }
 
   async function handleConfirm() {
@@ -1786,14 +2076,12 @@ const App = (() => {
       let clienteId = data.base.cliente_id;
       if (!clienteId && data.base.cliente) {
         try {
-          // Si tiene coma: "Apellido, Nombre" → separar. Si no: todo va a apellido
           const nombreCompleto = data.base.cliente.trim();
           let apellido = '', nombre = '';
           if (nombreCompleto.includes(',')) {
             apellido = nombreCompleto.split(',')[0].trim();
             nombre   = nombreCompleto.split(',').slice(1).join(',').trim();
           } else {
-            // Sin coma: todo como apellido para que la agenda muestre sin coma al inicio
             apellido = nombreCompleto;
             nombre   = '';
           }
@@ -2028,8 +2316,10 @@ const App = (() => {
     abrirFotoViewer, cerrarFotoViewer,
     uploadFotoExistente, cambiarFoto, eliminarFotoConfirm,
     attachNumpadListeners,
-    // Seguimiento nuevas funciones
+    // Seguimiento
     setLabFilter, onSegSearch, setSeguimientoFilter, toggleSegSection,
+    // Duplicados
+    _cerrarModalDuplicado, _confirmarSinImportarDuplicado,
   };
 })();
 
