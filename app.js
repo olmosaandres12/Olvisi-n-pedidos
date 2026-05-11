@@ -17,6 +17,11 @@ const App = (() => {
   // ── Duplicados ────────────────────────────────────
   let _pendingDuplicadoWarning = null;
 
+  // ── Detección en tiempo real de orden ────────────
+  let _ordenCheckTimer   = null;   // debounce timer
+  let _ordenChecking     = false;  // flag para evitar solicitudes solapadas
+  let _ordenUltimaQuery  = '';     // última orden consultada (evita repetir)
+
   // Seguimiento filters
   let _labFilter  = null;
   let _segSearch  = '';
@@ -352,6 +357,7 @@ const App = (() => {
     initNumpad();
     _inyectarModalDuplicado();
     _initFotoViewer();
+    _initOrdenRealTimeCheck();   // ← NUEVO: detección en tiempo real
     await loadConfig();
     buildBloqueFields(1);
     buildBloqueFields(2);
@@ -365,6 +371,160 @@ const App = (() => {
     setTimeout(() => initPush(), 2000);
 
     showScreen('seguimiento');
+  }
+
+  // ══════════════════════════════════════════════════
+  //  DETECCIÓN EN TIEMPO REAL — NÚMERO DE ORDEN
+  // ══════════════════════════════════════════════════
+
+  /**
+   * Inicializa el listener del campo f-orden para detectar duplicados
+   * mientras el usuario tipea, con debounce de 600 ms.
+   * Inyecta el div de estado (#orden-check-status) debajo del campo.
+   */
+  function _initOrdenRealTimeCheck() {
+    const input = document.getElementById('f-orden');
+    if (!input) return;
+
+    // Inyectar div de estado si no existe
+    if (!document.getElementById('orden-check-status')) {
+      const statusEl = document.createElement('div');
+      statusEl.id = 'orden-check-status';
+      statusEl.className = 'orden-check-status hidden';
+      // Insertarlo después del input (dentro del mismo .form-group)
+      input.insertAdjacentElement('afterend', statusEl);
+    }
+
+    input.addEventListener('input', () => {
+      const valor = input.value.trim();
+      clearTimeout(_ordenCheckTimer);
+
+      // Si está vacío, limpiar estado
+      if (!valor) {
+        _ordenUltimaQuery = '';
+        _renderOrdenStatus('idle');
+        return;
+      }
+
+      // Si es el mismo valor que ya consultamos, no repetir
+      if (valor === _ordenUltimaQuery) return;
+
+      // Mostrar "verificando..." mientras espera el debounce
+      _renderOrdenStatus('checking');
+
+      _ordenCheckTimer = setTimeout(() => _consultarOrdenDuplicado(valor), 600);
+    });
+
+    // Al limpiar el campo (ej: resetForm), ocultar el indicador
+    input.addEventListener('change', () => {
+      if (!input.value.trim()) {
+        _ordenUltimaQuery = '';
+        _renderOrdenStatus('idle');
+      }
+    });
+  }
+
+  /**
+   * Consulta Supabase para ver si ya existe un pedido con ese número de orden.
+   * Actualiza el indicador inline según el resultado.
+   */
+  async function _consultarOrdenDuplicado(orden) {
+    if (_ordenChecking) return; // evitar solapamiento
+    _ordenChecking = true;
+    _ordenUltimaQuery = orden;
+
+    try {
+      const { data, error } = await window.supabaseClient
+        .from('pedidos')
+        .select('id, cliente, estado, fecha_carga, sufijo')
+        .eq('orden', orden)
+        .limit(5);
+
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        _renderOrdenStatus('duplicado', data);
+      } else {
+        _renderOrdenStatus('libre');
+      }
+    } catch (e) {
+      // Si falla la consulta, limpiar silenciosamente (no bloquear al usuario)
+      console.warn('Error al verificar orden en tiempo real:', e);
+      _renderOrdenStatus('idle');
+    } finally {
+      _ordenChecking = false;
+    }
+  }
+
+  /**
+   * Renderiza el indicador inline debajo del campo f-orden.
+   *
+   * estados:
+   *  'idle'      → oculto (sin valor)
+   *  'checking'  → "Verificando..."
+   *  'libre'     → ✅ Número disponible
+   *  'duplicado' → 🔴 Ya existe — con detalle de los pedidos existentes
+   */
+  function _renderOrdenStatus(estado, pedidos) {
+    const el = document.getElementById('orden-check-status');
+    const input = document.getElementById('f-orden');
+    if (!el) return;
+
+    if (estado === 'idle') {
+      el.className = 'orden-check-status hidden';
+      el.innerHTML = '';
+      input?.classList.remove('orden-input--libre', 'orden-input--dup');
+      return;
+    }
+
+    el.classList.remove('hidden');
+
+    if (estado === 'checking') {
+      el.className = 'orden-check-status orden-check--checking';
+      el.innerHTML = `<span class="orden-check-spinner"></span> Verificando número de orden...`;
+      input?.classList.remove('orden-input--libre', 'orden-input--dup');
+      return;
+    }
+
+    if (estado === 'libre') {
+      el.className = 'orden-check-status orden-check--libre';
+      el.innerHTML = `<svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0"><polyline points="4 10 8 14 16 6"/></svg> Número disponible`;
+      input?.classList.remove('orden-input--dup');
+      input?.classList.add('orden-input--libre');
+      return;
+    }
+
+    if (estado === 'duplicado' && pedidos?.length) {
+      const ESTADO_SHORT = {
+        'Cristales pedidos a lab':     '⏳ Cristales',
+        'Armazón enviado p/calibrado': '📦 En tránsito',
+        'En laboratorio':              '🏭 En lab.',
+        'Pendiente de retirar':        '✅ Listo para retirar',
+        'Retirado':                    '✔️ Retirado',
+      };
+
+      const filas = pedidos.map(p => {
+        const sufijo = p.sufijo ? `-${p.sufijo}` : '';
+        const fecha  = new Date(p.fecha_carga).toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric' });
+        const estadoLabel = ESTADO_SHORT[p.estado] || p.estado;
+        return `<div class="orden-dup-row">
+          <span class="orden-dup-ord">#${esc(String(p.orden))}${esc(sufijo)}</span>
+          <span class="orden-dup-cliente">${esc(p.cliente || '—')}</span>
+          <span class="orden-dup-est">${estadoLabel}</span>
+          <span class="orden-dup-fecha">${fecha}</span>
+        </div>`;
+      }).join('');
+
+      el.className = 'orden-check-status orden-check--dup';
+      el.innerHTML = `
+        <div class="orden-dup-header">
+          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0"><circle cx="10" cy="10" r="8"/><line x1="10" y1="6" x2="10" y2="10"/><circle cx="10" cy="14" r="1" fill="currentColor" stroke="none"/></svg>
+          Este número ya está en uso — no se puede repetir
+        </div>
+        <div class="orden-dup-list">${filas}</div>`;
+      input?.classList.remove('orden-input--libre');
+      input?.classList.add('orden-input--dup');
+    }
   }
 
   // ── FOTO ADJUNTA ─────────────────────────────────
@@ -1742,12 +1902,9 @@ const App = (() => {
   }
 
   // ══════════════════════════════════════════════════
-  //  DETECCIÓN DE DUPLICADOS
+  //  DETECCIÓN DE DUPLICADOS (al guardar)
   // ══════════════════════════════════════════════════
 
-  /**
-   * Inyecta el modal de duplicado en el DOM (se llama una vez al init).
-   */
   function _inyectarModalDuplicado() {
     if (document.getElementById('dup-modal')) return;
     const el = document.createElement('div');
@@ -1763,16 +1920,9 @@ const App = (() => {
         <div id="dup-actions" style="display:flex;flex-direction:column;gap:10px"></div>
       </div>`;
     document.body.appendChild(el);
-    // Cerrar al tocar el fondo
     el.addEventListener('click', (e) => { if (e.target === el) _cerrarModalDuplicado(); });
   }
 
-  /**
-   * Chequea duplicados antes de guardar.
-   * Retorna null si no hay duplicados.
-   * Retorna { tipo:'orden_duplicada', pedidos:[] } si el número de orden ya existe.
-   * Retorna { tipo:'cliente_activo', cliente:{}, pedidos:[], match:'' } si el cliente ya tiene pedidos activos.
-   */
   async function checkDuplicados(data) {
     const orden    = data.base.orden?.trim();
     const celular  = data.base.celular?.trim();
@@ -1781,7 +1931,6 @@ const App = (() => {
     const clienteId = data.base.cliente_id;
 
     // ── 1. Número de orden: bloqueo duro ─────────────
-    // Nunca pueden existir dos pedidos con el mismo número de orden
     const { data: existeOrden } = await window.supabaseClient
       .from('pedidos')
       .select('id,cliente,estado,fecha_carga,sufijo')
@@ -1798,7 +1947,6 @@ const App = (() => {
     let matchPor = '';
 
     if (clienteId) {
-      // Cliente seleccionado del autocomplete — verificar sus pedidos activos
       const { data: peds } = await window.supabaseClient
         .from('pedidos')
         .select('id,orden,sufijo,estado,fecha_carga,laboratorio')
@@ -1811,7 +1959,6 @@ const App = (() => {
         matchPor = 'cliente seleccionado';
       }
     } else {
-      // Sin cliente_id: buscar por celular en tabla clientes
       if (celular && celular !== '—' && celular.length >= 6) {
         const { data: cl } = await window.supabaseClient
           .from('clientes')
@@ -1831,7 +1978,6 @@ const App = (() => {
         }
       }
 
-      // Buscar por DNI si todavía no encontramos
       if (!clienteEncontrado && dni && dni.length >= 4) {
         const { data: cl } = await window.supabaseClient
           .from('clientes')
@@ -1851,7 +1997,6 @@ const App = (() => {
         }
       }
 
-      // Fallback: buscar por nombre exacto en columna cliente de pedidos
       if (!clienteEncontrado && nombre && nombre.length >= 3) {
         const { data: peds } = await window.supabaseClient
           .from('pedidos')
@@ -1868,7 +2013,6 @@ const App = (() => {
     }
 
     if (pedidosActivos.length > 0) {
-      // Armar displayName
       let displayName = nombre;
       if (clienteEncontrado?.apellido) {
         displayName = [clienteEncontrado.apellido, clienteEncontrado.nombre].filter(Boolean).join(', ');
@@ -1883,13 +2027,9 @@ const App = (() => {
       };
     }
 
-    return null; // Sin duplicados
+    return null;
   }
 
-  /**
-   * Muestra el modal de error cuando el número de orden ya existe.
-   * Bloqueo duro — no se puede continuar.
-   */
   function _mostrarModalDuplicadoOrden(dup) {
     const modal = document.getElementById('dup-modal');
     if (!modal) return;
@@ -1900,7 +2040,7 @@ const App = (() => {
       `Ya existe un pedido con el número #${esc(String(dup.orden))}. No se puede usar el mismo número dos veces.`;
 
     const ESTADO_SHORT = {
-      'Cristales pedidos a lab': '🔬 Cristales',
+      'Cristales pedidos a lab': '⏳ Cristales',
       'Armazón enviado p/calibrado': '📦 En tránsito',
       'En laboratorio': '🏭 En lab.',
       'Pendiente de retirar': '✅ Listo',
@@ -1926,10 +2066,6 @@ const App = (() => {
     modal.classList.remove('hidden');
   }
 
-  /**
-   * Muestra el modal de advertencia cuando el cliente ya tiene pedidos activos.
-   * El usuario puede elegir continuar de todas formas o volver a revisar.
-   */
   function _mostrarModalDuplicadoCliente(dup) {
     const modal = document.getElementById('dup-modal');
     if (!modal) return;
@@ -1943,7 +2079,7 @@ const App = (() => {
       `Se detectó un posible duplicado${matchTxt}. Revisá si realmente es un pedido nuevo antes de continuar.`;
 
     const ESTADO_SHORT = {
-      'Cristales pedidos a lab': '🔬 Cristales',
+      'Cristales pedidos a lab': '⏳ Cristales',
       'Armazón enviado p/calibrado': '📦 En tránsito',
       'En laboratorio': '🏭 En lab.',
       'Pendiente de retirar': '✅ Listo para retirar',
@@ -1976,18 +2112,11 @@ const App = (() => {
     modal.classList.remove('hidden');
   }
 
-  /**
-   * Cierra el modal de duplicado y limpia el estado.
-   */
   function _cerrarModalDuplicado() {
     document.getElementById('dup-modal')?.classList.add('hidden');
     _pendingDuplicadoWarning = null;
   }
 
-  /**
-   * El usuario eligió continuar a pesar de la advertencia de duplicado.
-   * Muestra el modal de confirmación normal.
-   */
   function _confirmarSinImportarDuplicado() {
     document.getElementById('dup-modal')?.classList.add('hidden');
     const data = _pendingDuplicadoWarning;
@@ -1996,10 +2125,6 @@ const App = (() => {
     _mostrarConfirmModal(data);
   }
 
-  /**
-   * Construye y muestra el modal de confirmación con el resumen del pedido.
-   * Usado tanto en el flujo normal como después de ignorar una advertencia de duplicado.
-   */
   function _mostrarConfirmModal(data) {
     const rf = (label, val) => val
       ? `<div class="modal-row"><span class="modal-label">${label}</span><span class="modal-value">${esc(String(val))}</span></div>`
@@ -2035,7 +2160,16 @@ const App = (() => {
     const data = getFormData();
     if (!validateForm(data)) { toast('Completá los campos obligatorios', 'warn'); return; }
 
-    // Mostrar estado "verificando" en el botón de submit
+    // Si el campo orden ya tiene estado "duplicado" visible, bloquear directamente
+    const statusEl = document.getElementById('orden-check-status');
+    if (statusEl?.classList.contains('orden-check--dup')) {
+      // Scroll al campo y enfocar
+      document.getElementById('f-orden')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      document.getElementById('f-orden')?.focus();
+      toast('Cambiá el número de orden — ya está en uso', 'error');
+      return;
+    }
+
     const submitBtn = document.querySelector('#form-nuevo-pedido [type="submit"], #form-nuevo-pedido button[type="submit"]');
     const btnTextoOriginal = submitBtn?.textContent;
     if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Verificando...'; }
@@ -2045,25 +2179,24 @@ const App = (() => {
 
       if (dup) {
         if (dup.tipo === 'orden_duplicada') {
-          // Bloqueo duro: no se puede continuar con este número de orden
           _mostrarModalDuplicadoOrden(dup);
+          // También actualizar el indicador inline para consistencia
+          _renderOrdenStatus('duplicado', dup.pedidos);
+          _ordenUltimaQuery = data.base.orden;
           return;
         }
         if (dup.tipo === 'cliente_activo') {
-          // Advertencia suave: guardar estado y mostrar aviso
           _pendingDuplicadoWarning = data;
           _mostrarModalDuplicadoCliente(dup);
           return;
         }
       }
     } catch (err) {
-      // Si falla el chequeo de duplicados, continuamos de todas formas (no bloqueamos)
       console.warn('Error al verificar duplicados:', err);
     } finally {
       if (submitBtn) { submitBtn.disabled = false; if (btnTextoOriginal) submitBtn.textContent = btnTextoOriginal; }
     }
 
-    // Sin duplicados: mostrar modal de confirmación normal
     _mostrarConfirmModal(data);
   }
 
@@ -2135,6 +2268,9 @@ const App = (() => {
     });
     _fotoFiles = {};
     _pendingGuardar=null;
+    // Limpiar indicador de orden
+    _ordenUltimaQuery = '';
+    _renderOrdenStatus('idle');
     limpiarClienteForm();
     ['f-cliente-cel','f-cliente-dni'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
     const selOs=document.getElementById('f-cliente-os'); if(selOs) selOs.value='';
