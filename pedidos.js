@@ -20,22 +20,20 @@ const Pedidos = (() => {
 
   function calcEstInteligente(pedido) {
     if (pedido.estado === 'Retirado') return { texto: '✅ OK', clase: 'est-ok', valor: 'ok' };
-    // Prioridad: si tiene fecha prometida, el estado se calcula en base a ella
     if (pedido.fecha_prometida) {
-      const hoy    = new Date(); hoy.setHours(0,0,0,0);
-      const prom   = new Date(pedido.fecha_prometida + 'T00:00:00');
+      const hoy  = new Date(); hoy.setHours(0,0,0,0);
+      const prom = new Date(pedido.fecha_prometida + 'T00:00:00');
       const atraso = Math.floor((hoy - prom) / (1000*60*60*24));
-      if (atraso <= 0) return { texto: '✅ En plazo',  clase: 'est-ok',   valor: 'ok'      };
+      if (atraso <= 0) return { texto: '✅ En plazo',  clase: 'est-ok',   valor: 'ok'       };
       if (atraso <= 1) return { texto: '⚠️ Demorado',  clase: 'est-dem',  valor: 'demorado' };
-      return                  { texto: '🔴 Crítico',   clase: 'est-crit', valor: 'critico'  };
+      return                  { texto: '🔴 Crítico',   clase: 'est-crit', valor: 'critico'   };
     }
-    // Fallback: límites por laboratorio
     const limite = LIMITES[pedido.laboratorio];
     if (!limite) return { texto: '—', clase: '', valor: 'ok' };
     const dias = calcDias(pedido);
-    if (dias <= limite.ok)  return { texto: '✅ OK',       clase: 'est-ok',   valor: 'ok'      };
+    if (dias <= limite.ok)  return { texto: '✅ OK',       clase: 'est-ok',   valor: 'ok'       };
     if (dias <= limite.dem) return { texto: '⚠️ Demorado', clase: 'est-dem',  valor: 'demorado' };
-    return                         { texto: '🔴 Crítico',  clase: 'est-crit', valor: 'critico'  };
+    return                         { texto: '🔴 Crítico',  clase: 'est-crit', valor: 'critico'   };
   }
 
   function enrich(p) {
@@ -83,25 +81,30 @@ const Pedidos = (() => {
       }
     }
     const rows = datosArray.map(d => ({
-      cliente:       d.cliente,
-      cliente_id:    d.cliente_id || null,
-      estado:        'Cristales pedidos a lab',
-      orden:         d.orden,
-      sufijo:        d.sufijo || null,
-      tipo:          d.tipo,
-      laboratorio:   d.laboratorio,
-      urgente:       d.urgente,
-      tipo_lente:    d.tipo_lente,
-      tratamiento:   d.tratamiento   || null,
-      graduacion:    d.graduacion    || null,
-      dos_etapas:    d.dos_etapas    || 'No',
-      armazon:       d.armazon       || null,
-      observaciones: d.observaciones || null,
-      cargado_por:   d.cargado_por,
-      fecha_carga:   d.fecha_carga   || new Date().toISOString(),
-      fecha_pedido:  d.fecha_pedido  || new Date().toISOString(),
-      fecha_prometida: d.fecha_prometida || null,
-      fecha_retiro:  null,
+      cliente:           d.cliente,
+      cliente_id:        d.cliente_id        || null,
+      estado:            'Cristales pedidos a lab',
+      orden:             d.orden,
+      sufijo:            d.sufijo            || null,
+      tipo:              d.tipo,
+      laboratorio:       d.laboratorio,
+      urgente:           d.urgente,
+      tipo_lente:        d.tipo_lente,
+      tratamiento:       d.tratamiento       || null,
+      graduacion:        d.graduacion        || null,
+      dos_etapas:        d.dos_etapas        || 'No',
+      armazon:           d.armazon           || null,
+      observaciones:     d.observaciones     || null,
+      cargado_por:       d.cargado_por,
+      fecha_carga:       d.fecha_carga       || new Date().toISOString(),
+      fecha_pedido:      d.fecha_pedido      || new Date().toISOString(),
+      fecha_prometida:   d.fecha_prometida   || null,
+      fecha_retiro:      null,
+      // Obra social y datos PAMI
+      obra_social:       d.obra_social       || null,
+      numero_afiliado:   d.numero_afiliado   || null,
+      tipo_trabajo_pami: d.tipo_trabajo_pami || null,
+      diferencia_pami:   d.diferencia_pami   || null,
     }));
     const { data, error } = await window.supabaseClient.from('pedidos').insert(rows).select();
     if (error) throw error;
@@ -135,7 +138,6 @@ const Pedidos = (() => {
     if (upErr) throw upErr;
     const { data: urlData } = window.supabaseClient.storage
       .from('pedidos-fotos').getPublicUrl(path);
-    // Timestamp para romper caché del browser
     const fotoUrl = urlData.publicUrl + '?t=' + Date.now();
     const { error } = await window.supabaseClient
       .from('pedidos').update({ foto_url: fotoUrl }).eq('id', id);
@@ -148,18 +150,13 @@ const Pedidos = (() => {
       .from('pedidos').select('foto_url').eq('id', id).single();
     if (fetchErr) throw fetchErr;
     if (!row?.foto_url) return;
-    // Extraer path del storage desde la URL pública
     const marker = '/pedidos-fotos/';
     const idx = row.foto_url.indexOf(marker);
     if (idx === -1) throw new Error('URL de foto inválida');
-    const storagePath = decodeURIComponent(
-      row.foto_url.slice(idx + marker.length).split('?')[0]
-    );
-    const { error: delErr } = await window.supabaseClient.storage
-      .from('pedidos-fotos').remove([storagePath]);
+    const storagePath = decodeURIComponent(row.foto_url.slice(idx + marker.length).split('?')[0]);
+    const { error: delErr } = await window.supabaseClient.storage.from('pedidos-fotos').remove([storagePath]);
     if (delErr) throw delErr;
-    const { error } = await window.supabaseClient
-      .from('pedidos').update({ foto_url: null }).eq('id', id);
+    const { error } = await window.supabaseClient.from('pedidos').update({ foto_url: null }).eq('id', id);
     if (error) throw error;
   }
 
