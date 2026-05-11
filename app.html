@@ -188,9 +188,7 @@
       <div class="section-header">
         <div><h1 class="section-title">Estado</h1><p class="section-subtitle">Pedidos activos en laboratorio</p></div>
       </div>
-      <!-- Cards por laboratorio -->
       <div class="dash-labs-grid" id="seg-labs-cards" style="padding:0 0 4px"></div>
-
       <div class="seg-tabs">
         <button class="seg-tab active" data-tab="lab" onclick="App.switchSegTab('lab')">
           En laboratorio <span class="seg-tab-count" id="seg-count-lab">0</span>
@@ -256,12 +254,43 @@
           <!-- Obra social -->
           <div class="form-group">
             <label class="form-label" for="f-cliente-os">Obra social</label>
-            <select id="f-cliente-os" class="form-control">
+            <select id="f-cliente-os" class="form-control" onchange="App.onObraSocialChange(this.value)">
               <option value="">— Particular / Sin obra social —</option>
             </select>
           </div>
 
+          <!-- ── Campos extra PAMI (solo visible cuando se elige PAMI) ── -->
+          <div id="pami-extra-fields" class="pami-fields hidden">
+            <div class="pami-fields-title">📋 Datos PAMI</div>
+            <div class="form-group">
+              <label class="form-label" for="f-num-afiliado">N° de afiliado</label>
+              <input type="text" id="f-num-afiliado" class="form-control"
+                     placeholder="Ej: 12345678" inputmode="numeric" autocomplete="off">
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="f-tipo-trabajo-pami">Tipo de trabajo</label>
+                <select id="f-tipo-trabajo-pami" class="form-control">
+                  <option value="">— Seleccionar —</option>
+                  <option value="Solo lejos">Solo lejos</option>
+                  <option value="Solo cerca">Solo cerca</option>
+                  <option value="Bifocal">Bifocal</option>
+                  <option value="Lejos y cerca">Lejos y cerca</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="f-diferencia-pami">¿Diferencia?</label>
+                <select id="f-diferencia-pami" class="form-control">
+                  <option value="">— Seleccionar —</option>
+                  <option value="Sin cargo">Sin cargo</option>
+                  <option value="Con diferencia">Con diferencia</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
         </div>
+
         <!-- Orden, urgente, tipo, fecha -->
         <div class="form-section">
           <div class="form-row">
@@ -355,6 +384,20 @@
       <button class="agenda-fab" onclick="abrirFormCliente()">+</button>
     </section>
 
+    <!-- ═══ PAMI ═══ -->
+    <section id="screen-pami" class="screen">
+      <div class="section-header">
+        <div><h1 class="section-title">PAMI</h1><p class="section-subtitle">Historial de trabajos PAMI</p></div>
+      </div>
+      <div id="pami-mes-nav"></div>
+      <div id="pami-stats" style="margin-bottom:14px"></div>
+      <div id="pami-list">
+        <div class="skeleton-card skeleton" style="height:72px;border-radius:12px;margin-bottom:4px"></div>
+        <div class="skeleton-card skeleton" style="height:72px;border-radius:12px;opacity:.6;margin-bottom:4px"></div>
+        <div class="skeleton-card skeleton" style="height:72px;border-radius:12px;opacity:.3"></div>
+      </div>
+    </section>
+
     <!-- ═══ CONFIGURACIÓN ═══ -->
     <section id="screen-config" class="screen">
       <div class="section-header">
@@ -435,6 +478,10 @@
     <button class="nav-item" id="nav-agenda" onclick="App.showScreen('agenda')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
       Agenda
+    </button>
+    <button class="nav-item" id="nav-pami" onclick="App.showScreen('pami')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2a10 10 0 100 20A10 10 0 0012 2z"/><path d="M9 12h6M12 9v6"/></svg>
+      PAMI
     </button>
     <button class="nav-item hidden" id="nav-panel" onclick="App.showScreen('panel')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
