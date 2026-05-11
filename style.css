@@ -831,3 +831,121 @@ select.form-control { background-image:url("data:image/svg+xml,%3Csvg xmlns='htt
   white-space: nowrap; flex-shrink: 0;
   text-transform: uppercase; letter-spacing: .03em;
 }
+/* ══════════════════════════════════════════════════
+   DETECCIÓN EN TIEMPO REAL — CAMPO NÚMERO DE ORDEN
+   Agregar al final de style.css
+   ══════════════════════════════════════════════════ */
+
+/* Contenedor del indicador (debajo del input f-orden) */
+.orden-check-status {
+  margin-top: 6px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: .82rem;
+  font-weight: 500;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  transition: all .2s ease;
+  line-height: 1.4;
+}
+.orden-check-status.hidden {
+  display: none;
+}
+
+/* Estado: verificando */
+.orden-check--checking {
+  background: #F0F4FF;
+  color: #034291;
+  border: 1px solid #C7D7FE;
+  align-items: center;
+}
+
+/* Spinner simple para "verificando" */
+.orden-check-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid #C7D7FE;
+  border-top-color: #034291;
+  border-radius: 50%;
+  animation: orden-spin .7s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes orden-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Estado: disponible ✅ */
+.orden-check--libre {
+  background: #F0FDF4;
+  color: #15803D;
+  border: 1px solid #BBF7D0;
+  align-items: center;
+}
+
+/* Estado: duplicado 🔴 */
+.orden-check--dup {
+  background: #FFF0F0;
+  color: #DC2626;
+  border: 1.5px solid #FECACA;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+}
+.orden-dup-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  font-size: .83rem;
+}
+.orden-dup-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+.orden-dup-row {
+  background: #fff;
+  border: 1px solid #FCA5A5;
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  align-items: center;
+  gap: 6px;
+  font-size: .78rem;
+}
+.orden-dup-ord {
+  font-weight: 700;
+  color: #DC2626;
+  white-space: nowrap;
+}
+.orden-dup-cliente {
+  color: #374151;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.orden-dup-est {
+  color: #6B7280;
+  white-space: nowrap;
+  font-size: .74rem;
+}
+.orden-dup-fecha {
+  color: #9CA3AF;
+  white-space: nowrap;
+  font-size: .72rem;
+}
+
+/* Borde de color en el input según estado */
+#f-orden.orden-input--libre {
+  border-color: #22C55E !important;
+  box-shadow: 0 0 0 2px rgba(34,197,94,.15);
+}
+#f-orden.orden-input--dup {
+  border-color: #EF4444 !important;
+  box-shadow: 0 0 0 2px rgba(239,68,68,.15);
+}
