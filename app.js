@@ -18,9 +18,9 @@ const App = (() => {
   let _pendingDuplicadoWarning = null;
 
   // ── Detección en tiempo real de orden ────────────
-  let _ordenCheckTimer   = null;   // debounce timer
-  let _ordenChecking     = false;  // flag para evitar solicitudes solapadas
-  let _ordenUltimaQuery  = '';     // última orden consultada (evita repetir)
+  let _ordenCheckTimer   = null;
+  let _ordenChecking     = false;
+  let _ordenUltimaQuery  = '';
 
   // Seguimiento filters
   let _labFilter  = null;
@@ -32,6 +32,7 @@ const App = (() => {
 
   const hoy = new Date();
   let _mesActual = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+  let _mesPami   = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
 
   // ── Lab colors ────────────────────────────────────
   const LAB_COLORS = { Sol:'#2563EB', Bichara:'#DC2626', Cristian:'#16A34A', Vitolen:'#7C3AED' };
@@ -357,7 +358,7 @@ const App = (() => {
     initNumpad();
     _inyectarModalDuplicado();
     _initFotoViewer();
-    _initOrdenRealTimeCheck();   // ← NUEVO: detección en tiempo real
+    _initOrdenRealTimeCheck();
     await loadConfig();
     buildBloqueFields(1);
     buildBloqueFields(2);
@@ -374,156 +375,103 @@ const App = (() => {
   }
 
   // ══════════════════════════════════════════════════
+  //  OBRA SOCIAL — mostrar/ocultar campos PAMI
+  // ══════════════════════════════════════════════════
+
+  function onObraSocialChange(val) {
+    const el = document.getElementById('pami-extra-fields');
+    if (!el) return;
+    const esPami = val === 'PAMI';
+    el.classList.toggle('hidden', !esPami);
+    // Si se deselecciona PAMI, limpiar los campos
+    if (!esPami) {
+      ['f-num-afiliado','f-tipo-trabajo-pami','f-diferencia-pami'].forEach(id => {
+        const campo = document.getElementById(id);
+        if (campo) campo.value = '';
+      });
+    }
+  }
+
+  // ══════════════════════════════════════════════════
   //  DETECCIÓN EN TIEMPO REAL — NÚMERO DE ORDEN
   // ══════════════════════════════════════════════════
 
-  /**
-   * Inicializa el listener del campo f-orden para detectar duplicados
-   * mientras el usuario tipea, con debounce de 600 ms.
-   * Inyecta el div de estado (#orden-check-status) debajo del campo.
-   */
   function _initOrdenRealTimeCheck() {
     const input = document.getElementById('f-orden');
     if (!input) return;
 
-    // Inyectar div de estado si no existe
     if (!document.getElementById('orden-check-status')) {
       const statusEl = document.createElement('div');
       statusEl.id = 'orden-check-status';
       statusEl.className = 'orden-check-status hidden';
-      // Insertarlo después del input (dentro del mismo .form-group)
       input.insertAdjacentElement('afterend', statusEl);
     }
 
     input.addEventListener('input', () => {
       const valor = input.value.trim();
       clearTimeout(_ordenCheckTimer);
-
-      // Si está vacío, limpiar estado
-      if (!valor) {
-        _ordenUltimaQuery = '';
-        _renderOrdenStatus('idle');
-        return;
-      }
-
-      // Si es el mismo valor que ya consultamos, no repetir
+      if (!valor) { _ordenUltimaQuery = ''; _renderOrdenStatus('idle'); return; }
       if (valor === _ordenUltimaQuery) return;
-
-      // Mostrar "verificando..." mientras espera el debounce
       _renderOrdenStatus('checking');
-
       _ordenCheckTimer = setTimeout(() => _consultarOrdenDuplicado(valor), 600);
     });
 
-    // Al limpiar el campo (ej: resetForm), ocultar el indicador
     input.addEventListener('change', () => {
-      if (!input.value.trim()) {
-        _ordenUltimaQuery = '';
-        _renderOrdenStatus('idle');
-      }
+      if (!input.value.trim()) { _ordenUltimaQuery = ''; _renderOrdenStatus('idle'); }
     });
   }
 
-  /**
-   * Consulta Supabase para ver si ya existe un pedido con ese número de orden.
-   * Actualiza el indicador inline según el resultado.
-   */
   async function _consultarOrdenDuplicado(orden) {
-    if (_ordenChecking) return; // evitar solapamiento
+    if (_ordenChecking) return;
     _ordenChecking = true;
     _ordenUltimaQuery = orden;
-
     try {
       const { data, error } = await window.supabaseClient
-        .from('pedidos')
-        .select('id, cliente, estado, fecha_carga, sufijo')
-        .eq('orden', orden)
-        .limit(5);
-
+        .from('pedidos').select('id, cliente, estado, fecha_carga, sufijo').eq('orden', orden).limit(5);
       if (error) throw error;
-
-      if (data && data.length > 0) {
-        _renderOrdenStatus('duplicado', data);
-      } else {
-        _renderOrdenStatus('libre');
-      }
-    } catch (e) {
-      // Si falla la consulta, limpiar silenciosamente (no bloquear al usuario)
-      console.warn('Error al verificar orden en tiempo real:', e);
-      _renderOrdenStatus('idle');
-    } finally {
-      _ordenChecking = false;
-    }
+      if (data && data.length > 0) _renderOrdenStatus('duplicado', data);
+      else _renderOrdenStatus('libre');
+    } catch (e) { console.warn('Error al verificar orden en tiempo real:', e); _renderOrdenStatus('idle'); }
+    finally { _ordenChecking = false; }
   }
 
-  /**
-   * Renderiza el indicador inline debajo del campo f-orden.
-   *
-   * estados:
-   *  'idle'      → oculto (sin valor)
-   *  'checking'  → "Verificando..."
-   *  'libre'     → ✅ Número disponible
-   *  'duplicado' → 🔴 Ya existe — con detalle de los pedidos existentes
-   */
   function _renderOrdenStatus(estado, pedidos) {
     const el = document.getElementById('orden-check-status');
     const input = document.getElementById('f-orden');
     if (!el) return;
-
     if (estado === 'idle') {
-      el.className = 'orden-check-status hidden';
-      el.innerHTML = '';
-      input?.classList.remove('orden-input--libre', 'orden-input--dup');
-      return;
+      el.className = 'orden-check-status hidden'; el.innerHTML = '';
+      input?.classList.remove('orden-input--libre', 'orden-input--dup'); return;
     }
-
     el.classList.remove('hidden');
-
     if (estado === 'checking') {
       el.className = 'orden-check-status orden-check--checking';
       el.innerHTML = `<span class="orden-check-spinner"></span> Verificando número de orden...`;
-      input?.classList.remove('orden-input--libre', 'orden-input--dup');
-      return;
+      input?.classList.remove('orden-input--libre', 'orden-input--dup'); return;
     }
-
     if (estado === 'libre') {
       el.className = 'orden-check-status orden-check--libre';
       el.innerHTML = `<svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0"><polyline points="4 10 8 14 16 6"/></svg> Número disponible`;
-      input?.classList.remove('orden-input--dup');
-      input?.classList.add('orden-input--libre');
-      return;
+      input?.classList.remove('orden-input--dup'); input?.classList.add('orden-input--libre'); return;
     }
-
     if (estado === 'duplicado' && pedidos?.length) {
       const ESTADO_SHORT = {
-        'Cristales pedidos a lab':     '⏳ Cristales',
-        'Armazón enviado p/calibrado': '📦 En tránsito',
-        'En laboratorio':              '🏭 En lab.',
-        'Pendiente de retirar':        '✅ Listo para retirar',
-        'Retirado':                    '✔️ Retirado',
+        'Cristales pedidos a lab':'⏳ Cristales','Armazón enviado p/calibrado':'📦 En tránsito',
+        'En laboratorio':'🏭 En lab.','Pendiente de retirar':'✅ Listo para retirar','Retirado':'✔️ Retirado',
       };
-
       const filas = pedidos.map(p => {
         const sufijo = p.sufijo ? `-${p.sufijo}` : '';
         const fecha  = new Date(p.fecha_carga).toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric' });
-        const estadoLabel = ESTADO_SHORT[p.estado] || p.estado;
         return `<div class="orden-dup-row">
           <span class="orden-dup-ord">#${esc(String(p.orden))}${esc(sufijo)}</span>
           <span class="orden-dup-cliente">${esc(p.cliente || '—')}</span>
-          <span class="orden-dup-est">${estadoLabel}</span>
+          <span class="orden-dup-est">${ESTADO_SHORT[p.estado] || p.estado}</span>
           <span class="orden-dup-fecha">${fecha}</span>
         </div>`;
       }).join('');
-
       el.className = 'orden-check-status orden-check--dup';
-      el.innerHTML = `
-        <div class="orden-dup-header">
-          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0"><circle cx="10" cy="10" r="8"/><line x1="10" y1="6" x2="10" y2="10"/><circle cx="10" cy="14" r="1" fill="currentColor" stroke="none"/></svg>
-          Este número ya está en uso — no se puede repetir
-        </div>
-        <div class="orden-dup-list">${filas}</div>`;
-      input?.classList.remove('orden-input--libre');
-      input?.classList.add('orden-input--dup');
+      el.innerHTML = `<div class="orden-dup-header"><svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0"><circle cx="10" cy="10" r="8"/><line x1="10" y1="6" x2="10" y2="10"/><circle cx="10" cy="14" r="1" fill="currentColor" stroke="none"/></svg> Este número ya está en uso — no se puede repetir</div><div class="orden-dup-list">${filas}</div>`;
+      input?.classList.remove('orden-input--libre'); input?.classList.add('orden-input--dup');
     }
   }
 
@@ -770,11 +718,119 @@ const App = (() => {
     if (name==='seguimiento') loadSeguimiento();
     if (name==='panel')       refreshPanel();
     if (name==='config')      loadConfigScreen();
+    if (name==='pami')        loadPami();
     if (name==='agenda' && typeof loadClientes === 'function') loadClientes();
     if (name==='inicio') { setTimeout(_cargarObrasSocialesForm, 50); }
     const fab=document.getElementById('fab-nuevo-pedido');
-    if (fab) fab.style.display=(name==='inicio'||name==='agenda')?'none':'flex';
+    if (fab) fab.style.display=(name==='inicio'||name==='agenda'||name==='pami')?'none':'flex';
   }
+
+  // ══════════════════════════════════════════════════
+  //  PANTALLA PAMI
+  // ══════════════════════════════════════════════════
+
+  async function loadPami() {
+    _renderPamiMesNav();
+    const listEl = document.getElementById('pami-list');
+    const statsEl = document.getElementById('pami-stats');
+    if (!listEl) return;
+
+    listEl.innerHTML = `<div class="skeleton-card skeleton" style="height:72px;border-radius:12px;margin-bottom:4px"></div>
+      <div class="skeleton-card skeleton" style="height:72px;border-radius:12px;opacity:.6;margin-bottom:4px"></div>`;
+
+    try {
+      const mesInicio = _mesPami;
+      const mesFin    = new Date(_mesPami.getFullYear(), _mesPami.getMonth() + 1, 1);
+
+      const { data, error } = await window.supabaseClient
+        .from('pedidos')
+        .select('id, orden, sufijo, cliente, fecha_carga, tipo_trabajo_pami, diferencia_pami, numero_afiliado, estado, laboratorio')
+        .eq('obra_social', 'PAMI')
+        .gte('fecha_carga', mesInicio.toISOString())
+        .lt('fecha_carga', mesFin.toISOString())
+        .order('fecha_carga', { ascending: false });
+
+      if (error) throw error;
+
+      // Stats
+      const total       = data.length;
+      const sinCargo    = data.filter(p => p.diferencia_pami === 'Sin cargo').length;
+      const conDif      = data.filter(p => p.diferencia_pami === 'Con diferencia').length;
+
+      if (statsEl) {
+        statsEl.innerHTML = `<div class="pami-stats-grid">
+          <div class="pami-stat-card">
+            <div class="pami-stat-val">${total}</div>
+            <div class="pami-stat-lbl">Total del mes</div>
+          </div>
+          <div class="pami-stat-card pami-stat-card--green">
+            <div class="pami-stat-val">${sinCargo}</div>
+            <div class="pami-stat-lbl">Sin cargo</div>
+          </div>
+          <div class="pami-stat-card pami-stat-card--amber">
+            <div class="pami-stat-val">${conDif}</div>
+            <div class="pami-stat-lbl">Con diferencia</div>
+          </div>
+        </div>`;
+      }
+
+      if (!data.length) {
+        listEl.innerHTML = `<div class="empty-state">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+          <h3>Sin trabajos PAMI</h3>
+          <p>No hay pedidos PAMI en ${mesLabel(_mesPami).toLowerCase()}</p>
+        </div>`;
+        return;
+      }
+
+      listEl.innerHTML = `<div class="pami-list-container">${data.map(p => _renderPamiRow(p)).join('')}</div>`;
+
+    } catch(e) {
+      listEl.innerHTML = `<div class="empty-state"><p style="color:var(--rojo)">Error: ${esc(e.message)}</p></div>`;
+    }
+  }
+
+  function _renderPamiRow(p) {
+    const sufijo   = p.sufijo ? `-${p.sufijo}` : '';
+    const fecha    = new Date(p.fecha_carga).toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric' });
+    const esDif    = p.diferencia_pami === 'Con diferencia';
+    const difBadge = p.diferencia_pami
+      ? `<span class="pami-dif-badge ${esDif ? 'pami-dif-badge--amber' : 'pami-dif-badge--green'}">${p.diferencia_pami}</span>`
+      : '';
+    const tipoBadge = p.tipo_trabajo_pami
+      ? `<span class="pami-tipo-badge">${esc(p.tipo_trabajo_pami)}</span>`
+      : '';
+    const afiliadoTxt = p.numero_afiliado ? `<span class="pami-afiliado">Afil. ${esc(p.numero_afiliado)}</span>` : '';
+    const estadoRetirado = p.estado === 'Retirado';
+
+    return `<div class="pami-row">
+      <div class="pami-row-left">
+        <div class="pami-row-cliente">${esc(p.cliente)}</div>
+        <div class="pami-row-meta">
+          <span class="pami-row-orden">#${esc(p.orden)}${sufijo}</span>
+          ${afiliadoTxt}
+          <span class="pami-row-fecha">${fecha}</span>
+          ${estadoRetirado ? '<span class="pami-retirado-ic">✔️</span>' : ''}
+        </div>
+        <div class="pami-row-badges">${tipoBadge}${difBadge}</div>
+      </div>
+    </div>`;
+  }
+
+  function _renderPamiMesNav() {
+    const container = document.getElementById('pami-mes-nav'); if (!container) return;
+    const esHoy = _mesPami.getFullYear() === hoy.getFullYear() && _mesPami.getMonth() === hoy.getMonth();
+    container.innerHTML = `<div class="mes-nav">
+      <button class="mes-nav-btn" onclick="App.pamiMesPrev()">‹</button>
+      <span class="mes-nav-label">${mesLabel(_mesPami)}</span>
+      <button class="mes-nav-btn ${esHoy?'mes-nav-btn--disabled':''}" onclick="App.pamiMesNext()" ${esHoy?'disabled':''}>›</button>
+    </div>`;
+  }
+
+  function pamiMesPrev() { _mesPami = new Date(_mesPami.getFullYear(), _mesPami.getMonth() - 1, 1); loadPami(); }
+  function pamiMesNext() { const n = new Date(_mesPami.getFullYear(), _mesPami.getMonth() + 1, 1); if (n > hoy) return; _mesPami = n; loadPami(); }
+
+  // ── SEGUIMIENTO ───────────────────────────────────
 
   function estadoRowClass(estado) {
     const map = {
@@ -845,10 +901,6 @@ const App = (() => {
     if (dhB !== dhA) return dhB - dhA;
     return new Date(b.fecha_carga) - new Date(a.fecha_carga);
   }
-
-  // ═══════════════════════════════════════════════
-  //  SEGUIMIENTO — rediseño
-  // ═══════════════════════════════════════════════
 
   function _buildSegHeader() {
     const screen = document.getElementById('screen-seguimiento');
@@ -948,36 +1000,23 @@ const App = (() => {
       const match = p => p.cliente?.toLowerCase().includes(q) || String(p.orden).toLowerCase().includes(q);
       let resultados = todos.filter(match);
       if (_labFilter) resultados = resultados.filter(p => p.laboratorio === _labFilter);
-
       if (tabsEl)     tabsEl.style.display     = 'none';
       if (contentLab) contentLab.style.display  = 'none';
       if (contentRet) contentRet.style.display  = 'none';
-
       if (!searchPanel) {
-        const div = document.createElement('div');
-        div.id = 'seg-search-results';
+        const div = document.createElement('div'); div.id = 'seg-search-results';
         contentLab?.parentNode.appendChild(div);
       }
       const panel = document.getElementById('seg-search-results');
       if (!panel) return;
       panel.style.display = 'block';
-
       if (!resultados.length) {
         panel.innerHTML = `<div class="empty-state"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><h3>Sin resultados</h3><p>No se encontró ningún pedido para "${esc(_segSearch)}"</p></div>`;
         return;
       }
-
-      const sorted = [...resultados].sort((a,b) => {
-        const aR = a.estado === 'Retirado' ? 1 : 0;
-        const bR = b.estado === 'Retirado' ? 1 : 0;
-        if (aR !== bR) return aR - bR;
-        return new Date(b.fecha_carga) - new Date(a.fecha_carga);
-      });
+      const sorted = [...resultados].sort((a,b) => { const aR=a.estado==='Retirado'?1:0,bR=b.estado==='Retirado'?1:0; if(aR!==bR)return aR-bR; return new Date(b.fecha_carga)-new Date(a.fecha_carga); });
       const groups = groupPedidos(sorted);
-      panel.innerHTML = `
-        <div class="seg-search-header">
-          <span class="seg-search-res-label">🔍 ${groups.length} resultado${groups.length!==1?'s':''} en toda la app</span>
-        </div>
+      panel.innerHTML = `<div class="seg-search-header"><span class="seg-search-res-label">🔍 ${groups.length} resultado${groups.length!==1?'s':''} en toda la app</span></div>
         <div class="seg-list">${groups.map(g => g.type==='pair' ? _renderSegPair(g.a,g.b) : _renderSegRow(g.p)).join('')}</div>`;
       attachInlineSelects(panel);
       return;
@@ -1020,26 +1059,15 @@ const App = (() => {
     _labFilter = null; _segSearch = '';
     _renderSegChips(_pedidosCache);
     switchSegTab('lab');
-
-    if (type === 'todos') {
-      _collapsedSections = {};
-    } else if (type === 'urgentes') {
-      _collapsedSections = { atencion: true, lab: true };
-    } else if (type === 'atencion') {
-      _collapsedSections = { urgentes: true, lab: true };
-    }
-
+    if (type === 'todos') { _collapsedSections = {}; }
+    else if (type === 'urgentes') { _collapsedSections = { atencion: true, lab: true }; }
+    else if (type === 'atencion') { _collapsedSections = { urgentes: true, lab: true }; }
     _renderSeguimientoFiltered();
-
     setTimeout(() => {
       const ids = { urgentes:'sg-urgentes', atencion:'sg-atencion', todos:null };
       const elId = ids[type];
-      if (elId) {
-        const el = document.getElementById(elId);
-        if (el) el.scrollIntoView({ behavior:'smooth', block:'start' });
-      } else {
-        document.getElementById('seg-content-lab')?.scrollIntoView({ behavior:'smooth', block:'start' });
-      }
+      if (elId) { const el = document.getElementById(elId); if (el) el.scrollIntoView({ behavior:'smooth', block:'start' }); }
+      else { document.getElementById('seg-content-lab')?.scrollIntoView({ behavior:'smooth', block:'start' }); }
     }, 150);
   }
 
@@ -1064,9 +1092,7 @@ const App = (() => {
       const p = g.type==='pair' ? g.a : g.p;
       (buckets[getSegCatKey(p)] || buckets.lab).push(g);
     });
-    const getDh = g => g.type==='pair'
-      ? Math.max(getCardConfig(g.a).dh, getCardConfig(g.b).dh)
-      : getCardConfig(g.p).dh;
+    const getDh = g => g.type==='pair' ? Math.max(getCardConfig(g.a).dh, getCardConfig(g.b).dh) : getCardConfig(g.p).dh;
     Object.keys(buckets).forEach(k => buckets[k].sort((a,b) => getDh(b) - getDh(a)));
 
     let html = '<div class="seg-list">';
@@ -1118,10 +1144,8 @@ const App = (() => {
     if (isUrgente || cfg.advertencia || p._est?.valor === 'critico') daysCls = 'seg-time seg-time--red';
     else if (p._est?.valor === 'demorado') daysCls = 'seg-time seg-time--amber';
     const timeLabel = (isUrgente || cfg.advertencia) ? 'Demorado' : 'En curso';
-
     const ESTADOS = ['Cristales pedidos a lab','Armazón enviado p/calibrado','En laboratorio','Pendiente de retirar','Retirado'];
     const opts = ESTADOS.map(e=>`<option value="${e}"${e===p.estado?' selected':''}>${e}</option>`).join('');
-
     const detalle = `<div class="ped-row-detail ${isOpen?'':'hidden'}" onclick="event.stopPropagation()">
       <div class="ped-row-detail-grid">
         ${p.tipo_lente?`<div class="prd-item"><span class="prd-label">Lente</span><span class="prd-val">${esc(p.tipo_lente)}</span></div>`:''}
@@ -1190,7 +1214,6 @@ const App = (() => {
     if (urgente || advertencia || worstCfg._est?.valor === 'critico') daysCls = 'seg-time seg-time--red';
     else if (worstCfg._est?.valor === 'demorado') daysCls = 'seg-time seg-time--amber';
     const timeLabel = (urgente || advertencia) ? 'Demorado' : 'En curso';
-
     const ESTADOS = ['Cristales pedidos a lab','Armazón enviado p/calibrado','En laboratorio','Pendiente de retirar','Retirado'];
     const subRow = (p, color) => {
       const opts = ESTADOS.map(e=>`<option value="${e}"${e===p.estado?' selected':''}>${e}</option>`).join('');
@@ -1220,9 +1243,7 @@ const App = (() => {
 
     return `<div class="seg-row ped-row ped-row--pair${urgente?' seg-row--urg':''}" data-pair-id="${pairId}">
       <div class="seg-tr">
-        <div class="seg-td seg-td--orden">
-          <span class="seg-orden-num">#${esc(pA.orden)}</span>
-        </div>
+        <div class="seg-td seg-td--orden"><span class="seg-orden-num">#${esc(pA.orden)}</span></div>
         <div class="seg-td seg-td--paciente">
           <div class="seg-pac-name">${urgente?'<span class="seg-urg-ic">⚡</span>':''}${esc(pA.cliente)}</div>
           <div class="seg-pac-meta">
@@ -1546,11 +1567,7 @@ const App = (() => {
           if (est==='Retirado'&&p) enviarNotificacion('✅ Retirado — OLVISIÓN',`#${p.orden} de ${p.cliente}`,false);
           _pedidosCache=await Pedidos.getTodosPedidos();
           if (_currentScreen==='pedidos') renderPedidosList();
-          if (_currentScreen==='seguimiento') {
-            _renderSegKPIs(_pedidosCache);
-            _renderSegChips(_pedidosCache);
-            _renderSeguimientoFiltered();
-          }
+          if (_currentScreen==='seguimiento') { _renderSegKPIs(_pedidosCache); _renderSegChips(_pedidosCache); _renderSeguimientoFiltered(); }
           updateBadge();
         } catch(err){
           toast(`Error: ${err.message}`,'error');
@@ -1585,6 +1602,10 @@ const App = (() => {
           <div class="detalle-row"><span class="detalle-label">Tipo</span><span class="detalle-valor">${esc(p.tipo||'—')}</span></div>
           <div class="detalle-row"><span class="detalle-label">Urgente</span><span class="detalle-valor">${p.urgente==='Si'?'⚡ Sí':'No'}</span></div>
           <div class="detalle-row"><span class="detalle-label">Fecha carga</span><span class="detalle-valor">${fechaCarga}</span></div>
+          ${p.obra_social?`<div class="detalle-row"><span class="detalle-label">Obra social</span><span class="detalle-valor">${esc(p.obra_social)}</span></div>`:''}
+          ${p.numero_afiliado?`<div class="detalle-row"><span class="detalle-label">N° afiliado</span><span class="detalle-valor">${esc(p.numero_afiliado)}</span></div>`:''}
+          ${p.tipo_trabajo_pami?`<div class="detalle-row"><span class="detalle-label">Trabajo PAMI</span><span class="detalle-valor">${esc(p.tipo_trabajo_pami)}</span></div>`:''}
+          ${p.diferencia_pami?`<div class="detalle-row"><span class="detalle-label">Diferencia</span><span class="detalle-valor">${esc(p.diferencia_pami)}</span></div>`:''}
         </div>
         <div class="detalle-seccion"><div class="detalle-seccion-title">Lente</div>
           <div class="detalle-row"><span class="detalle-label">Laboratorio</span><span class="detalle-valor">${esc(p.laboratorio||'—')}</span></div>
@@ -1650,6 +1671,30 @@ const App = (() => {
               <button type="button" class="btn btn-danger btn-sm" onclick="App.eliminarFotoConfirm(${p.id})">🗑 Eliminar</button>
             </div></div>`
         : `<button type="button" class="btn btn-secondary btn-full" style="border-style:dashed" onclick="App.uploadFotoExistente(${p.id})">📷 Adjuntar foto del pedido</button>`;
+
+      // Campos PAMI en edición
+      const pamiSection = p.obra_social === 'PAMI' ? `
+        <div class="form-section"><div class="form-section-title">PAMI</div>
+          <div class="form-group"><label class="form-label">N° de afiliado</label>
+            <input type="text" id="e-num-afiliado" class="form-control" value="${esc(p.numero_afiliado||'')}"></div>
+          <div class="form-row">
+            <div class="form-group"><label class="form-label">Tipo de trabajo</label>
+              <select id="e-tipo-trabajo-pami" class="form-control">
+                <option value="">— Seleccionar —</option>
+                <option value="Solo lejos"${p.tipo_trabajo_pami==='Solo lejos'?' selected':''}>Solo lejos</option>
+                <option value="Solo cerca"${p.tipo_trabajo_pami==='Solo cerca'?' selected':''}>Solo cerca</option>
+                <option value="Bifocal"${p.tipo_trabajo_pami==='Bifocal'?' selected':''}>Bifocal</option>
+                <option value="Lejos y cerca"${p.tipo_trabajo_pami==='Lejos y cerca'?' selected':''}>Lejos y cerca</option>
+              </select></div>
+            <div class="form-group"><label class="form-label">¿Diferencia?</label>
+              <select id="e-diferencia-pami" class="form-control">
+                <option value="">— Seleccionar —</option>
+                <option value="Sin cargo"${p.diferencia_pami==='Sin cargo'?' selected':''}>Sin cargo</option>
+                <option value="Con diferencia"${p.diferencia_pami==='Con diferencia'?' selected':''}>Con diferencia</option>
+              </select></div>
+          </div>
+        </div>` : '';
+
       eb.innerHTML=`
         <div class="form-section"><div class="form-section-title">Cliente</div>
           <div class="form-group"><label class="form-label">Nombre</label><input type="text" id="e-cliente" class="form-control" value="${esc(p.cliente||'')}"></div>
@@ -1675,6 +1720,7 @@ const App = (() => {
         <div class="form-section"><div class="form-section-title">Observaciones</div>
           <div class="form-group"><textarea id="e-observaciones" class="form-control" rows="2" style="resize:vertical;font-size:1rem" placeholder="Observaciones...">${esc(p.observaciones||'')}</textarea></div>
         </div>
+        ${pamiSection}
         <div class="form-section"><div class="form-section-title">Estado</div>
           <div class="form-group"><label class="form-label">Estado actual</label><select id="e-estado" class="form-control">${estados}</select></div>
         </div>
@@ -1702,6 +1748,10 @@ const App = (() => {
         armazon:document.getElementById('e-armazon')?.value.trim()||null,
         observaciones:document.getElementById('e-observaciones')?.value.trim()||null,
         estado:nuevoEstado,
+        // Campos PAMI (si existen en el formulario de edición)
+        numero_afiliado:document.getElementById('e-num-afiliado')?.value.trim()||null,
+        tipo_trabajo_pami:document.getElementById('e-tipo-trabajo-pami')?.value||null,
+        diferencia_pami:document.getElementById('e-diferencia-pami')?.value||null,
       };
       if (nuevoEstado==='Retirado') campos.fecha_retiro=new Date().toISOString();
       await Pedidos.actualizarPedido(id,campos);
@@ -1734,6 +1784,33 @@ const App = (() => {
     _editingConfig = null;
     await loadConfig();
     renderConfigLabs(); renderConfigMarcas(); renderConfigMateriales(); loadConfigTratamientos();
+    _renderConfigObrasSociales();
+  }
+
+  async function _renderConfigObrasSociales() {
+    const el = document.getElementById('config-os-list'); if (!el) return;
+    const { data } = await window.supabaseClient.from('configuracion').select('*').eq('tipo','obra_social').order('orden');
+    if (!data?.length) { el.innerHTML = '<p style="color:var(--gris-texto);font-size:.85rem;padding:8px 0">Sin obras sociales</p>'; return; }
+    el.innerHTML = data.map(os => {
+      const isEditing = _editingConfig?.type === 'os' && _editingConfig?.id === os.id;
+      if (isEditing) return _configItemEditing('cfg-edit-os', `App.saveConfigOS(${os.id})`, `App.cancelConfigEdit()`, os.valor);
+      return _configItemNormal(esc(os.valor), `App.startEditOS(${os.id},'${esc(os.valor)}')`, `App.deleteObraSocial(${os.id})`);
+    }).join('');
+    if (_editingConfig?.type === 'os') _focusConfigInput('cfg-edit-os');
+  }
+
+  function startEditOS(id, valor) { _editingConfig = { type:'os', id, valor }; _renderConfigObrasSociales(); }
+  async function saveConfigOS(id) {
+    const newValor = document.getElementById('cfg-edit-os')?.value.trim(); if (!newValor) return;
+    try { const {error}=await window.supabaseClient.from('configuracion').update({valor:newValor}).eq('id',id); if(error)throw error; _editingConfig=null; _obrasSocialesCache=[]; _renderConfigObrasSociales(); toast('Obra social actualizada','success'); } catch(e){toast('Error: '+e.message,'error');}
+  }
+  async function addObraSocial() {
+    const i=document.getElementById('new-os-input'), v=i.value.trim(); if(!v)return;
+    try { await window.supabaseClient.from('configuracion').insert({tipo:'obra_social',valor:v,orden:99,activo:true}); i.value=''; _obrasSocialesCache=[]; _renderConfigObrasSociales(); toast('Obra social agregada','success'); } catch(e){toast('Error: '+e.message,'error');}
+  }
+  async function deleteObraSocial(id) {
+    if(!confirm('¿Eliminar esta obra social?'))return;
+    try { await window.supabaseClient.from('configuracion').delete().eq('id',id); _obrasSocialesCache=[]; _renderConfigObrasSociales(); toast('Obra social eliminada','success'); } catch(e){toast('Error: '+e.message,'error');}
   }
 
   function _configItemNormal(label, onEdit, onDelete) {
@@ -1843,7 +1920,7 @@ const App = (() => {
     if(!confirm('¿Eliminar este tratamiento?'))return;
     try{await window.supabaseClient.from('configuracion').delete().eq('id',id);await loadConfig();loadConfigTratamientos();toast('Tratamiento eliminado','success');}catch(e){toast('Error: '+e.message,'error');}
   }
-  function cancelConfigEdit() { _editingConfig=null; renderConfigLabs(); renderConfigMarcas(); renderConfigMateriales(); loadConfigTratamientos(); }
+  function cancelConfigEdit() { _editingConfig=null; renderConfigLabs(); renderConfigMarcas(); renderConfigMateriales(); loadConfigTratamientos(); _renderConfigObrasSociales(); }
 
   // ── FORM NUEVO PEDIDO ─────────────────────────────
   function getGraduacion(num) {
@@ -1880,14 +1957,24 @@ const App = (() => {
     const g=id=>document.getElementById(id)?.value.trim()??'';
     const doble=document.getElementById('toggle-dos-anteojos').checked;
     const antData=(n)=>({laboratorio:g(`f-lab${n}`),tipo_lente:g(`f-lente${n}`),tratamiento:g(`f-tratamiento${n}`),graduacion:getGraduacion(n),dos_etapas:g(`f-etapas${n}`),...getArmazonData(n),observaciones:document.getElementById(`f-obs${n}`)?.value.trim()||null});
-    return {doble,base:{
-      cliente:g('f-cliente'),orden:g('f-orden'),urgente:g('f-urgente'),tipo:g('f-tipo'),
-      fecha_carga:g('f-fecha-carga')||todayStr(),
-      fecha_prometida:document.getElementById('f-fecha-prometida')?.value||null,
-      celular:g('f-cliente-cel'), dni:g('f-cliente-dni'),
-      obra_social:g('f-cliente-os'),
-      cliente_id:document.getElementById('campo-cliente-id')?.value||null,
-    },ant1:antData(1),ant2:doble?antData(2):null};
+    const obraSocial = g('f-cliente-os');
+    return {
+      doble,
+      base:{
+        cliente:g('f-cliente'),orden:g('f-orden'),urgente:g('f-urgente'),tipo:g('f-tipo'),
+        fecha_carga:g('f-fecha-carga')||todayStr(),
+        fecha_prometida:document.getElementById('f-fecha-prometida')?.value||null,
+        celular:g('f-cliente-cel'), dni:g('f-cliente-dni'),
+        obra_social: obraSocial || null,
+        // Campos PAMI — solo se capturan si la obra social es PAMI
+        numero_afiliado:   obraSocial === 'PAMI' ? (g('f-num-afiliado')  || null) : null,
+        tipo_trabajo_pami: obraSocial === 'PAMI' ? (g('f-tipo-trabajo-pami') || null) : null,
+        diferencia_pami:   obraSocial === 'PAMI' ? (g('f-diferencia-pami')   || null) : null,
+        cliente_id:document.getElementById('campo-cliente-id')?.value||null,
+      },
+      ant1:antData(1),
+      ant2:doble?antData(2):null,
+    };
   }
 
   function validateForm(data) {
@@ -1901,10 +1988,7 @@ const App = (() => {
     return valid;
   }
 
-  // ══════════════════════════════════════════════════
-  //  DETECCIÓN DE DUPLICADOS (al guardar)
-  // ══════════════════════════════════════════════════
-
+  // ── MODAL DUPLICADO ───────────────────────────────
   function _inyectarModalDuplicado() {
     if (document.getElementById('dup-modal')) return;
     const el = document.createElement('div');
@@ -1930,123 +2014,52 @@ const App = (() => {
     const nombre   = data.base.cliente?.trim();
     const clienteId = data.base.cliente_id;
 
-    // ── 1. Número de orden: bloqueo duro ─────────────
     const { data: existeOrden } = await window.supabaseClient
-      .from('pedidos')
-      .select('id,cliente,estado,fecha_carga,sufijo')
-      .eq('orden', orden)
-      .limit(5);
+      .from('pedidos').select('id,cliente,estado,fecha_carga,sufijo').eq('orden', orden).limit(5);
+    if (existeOrden?.length) return { tipo: 'orden_duplicada', pedidos: existeOrden, orden };
 
-    if (existeOrden?.length) {
-      return { tipo: 'orden_duplicada', pedidos: existeOrden, orden };
-    }
-
-    // ── 2. Cliente con pedidos activos: advertencia suave ──
-    let pedidosActivos = [];
-    let clienteEncontrado = null;
-    let matchPor = '';
-
+    let pedidosActivos = [], clienteEncontrado = null, matchPor = '';
     if (clienteId) {
-      const { data: peds } = await window.supabaseClient
-        .from('pedidos')
-        .select('id,orden,sufijo,estado,fecha_carga,laboratorio')
-        .eq('cliente_id', clienteId)
-        .neq('estado', 'Retirado')
-        .limit(5);
-      if (peds?.length) {
-        pedidosActivos = peds;
-        clienteEncontrado = { displayName: nombre };
-        matchPor = 'cliente seleccionado';
-      }
+      const { data: peds } = await window.supabaseClient.from('pedidos').select('id,orden,sufijo,estado,fecha_carga,laboratorio').eq('cliente_id', clienteId).neq('estado', 'Retirado').limit(5);
+      if (peds?.length) { pedidosActivos = peds; clienteEncontrado = { displayName: nombre }; matchPor = 'cliente seleccionado'; }
     } else {
       if (celular && celular !== '—' && celular.length >= 6) {
-        const { data: cl } = await window.supabaseClient
-          .from('clientes')
-          .select('id,nombre,apellido,telefono,dni')
-          .eq('telefono', celular)
-          .maybeSingle();
+        const { data: cl } = await window.supabaseClient.from('clientes').select('id,nombre,apellido,telefono,dni').eq('telefono', celular).maybeSingle();
         if (cl) {
-          clienteEncontrado = cl;
-          matchPor = 'celular ' + celular;
-          const { data: peds } = await window.supabaseClient
-            .from('pedidos')
-            .select('id,orden,sufijo,estado,fecha_carga,laboratorio')
-            .eq('cliente_id', cl.id)
-            .neq('estado', 'Retirado')
-            .limit(5);
+          clienteEncontrado = cl; matchPor = 'celular ' + celular;
+          const { data: peds } = await window.supabaseClient.from('pedidos').select('id,orden,sufijo,estado,fecha_carga,laboratorio').eq('cliente_id', cl.id).neq('estado', 'Retirado').limit(5);
           pedidosActivos = peds || [];
         }
       }
-
       if (!clienteEncontrado && dni && dni.length >= 4) {
-        const { data: cl } = await window.supabaseClient
-          .from('clientes')
-          .select('id,nombre,apellido,telefono,dni')
-          .eq('dni', dni)
-          .maybeSingle();
+        const { data: cl } = await window.supabaseClient.from('clientes').select('id,nombre,apellido,telefono,dni').eq('dni', dni).maybeSingle();
         if (cl) {
-          clienteEncontrado = cl;
-          matchPor = 'DNI ' + dni;
-          const { data: peds } = await window.supabaseClient
-            .from('pedidos')
-            .select('id,orden,sufijo,estado,fecha_carga,laboratorio')
-            .eq('cliente_id', cl.id)
-            .neq('estado', 'Retirado')
-            .limit(5);
+          clienteEncontrado = cl; matchPor = 'DNI ' + dni;
+          const { data: peds } = await window.supabaseClient.from('pedidos').select('id,orden,sufijo,estado,fecha_carga,laboratorio').eq('cliente_id', cl.id).neq('estado', 'Retirado').limit(5);
           pedidosActivos = peds || [];
         }
       }
-
       if (!clienteEncontrado && nombre && nombre.length >= 3) {
-        const { data: peds } = await window.supabaseClient
-          .from('pedidos')
-          .select('id,orden,sufijo,estado,fecha_carga,laboratorio,cliente')
-          .ilike('cliente', nombre)
-          .neq('estado', 'Retirado')
-          .limit(3);
-        if (peds?.length) {
-          pedidosActivos = peds;
-          clienteEncontrado = { displayName: nombre };
-          matchPor = 'nombre "' + nombre + '"';
-        }
+        const { data: peds } = await window.supabaseClient.from('pedidos').select('id,orden,sufijo,estado,fecha_carga,laboratorio,cliente').ilike('cliente', nombre).neq('estado', 'Retirado').limit(3);
+        if (peds?.length) { pedidosActivos = peds; clienteEncontrado = { displayName: nombre }; matchPor = 'nombre "' + nombre + '"'; }
       }
     }
 
     if (pedidosActivos.length > 0) {
       let displayName = nombre;
-      if (clienteEncontrado?.apellido) {
-        displayName = [clienteEncontrado.apellido, clienteEncontrado.nombre].filter(Boolean).join(', ');
-      } else if (clienteEncontrado?.displayName) {
-        displayName = clienteEncontrado.displayName;
-      }
-      return {
-        tipo: 'cliente_activo',
-        cliente: { ...clienteEncontrado, displayName },
-        pedidos: pedidosActivos,
-        matchPor,
-      };
+      if (clienteEncontrado?.apellido) displayName = [clienteEncontrado.apellido, clienteEncontrado.nombre].filter(Boolean).join(', ');
+      else if (clienteEncontrado?.displayName) displayName = clienteEncontrado.displayName;
+      return { tipo: 'cliente_activo', cliente: { ...clienteEncontrado, displayName }, pedidos: pedidosActivos, matchPor };
     }
-
     return null;
   }
 
   function _mostrarModalDuplicadoOrden(dup) {
-    const modal = document.getElementById('dup-modal');
-    if (!modal) return;
-
+    const modal = document.getElementById('dup-modal'); if (!modal) return;
+    const ESTADO_SHORT = { 'Cristales pedidos a lab':'⏳ Cristales','Armazón enviado p/calibrado':'📦 En tránsito','En laboratorio':'🏭 En lab.','Pendiente de retirar':'✅ Listo','Retirado':'✔️ Retirado' };
     document.getElementById('dup-icon').textContent = '🚫';
     document.getElementById('dup-title').textContent = `Número de orden duplicado`;
-    document.getElementById('dup-subtitle').textContent =
-      `Ya existe un pedido con el número #${esc(String(dup.orden))}. No se puede usar el mismo número dos veces.`;
-
-    const ESTADO_SHORT = {
-      'Cristales pedidos a lab': '⏳ Cristales',
-      'Armazón enviado p/calibrado': '📦 En tránsito',
-      'En laboratorio': '🏭 En lab.',
-      'Pendiente de retirar': '✅ Listo',
-      'Retirado': '✔️ Retirado',
-    };
-
+    document.getElementById('dup-subtitle').textContent = `Ya existe un pedido con el número #${esc(String(dup.orden))}. No se puede usar el mismo número dos veces.`;
     document.getElementById('dup-body').innerHTML = dup.pedidos.map(p => {
       const sufijo = p.sufijo ? `-${p.sufijo}` : '';
       const fecha  = new Date(p.fecha_carga).toLocaleDateString('es-AR', {day:'2-digit',month:'2-digit',year:'numeric'});
@@ -2056,71 +2069,40 @@ const App = (() => {
         <div style="font-size:.78rem;color:#888;margin-top:3px">${esc(ESTADO_SHORT[p.estado] || p.estado)} · ${fecha}</div>
       </div>`;
     }).join('');
-
-    document.getElementById('dup-actions').innerHTML = `
-      <button class="btn btn-primary" onclick="App._cerrarModalDuplicado()"
-              style="width:100%;font-size:1rem;padding:14px">
-        ← Volver y cambiar el número
-      </button>`;
-
+    document.getElementById('dup-actions').innerHTML = `<button class="btn btn-primary" onclick="App._cerrarModalDuplicado()" style="width:100%;font-size:1rem;padding:14px">← Volver y cambiar el número</button>`;
     modal.classList.remove('hidden');
   }
 
   function _mostrarModalDuplicadoCliente(dup) {
-    const modal = document.getElementById('dup-modal');
-    if (!modal) return;
-
+    const modal = document.getElementById('dup-modal'); if (!modal) return;
+    const ESTADO_SHORT = { 'Cristales pedidos a lab':'⏳ Cristales','Armazón enviado p/calibrado':'📦 En tránsito','En laboratorio':'🏭 En lab.','Pendiente de retirar':'✅ Listo para retirar' };
     const displayName = dup.cliente.displayName || 'Este cliente';
     const matchTxt = dup.matchPor ? ` (coincidencia por ${dup.matchPor})` : '';
-
     document.getElementById('dup-icon').textContent = '⚠️';
     document.getElementById('dup-title').textContent = `${displayName} ya tiene pedidos activos`;
-    document.getElementById('dup-subtitle').textContent =
-      `Se detectó un posible duplicado${matchTxt}. Revisá si realmente es un pedido nuevo antes de continuar.`;
-
-    const ESTADO_SHORT = {
-      'Cristales pedidos a lab': '⏳ Cristales',
-      'Armazón enviado p/calibrado': '📦 En tránsito',
-      'En laboratorio': '🏭 En lab.',
-      'Pendiente de retirar': '✅ Listo para retirar',
-    };
-
+    document.getElementById('dup-subtitle').textContent = `Se detectó un posible duplicado${matchTxt}. Revisá si realmente es un pedido nuevo antes de continuar.`;
     document.getElementById('dup-body').innerHTML = dup.pedidos.map(p => {
       const sufijo = p.sufijo ? `-${p.sufijo}` : '';
       const fecha  = new Date(p.fecha_carga).toLocaleDateString('es-AR', {day:'2-digit',month:'2-digit',year:'numeric'});
       return `<div style="background:#FFFBEB;border:1.5px solid #FDE68A;border-radius:12px;padding:12px 14px;margin-bottom:8px">
         <div style="font-weight:700;color:#92400E;font-size:.9rem">Orden #${esc(String(p.orden))}${esc(sufijo)}</div>
         <div style="font-size:.8rem;color:#555;margin-top:3px">${esc(ESTADO_SHORT[p.estado] || p.estado)}</div>
-        <div style="font-size:.75rem;color:#888;margin-top:2px">
-          ${p.laboratorio ? esc(p.laboratorio) + ' · ' : ''}${fecha}
-        </div>
+        <div style="font-size:.75rem;color:#888;margin-top:2px">${p.laboratorio ? esc(p.laboratorio) + ' · ' : ''}${fecha}</div>
       </div>`;
     }).join('');
-
     document.getElementById('dup-actions').innerHTML = `
-      <button class="btn btn-secondary" onclick="App._cerrarModalDuplicado()"
-              style="width:100%;font-size:.95rem;padding:13px;font-weight:600">
-        ← Volver y revisar
-      </button>
-      <button onclick="App._confirmarSinImportarDuplicado()"
-              style="width:100%;padding:13px;border-radius:var(--radius-md,12px);border:none;cursor:pointer;
-                     background:#B45309;color:#fff;font-size:.9rem;font-weight:600;
-                     font-family:inherit">
+      <button class="btn btn-secondary" onclick="App._cerrarModalDuplicado()" style="width:100%;font-size:.95rem;padding:13px;font-weight:600">← Volver y revisar</button>
+      <button onclick="App._confirmarSinImportarDuplicado()" style="width:100%;padding:13px;border-radius:var(--radius-md,12px);border:none;cursor:pointer;background:#B45309;color:#fff;font-size:.9rem;font-weight:600;font-family:inherit">
         Es un pedido nuevo — Continuar igual →
       </button>`;
-
     modal.classList.remove('hidden');
   }
 
-  function _cerrarModalDuplicado() {
-    document.getElementById('dup-modal')?.classList.add('hidden');
-    _pendingDuplicadoWarning = null;
-  }
+  function _cerrarModalDuplicado() { document.getElementById('dup-modal')?.classList.add('hidden'); _pendingDuplicadoWarning = null; }
 
   function _confirmarSinImportarDuplicado() {
     document.getElementById('dup-modal')?.classList.add('hidden');
-    const data = _pendingDuplicadoWarning;
-    _pendingDuplicadoWarning = null;
+    const data = _pendingDuplicadoWarning; _pendingDuplicadoWarning = null;
     if (!data) return;
     _mostrarConfirmModal(data);
   }
@@ -2130,12 +2112,21 @@ const App = (() => {
       ? `<div class="modal-row"><span class="modal-label">${label}</span><span class="modal-value">${esc(String(val))}</span></div>`
       : '';
 
+    // Datos base
     let html = rf('Cliente', data.base.cliente)
       + rf('Orden', data.doble ? `${data.base.orden}-A / -B` : data.base.orden)
       + rf('Tipo', data.base.tipo)
       + rf('Urgente', data.base.urgente)
       + rf('Fecha', data.base.fecha_carga)
-      + rf('Fecha prometida', data.base.fecha_prometida);
+      + rf('Fecha prometida', data.base.fecha_prometida)
+      + rf('Obra social', data.base.obra_social);
+
+    // Datos PAMI si corresponde
+    if (data.base.obra_social === 'PAMI') {
+      html += rf('N° afiliado', data.base.numero_afiliado)
+           +  rf('Tipo de trabajo', data.base.tipo_trabajo_pami)
+           +  rf('Diferencia', data.base.diferencia_pami);
+    }
 
     if (data.doble) {
       html += `<div style="margin:10px 0 4px;font-size:.78rem;font-weight:700;color:var(--azul)">ANTEOJO A</div>`;
@@ -2154,16 +2145,13 @@ const App = (() => {
     document.getElementById('confirm-modal').classList.remove('hidden');
   }
 
-  // ── FORM SUBMIT con detección de duplicados ───────
   async function handleFormSubmit(e) {
     e.preventDefault();
     const data = getFormData();
     if (!validateForm(data)) { toast('Completá los campos obligatorios', 'warn'); return; }
 
-    // Si el campo orden ya tiene estado "duplicado" visible, bloquear directamente
     const statusEl = document.getElementById('orden-check-status');
     if (statusEl?.classList.contains('orden-check--dup')) {
-      // Scroll al campo y enfocar
       document.getElementById('f-orden')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       document.getElementById('f-orden')?.focus();
       toast('Cambiá el número de orden — ya está en uso', 'error');
@@ -2176,11 +2164,9 @@ const App = (() => {
 
     try {
       const dup = await checkDuplicados(data);
-
       if (dup) {
         if (dup.tipo === 'orden_duplicada') {
           _mostrarModalDuplicadoOrden(dup);
-          // También actualizar el indicador inline para consistencia
           _renderOrdenStatus('duplicado', dup.pedidos);
           _ordenUltimaQuery = data.base.orden;
           return;
@@ -2191,11 +2177,8 @@ const App = (() => {
           return;
         }
       }
-    } catch (err) {
-      console.warn('Error al verificar duplicados:', err);
-    } finally {
-      if (submitBtn) { submitBtn.disabled = false; if (btnTextoOriginal) submitBtn.textContent = btnTextoOriginal; }
-    }
+    } catch (err) { console.warn('Error al verificar duplicados:', err); }
+    finally { if (submitBtn) { submitBtn.disabled = false; if (btnTextoOriginal) submitBtn.textContent = btnTextoOriginal; } }
 
     _mostrarConfirmModal(data);
   }
@@ -2211,13 +2194,8 @@ const App = (() => {
         try {
           const nombreCompleto = data.base.cliente.trim();
           let apellido = '', nombre = '';
-          if (nombreCompleto.includes(',')) {
-            apellido = nombreCompleto.split(',')[0].trim();
-            nombre   = nombreCompleto.split(',').slice(1).join(',').trim();
-          } else {
-            apellido = nombreCompleto;
-            nombre   = '';
-          }
+          if (nombreCompleto.includes(',')) { apellido = nombreCompleto.split(',')[0].trim(); nombre = nombreCompleto.split(',').slice(1).join(',').trim(); }
+          else { apellido = nombreCompleto; nombre = ''; }
           const { data: nuevo } = await window.supabaseClient.from('clientes').insert([{
             nombre, apellido,
             telefono:    data.base.celular || '—',
@@ -2227,16 +2205,32 @@ const App = (() => {
           if (nuevo) clienteId = nuevo.id;
         } catch(e) { console.warn('No se pudo crear cliente:', e); }
       }
-      const buildRow=(ant,sufijo)=>({
-        cliente:data.base.cliente, cliente_id:clienteId,
-        orden:data.base.orden, sufijo,
-        tipo:data.base.tipo, urgente:data.base.urgente,
-        laboratorio:ant.laboratorio, tipo_lente:ant.tipo_lente,
-        tratamiento:ant.tratamiento||null, graduacion:ant.graduacion||null,
-        dos_etapas:ant.dos_etapas||'No', armazon:ant.armazon||null,
-        observaciones:ant.observaciones||null,
-        cargado_por:nombre, fecha_carga:fechaISO, fecha_pedido:fechaISO, fecha_prometida:data.base.fecha_prometida||null,
+
+      const buildRow = (ant, sufijo) => ({
+        cliente:          data.base.cliente,
+        cliente_id:       clienteId,
+        orden:            data.base.orden,
+        sufijo,
+        tipo:             data.base.tipo,
+        urgente:          data.base.urgente,
+        laboratorio:      ant.laboratorio,
+        tipo_lente:       ant.tipo_lente,
+        tratamiento:      ant.tratamiento     || null,
+        graduacion:       ant.graduacion      || null,
+        dos_etapas:       ant.dos_etapas      || 'No',
+        armazon:          ant.armazon         || null,
+        observaciones:    ant.observaciones   || null,
+        cargado_por:      nombre,
+        fecha_carga:      fechaISO,
+        fecha_pedido:     fechaISO,
+        fecha_prometida:  data.base.fecha_prometida || null,
+        // Campos obra social / PAMI
+        obra_social:      data.base.obra_social      || null,
+        numero_afiliado:  data.base.numero_afiliado  || null,
+        tipo_trabajo_pami:data.base.tipo_trabajo_pami|| null,
+        diferencia_pami:  data.base.diferencia_pami  || null,
       });
+
       const rows=data.doble?[buildRow(data.ant1,'A'),buildRow(data.ant2,'B')]:[buildRow(data.ant1,null)];
       const creados = await Pedidos.crearPedido(rows);
       if (data.doble) {
@@ -2268,9 +2262,13 @@ const App = (() => {
     });
     _fotoFiles = {};
     _pendingGuardar=null;
-    // Limpiar indicador de orden
     _ordenUltimaQuery = '';
     _renderOrdenStatus('idle');
+    // Limpiar PAMI
+    document.getElementById('pami-extra-fields')?.classList.add('hidden');
+    ['f-num-afiliado','f-tipo-trabajo-pami','f-diferencia-pami'].forEach(id => {
+      const el = document.getElementById(id); if (el) el.value = '';
+    });
     limpiarClienteForm();
     ['f-cliente-cel','f-cliente-dni'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
     const selOs=document.getElementById('f-cliente-os'); if(selOs) selOs.value='';
@@ -2343,10 +2341,7 @@ const App = (() => {
         .or(`nombre.ilike.%${q}%,apellido.ilike.%${q}%,telefono.ilike.%${q}%,dni.ilike.%${q}%`)
         .order('apellido').limit(6);
       _clientesSugData = data || [];
-      if (!_clientesSugData.length) {
-        sugEl.classList.add('hidden');
-        return;
-      }
+      if (!_clientesSugData.length) { sugEl.classList.add('hidden'); return; }
       sugEl.innerHTML = _clientesSugData.map(cl => {
         const det = [cl.telefono ? `📱 ${cl.telefono}` : '', cl.obra_social || ''].filter(Boolean).join(' · ');
         return `<div class="sug-item" onclick="App.seleccionarCliente('${cl.id}')">
@@ -2368,10 +2363,7 @@ const App = (() => {
     let cl = _clientesSugData.find(x => x.id === id || x.id === String(id));
     if (!cl) {
       const { data } = await window.supabaseClient
-        .from('clientes')
-        .select('id,nombre,apellido,telefono,dni,obra_social')
-        .eq('id', id)
-        .single();
+        .from('clientes').select('id,nombre,apellido,telefono,dni,obra_social').eq('id', id).single();
       if (!data) return;
       cl = data;
     }
@@ -2385,9 +2377,11 @@ const App = (() => {
     const osEl  = document.getElementById('f-cliente-os');
     if (celEl && cl.telefono) celEl.value = cl.telefono;
     if (dniEl && cl.dni)      dniEl.value = cl.dni;
-    if (osEl  && cl.obra_social) {
+    if (osEl && cl.obra_social) {
       await _cargarObrasSocialesForm();
       osEl.value = cl.obra_social;
+      // Mostrar/ocultar campos PAMI automáticamente
+      onObraSocialChange(cl.obra_social);
     }
     const chipNombre = document.getElementById('cliente-chip-nombre');
     if (chipNombre) chipNombre.textContent = nombre;
@@ -2409,6 +2403,10 @@ const App = (() => {
     });
     const idEl = document.getElementById('campo-cliente-id'); if (idEl) idEl.value = '';
     const sel  = document.getElementById('f-cliente-os'); if (sel) sel.value = '';
+    document.getElementById('pami-extra-fields')?.classList.add('hidden');
+    ['f-num-afiliado','f-tipo-trabajo-pami','f-diferencia-pami'].forEach(id => {
+      const campo = document.getElementById(id); if (campo) campo.value = '';
+    });
     document.getElementById('cliente-seleccionado')?.classList.add('hidden');
     document.getElementById('cliente-suggestions')?.classList.add('hidden');
     document.getElementById('f-cliente')?.focus();
@@ -2443,6 +2441,7 @@ const App = (() => {
     addMaterial, deleteMaterial, startEditMaterial, saveConfigMaterial,
     addTratamiento, deleteTratamiento, startEditTrat, saveConfigTrat,
     cancelConfigEdit,
+    addObraSocial, deleteObraSocial, startEditOS, saveConfigOS,
     guardarEdicion, eliminarPedido, activarNotificaciones,
     togglePedidoRow, mesPrev, mesNext,
     _abrirDetalleRapido,
@@ -2456,6 +2455,8 @@ const App = (() => {
     setLabFilter, onSegSearch, setSeguimientoFilter, toggleSegSection,
     // Duplicados
     _cerrarModalDuplicado, _confirmarSinImportarDuplicado,
+    // PAMI
+    onObraSocialChange, loadPami, pamiMesPrev, pamiMesNext,
   };
 })();
 
