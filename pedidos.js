@@ -80,31 +80,42 @@ const Pedidos = (() => {
         throw new Error(`Ya existe un pedido con el número de orden ${d.orden}${sufStr}.`);
       }
     }
-    const rows = datosArray.map(d => ({
-      cliente:           d.cliente,
-      cliente_id:        d.cliente_id        || null,
-      estado:            'Cristales pedidos a lab',
-      orden:             d.orden,
-      sufijo:            d.sufijo            || null,
-      tipo:              d.tipo,
-      laboratorio:       d.laboratorio,
-      urgente:           d.urgente,
-      tipo_lente:        d.tipo_lente,
-      tratamiento:       d.tratamiento       || null,
-      graduacion:        d.graduacion        || null,
-      dos_etapas:        d.dos_etapas        || 'No',
-      armazon:           d.armazon           || null,
-      observaciones:     d.observaciones     || null,
-      cargado_por:       d.cargado_por,
-      fecha_carga:       d.fecha_carga       || new Date().toISOString(),
-      fecha_pedido:      d.fecha_pedido      || new Date().toISOString(),
-      fecha_prometida:   d.fecha_prometida   || null,
-      fecha_retiro:      null,
-      obra_social:       d.obra_social       || null,
-      numero_afiliado:   d.numero_afiliado   || null,
-      tipo_trabajo_pami: d.tipo_trabajo_pami || null,
-      diferencia_pami:   d.diferencia_pami   || null,
-    }));
+
+    const rows = datosArray.map(d => {
+      const row = {
+        cliente:         d.cliente,
+        cliente_id:      d.cliente_id      || null,
+        estado:          'Cristales pedidos a lab',
+        orden:           d.orden,
+        sufijo:          d.sufijo          || null,
+        tipo:            d.tipo,
+        laboratorio:     d.laboratorio,
+        urgente:         d.urgente,
+        tipo_lente:      d.tipo_lente,
+        tratamiento:     d.tratamiento     || null,
+        graduacion:      d.graduacion      || null,
+        dos_etapas:      d.dos_etapas      || 'No',
+        armazon:         d.armazon         || null,
+        observaciones:   d.observaciones   || null,
+        cargado_por:     d.cargado_por,
+        fecha_carga:     d.fecha_carga     || new Date().toISOString(),
+        fecha_pedido:    d.fecha_pedido    || new Date().toISOString(),
+        fecha_prometida: d.fecha_prometida || null,
+        fecha_retiro:    null,
+      };
+
+      // Campos PAMI: solo se incluyen si el pedido tiene obra social PAMI
+      // Esto evita errores si las columnas aún no existen en la DB
+      if (d.obra_social) {
+        row.obra_social       = d.obra_social;
+        row.numero_afiliado   = d.numero_afiliado   || null;
+        row.tipo_trabajo_pami = d.tipo_trabajo_pami || null;
+        row.diferencia_pami   = d.diferencia_pami   || null;
+      }
+
+      return row;
+    });
+
     const { data, error } = await window.supabaseClient.from('pedidos').insert(rows).select();
     if (error) throw error;
     return data;
