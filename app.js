@@ -1185,10 +1185,10 @@ const App = (() => {
     const p = _pedidosCache.find(x => x.id === id);
     if (!p) return;
     const sufijo = p.sufijo ? `-${p.sufijo}` : '';
-    document.getElementById('kd-orden').textContent   = `#${p.orden}${sufijo}`;
-    document.getElementById('kd-cliente').textContent = p.cliente;
+    document.getElementById('kd-orden').textContent        = `#${p.orden}${sufijo}`;
     document.getElementById('kd-estado-badge').textContent = p.estado;
-    document.getElementById('kd-estado-sel').value    = p.estado;
+    document.getElementById('kd-cliente').textContent      = p.cliente;
+    document.getElementById('kd-estado-sel').value         = p.estado;
 
     const esAdmin = Auth.isAdmin();
     document.getElementById('kd-edit-btn').style.display = esAdmin ? '' : 'none';
@@ -1197,6 +1197,24 @@ const App = (() => {
     const body     = document.getElementById('kd-body');
     const labColor = getLabColor(p.laboratorio);
     const cfg      = getCardConfig(p);
+
+    // Buscar DNI del cliente en segundo plano y actualizar el header
+    if (p.cliente_id) {
+      window.supabaseClient
+        .from('clientes').select('dni,telefono').eq('id', p.cliente_id).single()
+        .then(({ data: cl }) => {
+          if (!cl) return;
+          const dniEl = document.getElementById('kd-cliente');
+          if (!dniEl) return;
+          const dniChip = cl.dni
+            ? `<span style="margin-left:8px;font-size:.73rem;font-weight:500;opacity:.8;background:rgba(255,255,255,.18);padding:2px 9px;border-radius:12px;font-family:var(--font-mono)">DNI: ${esc(cl.dni)}</span>`
+            : '';
+          const celChip = cl.telefono
+            ? `<span style="margin-left:6px;font-size:.73rem;font-weight:500;opacity:.7;background:rgba(255,255,255,.15);padding:2px 9px;border-radius:12px">📱 ${esc(cl.telefono)}</span>`
+            : '';
+          dniEl.innerHTML = esc(p.cliente) + dniChip + celChip;
+        });
+    }
 
     body.innerHTML = `
       <div class="kdetalle-section-title">Especificaciones</div>
