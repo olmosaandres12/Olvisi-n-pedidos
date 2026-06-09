@@ -1498,8 +1498,11 @@ const App = (() => {
     const mesFin=new Date(_mesActual.getFullYear(),_mesActual.getMonth()+1,1);
     const q = _historialQuery;
     const filtered=_pedidosCache.filter(p=>{
-      const fc=new Date(p.fecha_carga);
-      if (fc<mesInicio||fc>=mesFin) return false;
+      // Si hay búsqueda activa, ignorar filtro de mes
+      if (!q) {
+        const fc=new Date(p.fecha_carga);
+        if (fc<mesInicio||fc>=mesFin) return false;
+      }
       if (_estadoTab!=='todos'&&p.estado!==_estadoTab) return false;
       if (q && !p.cliente?.toLowerCase().includes(q) && !String(p.orden).includes(q)) return false;
       return true;
@@ -2175,7 +2178,7 @@ const App = (() => {
           const nombreCompleto = data.base.cliente.trim();
           let apellido = '', nombre = '';
           if (nombreCompleto.includes(',')) { apellido = nombreCompleto.split(',')[0].trim(); nombre = nombreCompleto.split(',').slice(1).join(',').trim(); }
-          else { apellido = nombreCompleto; nombre = ''; }
+          else { const partes = nombreCompleto.split(' '); apellido = partes.slice(-1)[0]; nombre = partes.slice(0,-1).join(' '); }
           const { data: nuevo } = await window.supabaseClient.from('clientes').insert([{
             nombre, apellido,
             telefono:    data.base.celular || '—',
