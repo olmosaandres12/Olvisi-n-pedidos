@@ -884,6 +884,8 @@ const App = (() => {
     </div>`;
   }
 
+  let _kanbanSearchQuery = '';
+
   function _renderKanban(todos) {
     const screen = document.getElementById('screen-seguimiento');
     if (!screen) return;
@@ -896,14 +898,36 @@ const App = (() => {
     if (segPanelLab) segPanelLab.style.display  = 'none';
     if (segPanelRet) segPanelRet.style.display  = 'none';
 
+    // Barra de búsqueda
+    let searchBar = document.getElementById('kanban-search-bar');
+    if (!searchBar) {
+      searchBar = document.createElement('div');
+      searchBar.id = 'kanban-search-bar';
+      searchBar.className = 'kanban-search-bar';
+      searchBar.innerHTML = `
+        <div class="kanban-search-wrap">
+          <svg class="kanban-search-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8">
+            <circle cx="8.5" cy="8.5" r="5.5"/><line x1="13" y1="13" x2="17" y2="17"/>
+          </svg>
+          <input type="text" id="kanban-search-input" class="kanban-search-input"
+                 placeholder="Buscar por nombre o número de orden..."
+                 autocomplete="off" autocorrect="off" spellcheck="false">
+          <button class="kanban-search-clear hidden" id="kanban-search-clear" onclick="App._clearKanbanSearch()">✕</button>
+        </div>`;
+      const headerWrap = document.getElementById('seg-header-wrap');
+      if (headerWrap) headerWrap.insertAdjacentElement('afterend', searchBar);
+      else screen.appendChild(searchBar);
+      document.getElementById('kanban-search-input').addEventListener('input', e => {
+        App._onKanbanSearch(e.target.value);
+      });
+    }
+
     let board = document.getElementById('kanban-board');
     if (!board) {
       board = document.createElement('div');
       board.id = 'kanban-board';
       board.className = 'kanban-board';
-      const headerWrap = document.getElementById('seg-header-wrap');
-      if (headerWrap) headerWrap.insertAdjacentElement('afterend', board);
-      else screen.appendChild(board);
+      searchBar.insertAdjacentElement('afterend', board);
     }
 
     board.innerHTML = KANBAN_COLS.map(col => {
@@ -911,6 +935,39 @@ const App = (() => {
       return _renderKanbanCol(col, items);
     }).join('');
 
+    _attachKanbanDnD(board);
+  }
+
+  function _onKanbanSearch(val) {
+    _kanbanSearchQuery = val.trim().toLowerCase();
+    const clearBtn = document.getElementById('kanban-search-clear');
+    if (clearBtn) clearBtn.classList.toggle('hidden', !_kanbanSearchQuery);
+    _renderKanbanFiltrado();
+  }
+
+  function _clearKanbanSearch() {
+    _kanbanSearchQuery = '';
+    const inp = document.getElementById('kanban-search-input');
+    if (inp) inp.value = '';
+    const clearBtn = document.getElementById('kanban-search-clear');
+    if (clearBtn) clearBtn.classList.add('hidden');
+    _renderKanbanFiltrado();
+  }
+
+  function _renderKanbanFiltrado() {
+    const board = document.getElementById('kanban-board');
+    if (!board) return;
+    const q = _kanbanSearchQuery;
+    const todos = q
+      ? _pedidosCache.filter(p =>
+          p.cliente?.toLowerCase().includes(q) ||
+          String(p.orden).includes(q)
+        )
+      : _pedidosCache;
+    board.innerHTML = KANBAN_COLS.map(col => {
+      const items = todos.filter(p => col.estados.includes(p.estado));
+      return _renderKanbanCol(col, items);
+    }).join('');
     _attachKanbanDnD(board);
   }
 
@@ -1185,10 +1242,10 @@ const App = (() => {
     const p = _pedidosCache.find(x => x.id === id);
     if (!p) return;
     const sufijo = p.sufijo ? `-${p.sufijo}` : '';
-    document.getElementById('kd-orden').textContent        = `#${p.orden}${sufijo}`;
+    document.getElementById('kd-orden').textContent   = `#${p.orden}${sufijo}`;
+    document.getElementById('kd-cliente').textContent = p.cliente;
     document.getElementById('kd-estado-badge').textContent = p.estado;
-    document.getElementById('kd-cliente').textContent      = p.cliente;
-    document.getElementById('kd-estado-sel').value         = p.estado;
+    document.getElementById('kd-estado-sel').value    = p.estado;
 
     const esAdmin = Auth.isAdmin();
     document.getElementById('kd-edit-btn').style.display = esAdmin ? '' : 'none';
@@ -1197,24 +1254,6 @@ const App = (() => {
     const body     = document.getElementById('kd-body');
     const labColor = getLabColor(p.laboratorio);
     const cfg      = getCardConfig(p);
-
-    // Buscar DNI del cliente en segundo plano y actualizar el header
-    if (p.cliente_id) {
-      window.supabaseClient
-        .from('clientes').select('dni,telefono').eq('id', p.cliente_id).single()
-        .then(({ data: cl }) => {
-          if (!cl) return;
-          const dniEl = document.getElementById('kd-cliente');
-          if (!dniEl) return;
-          const dniChip = cl.dni
-            ? `<span style="margin-left:8px;font-size:.73rem;font-weight:500;opacity:.8;background:rgba(255,255,255,.18);padding:2px 9px;border-radius:12px;font-family:var(--font-mono)">DNI: ${esc(cl.dni)}</span>`
-            : '';
-          const celChip = cl.telefono
-            ? `<span style="margin-left:6px;font-size:.73rem;font-weight:500;opacity:.7;background:rgba(255,255,255,.15);padding:2px 9px;border-radius:12px">📱 ${esc(cl.telefono)}</span>`
-            : '';
-          dniEl.innerHTML = esc(p.cliente) + dniChip + celChip;
-        });
-    }
 
     body.innerHTML = `
       <div class="kdetalle-section-title">Especificaciones</div>
@@ -2551,6 +2590,7 @@ const App = (() => {
     setLabFilter, onSegSearch, setSeguimientoFilter, toggleSegSection,
     _abrirKanbanDetalle, _abrirKanbanDetallePair, _cerrarKanbanDetalle,
     _moverKanbanCard, _moverKanbanPair,
+    _onKanbanSearch, _clearKanbanSearch,
     // Duplicados
     _cerrarModalDuplicado, _confirmarSinImportarDuplicado,
     // PAMI
