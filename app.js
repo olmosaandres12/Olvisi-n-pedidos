@@ -38,12 +38,6 @@ const App = (() => {
   const LAB_COLORS = { Sol:'#2563EB', Bichara:'#DC2626', Cristian:'#16A34A', Vitolen:'#7C3AED' };
   function getLabColor(lab) { return LAB_COLORS[lab] || '#6B7280'; }
 
-  function getSegCatKey(p) {
-    if (p.urgente === 'Si') return 'urgentes';
-    if (p._est?.valor === 'critico' || p._est?.valor === 'demorado') return 'atencion';
-    return 'lab';
-  }
-
   // ── Numpad ───────────────────────────────────────
   let _numpadTarget = null, _numpadSign = '+', _numpadRaw = '', _numpadNext = null;
   let _numpadRepeatTimer = null, _numpadRepeatInterval = null;
@@ -383,7 +377,6 @@ const App = (() => {
     if (!el) return;
     const esPami = val === 'PAMI';
     el.classList.toggle('hidden', !esPami);
-    // Si se deselecciona PAMI, limpiar los campos
     if (!esPami) {
       ['f-num-afiliado','f-tipo-trabajo-pami','f-diferencia-pami'].forEach(id => {
         const campo = document.getElementById(id);
@@ -564,7 +557,7 @@ const App = (() => {
 
   function _refreshTrassCambioFoto(id) {
     if (_currentScreen === 'pedidos') { renderPedidosList(); }
-    else if (_currentScreen === 'seguimiento') { _renderSeguimientoFiltered(); }
+    else if (_currentScreen === 'seguimiento') { _renderKanban(_pedidosCache); }
     const em = document.getElementById('edit-modal');
     if (em && !em.classList.contains('hidden') && _detalleId === id) abrirEdicion();
   }
@@ -752,25 +745,15 @@ const App = (() => {
 
       if (error) throw error;
 
-      // Stats
-      const total       = data.length;
-      const sinCargo    = data.filter(p => p.diferencia_pami === 'Sin cargo').length;
-      const conDif      = data.filter(p => p.diferencia_pami === 'Con diferencia').length;
+      const total    = data.length;
+      const sinCargo = data.filter(p => p.diferencia_pami === 'Sin cargo').length;
+      const conDif   = data.filter(p => p.diferencia_pami === 'Con diferencia').length;
 
       if (statsEl) {
         statsEl.innerHTML = `<div class="pami-stats-grid">
-          <div class="pami-stat-card">
-            <div class="pami-stat-val">${total}</div>
-            <div class="pami-stat-lbl">Total del mes</div>
-          </div>
-          <div class="pami-stat-card pami-stat-card--green">
-            <div class="pami-stat-val">${sinCargo}</div>
-            <div class="pami-stat-lbl">Sin cargo</div>
-          </div>
-          <div class="pami-stat-card pami-stat-card--amber">
-            <div class="pami-stat-val">${conDif}</div>
-            <div class="pami-stat-lbl">Con diferencia</div>
-          </div>
+          <div class="pami-stat-card"><div class="pami-stat-val">${total}</div><div class="pami-stat-lbl">Total del mes</div></div>
+          <div class="pami-stat-card pami-stat-card--green"><div class="pami-stat-val">${sinCargo}</div><div class="pami-stat-lbl">Sin cargo</div></div>
+          <div class="pami-stat-card pami-stat-card--amber"><div class="pami-stat-val">${conDif}</div><div class="pami-stat-lbl">Con diferencia</div></div>
         </div>`;
       }
 
@@ -830,7 +813,484 @@ const App = (() => {
   function pamiMesPrev() { _mesPami = new Date(_mesPami.getFullYear(), _mesPami.getMonth() - 1, 1); loadPami(); }
   function pamiMesNext() { const n = new Date(_mesPami.getFullYear(), _mesPami.getMonth() + 1, 1); if (n > hoy) return; _mesPami = n; loadPami(); }
 
-  // ── SEGUIMIENTO ───────────────────────────────────
+  // ══════════════════════════════════════════════════
+  //  SEGUIMIENTO / KANBAN
+  // ══════════════════════════════════════════════════
+
+  const KANBAN_COLS = [
+    { key: 'cristales', label: 'Cristales',      estados: ['Cristales pedidos a lab'], color: '#2563EB' },
+    { key: 'lab',       label: 'En laboratorio', estados: ['Armazón enviado p/calibrado','En laboratorio'], color: '#16A34A' },
+    { key: 'retirar',   label: 'Para retirar',   estados: ['Pendiente de retirar'], color: '#D97706' },
+    { key: 'retirado',  label: 'Retirado',        estados: ['Retirado'], color: '#7C3AED' },
+  ];
+
+  let _kanbanDetalleId = null;
+  let _dragId          = null;
+
+  async function loadSeguimiento() {
+    try {
+      const todos = await Pedidos.getPedidosActivos();
+      _pedidosCache = todos;
+      _buildSegHeader();
+      _renderKanbanKPIs(todos);
+      _renderKanban(todos);
+      updateBadge();
+      const criticos  = todos.filter(p => p._est.valor === 'critico');
+      const demorados = todos.filter(p => p._est.valor === 'demorado');
+      if (criticos.length > 0)       enviarNotificacion('🔴 Pedidos críticos — OLVISIÓN', `${criticos.length} pedido${criticos.length>1?'s':''} superó el tiempo límite`, true);
+      else if (demorados.length > 0) enviarNotificacion('⚠️ Demorados — OLVISIÓN', `${demorados.length} pedido${demorados.length>1?'s':''} demorado en laboratorio`, true);
+    } catch(e) { toast('Error: ' + e.message, 'error'); }
+  }
+
+  function _buildSegHeader() {
+    const screen = document.getElementById('screen-seguimiento');
+    if (!screen || document.getElementById('seg-kpis-wrap')) return;
+    const tabs = screen.querySelector('.seg-tabs');
+    if (!tabs) return;
+    const wrap = document.createElement('div');
+    wrap.id = 'seg-header-wrap';
+    wrap.innerHTML = '<div id="seg-kpis-wrap"></div>';
+    tabs.parentNode.insertBefore(wrap, tabs);
+  }
+
+  function _renderKanbanKPIs(todos) {
+    const el = document.getElementById('seg-kpis-wrap');
+    if (!el) return;
+    const activos  = todos.filter(p => p.estado !== 'Retirado');
+    const criticos = activos.filter(p => p._est.valor === 'critico').length;
+    const retirar  = todos.filter(p => p.estado === 'Pendiente de retirar').length;
+    const urgentes = activos.filter(p => p.urgente === 'Si').length;
+    el.innerHTML = `<div class="seg-kpi-grid" style="margin-bottom:14px">
+      <div class="seg-kpi-card">
+        <div class="seg-kpi-icon-bg">📋</div>
+        <div class="seg-kpi-val">${activos.length}</div>
+        <div class="seg-kpi-label">Activos</div>
+      </div>
+      <div class="seg-kpi-card seg-kpi-card--red">
+        <div class="seg-kpi-icon-bg">🔴</div>
+        <div class="seg-kpi-val seg-kpi-val--red">${criticos}</div>
+        <div class="seg-kpi-label">Críticos</div>
+      </div>
+      <div class="seg-kpi-card seg-kpi-card--amber">
+        <div class="seg-kpi-icon-bg">⚡</div>
+        <div class="seg-kpi-val seg-kpi-val--amber">${urgentes}</div>
+        <div class="seg-kpi-label">Urgentes</div>
+      </div>
+      <div class="seg-kpi-card seg-kpi-card--green">
+        <div class="seg-kpi-icon-bg">📦</div>
+        <div class="seg-kpi-val seg-kpi-val--green">${retirar}</div>
+        <div class="seg-kpi-label">Para retirar</div>
+      </div>
+    </div>`;
+  }
+
+  function _renderKanban(todos) {
+    const screen = document.getElementById('screen-seguimiento');
+    if (!screen) return;
+
+    // Ocultar tabs y panels viejos
+    const segTabs     = screen.querySelector('.seg-tabs');
+    const segPanelLab = document.getElementById('seg-content-lab');
+    const segPanelRet = document.getElementById('seg-content-retirar');
+    if (segTabs)     segTabs.style.display     = 'none';
+    if (segPanelLab) segPanelLab.style.display  = 'none';
+    if (segPanelRet) segPanelRet.style.display  = 'none';
+
+    let board = document.getElementById('kanban-board');
+    if (!board) {
+      board = document.createElement('div');
+      board.id = 'kanban-board';
+      board.className = 'kanban-board';
+      const headerWrap = document.getElementById('seg-header-wrap');
+      if (headerWrap) headerWrap.insertAdjacentElement('afterend', board);
+      else screen.appendChild(board);
+    }
+
+    board.innerHTML = KANBAN_COLS.map(col => {
+      const items = todos.filter(p => col.estados.includes(p.estado));
+      return _renderKanbanCol(col, items);
+    }).join('');
+
+    _attachKanbanDnD(board);
+  }
+
+  function _renderKanbanCol(col, items) {
+    const groups = groupPedidos(items);
+    const count  = groups.length;
+    const bodyContent = count === 0
+      ? `<div class="kanban-empty">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+          Vacío
+        </div>`
+      : groups.map(g => g.type === 'pair'
+          ? _renderKanbanPair(g.a, g.b)
+          : _renderKanbanCard(g.p)
+        ).join('');
+
+    return `<div class="kanban-col ${col.key === 'retirado' ? 'kanban-col--retirado' : ''}" data-col="${col.key}">
+      <div class="kanban-col-header">
+        <div class="kanban-col-dot" style="background:${col.color}"></div>
+        <span class="kanban-col-label">${col.label}</span>
+        <span class="kanban-col-count">${count}</span>
+      </div>
+      <div class="kanban-col-body" data-col="${col.key}">${bodyContent}</div>
+    </div>`;
+  }
+
+  function _renderKanbanCard(p) {
+    const sufijo   = p.sufijo ? `-${p.sufijo}` : '';
+    const cfg      = getCardConfig(p);
+    const labColor = getLabColor(p.laboratorio);
+    const isUrgente = p.urgente === 'Si' && p.estado !== 'Retirado';
+    const isCrit   = p._est.valor === 'critico';
+    const isDem    = p._est.valor === 'demorado';
+
+    let cardCls = 'kanban-card';
+    if (isCrit || isUrgente) cardCls += ' kanban-card--crit';
+    else if (isDem)          cardCls += ' kanban-card--dem';
+    else                     cardCls += ' kanban-card--ok';
+
+    let labBadgeCls = 'kc-lab-badge';
+    if (isCrit)                  labBadgeCls += ' kc-lab-badge--crit';
+    else if (isDem || isUrgente) labBadgeCls += ' kc-lab-badge--dem';
+
+    let diasCls = 'kc-dias';
+    if (isCrit)     diasCls += ' kc-dias--crit';
+    else if (isDem) diasCls += ' kc-dias--dem';
+
+    let labStatus = '';
+    if (isCrit)         labStatus = `<span class="kc-lab-status" style="color:#DC2626">🔴 crítico</span>`;
+    else if (isDem)     labStatus = `<span class="kc-lab-status" style="color:#D97706">⚠️ demorado</span>`;
+    else if (isUrgente) labStatus = `<span class="kc-lab-status" style="color:#D97706">⚡ urgente</span>`;
+
+    const sigEstado = _getSigEstado(p.estado);
+    const armazonLimpio = p.armazon ? p.armazon.replace(/Del cliente\s*\/?\s*/i,'').replace(/Nuevo\s*\/?\s*/i,'') : '';
+
+    return `<div class="${cardCls}" data-id="${p.id}" draggable="true"
+                 onclick="App._abrirKanbanDetalle(${p.id})">
+      <div class="kc-top">
+        <div class="kc-nombre">${esc(p.cliente)}</div>
+        <div class="kc-orden">#${esc(p.orden)}${sufijo}</div>
+      </div>
+      ${armazonLimpio ? `<div class="kc-armazon">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="12" r="3"/><circle cx="19" cy="12" r="3"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+        ${esc(armazonLimpio)}
+      </div>` : ''}
+      ${p.tipo_lente ? `<div class="kc-lente-box">
+        <div class="kc-lente-label">Lente</div>
+        <div class="kc-lente-val">${esc(p.tipo_lente)}${p.tratamiento ? ' · ' + esc(p.tratamiento) : ''}</div>
+      </div>` : ''}
+      <div class="${labBadgeCls}">
+        <div class="kc-lab-dot" style="background:${labColor}"></div>
+        ${esc(p.laboratorio || '—')}
+        ${labStatus}
+      </div>
+      <div class="kc-footer">
+        <div class="${diasCls}">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          ${cfg.dh} día${cfg.dh !== 1 ? 's' : ''}
+        </div>
+        ${sigEstado ? `<button class="kc-mover" onclick="event.stopPropagation();App._moverKanbanCard(${p.id},'${sigEstado}')">Mover →</button>` : ''}
+      </div>
+    </div>`;
+  }
+
+  function _renderKanbanPair(pA, pB) {
+    const cfgA     = getCardConfig(pA);
+    const cfgB     = getCardConfig(pB);
+    const dhMax    = Math.max(cfgA.dh, cfgB.dh);
+    const isCrit   = pA._est.valor === 'critico' || pB._est.valor === 'critico';
+    const isDem    = pA._est.valor === 'demorado' || pB._est.valor === 'demorado';
+    const isUrg    = (pA.urgente === 'Si' || pB.urgente === 'Si') && pA.estado !== 'Retirado';
+    const labColor = getLabColor(pA.laboratorio);
+    const sigEstado = _getSigEstado(pA.estado);
+
+    let cardCls = 'kanban-card';
+    if (isCrit || isUrg) cardCls += ' kanban-card--crit';
+    else if (isDem)      cardCls += ' kanban-card--dem';
+    else                 cardCls += ' kanban-card--ok';
+
+    let labBadgeCls = 'kc-lab-badge';
+    if (isCrit)              labBadgeCls += ' kc-lab-badge--crit';
+    else if (isDem || isUrg) labBadgeCls += ' kc-lab-badge--dem';
+
+    let diasCls = 'kc-dias';
+    if (isCrit)     diasCls += ' kc-dias--crit';
+    else if (isDem) diasCls += ' kc-dias--dem';
+
+    let labStatus = '';
+    if (isCrit)     labStatus = `<span class="kc-lab-status" style="color:#DC2626">🔴 crítico</span>`;
+    else if (isDem) labStatus = `<span class="kc-lab-status" style="color:#D97706">⚠️ demorado</span>`;
+    else if (isUrg) labStatus = `<span class="kc-lab-status" style="color:#D97706">⚡ urgente</span>`;
+
+    return `<div class="${cardCls}" data-pair-id="pair-${pA.orden}" draggable="true"
+                 onclick="App._abrirKanbanDetallePair('${pA.orden}')">
+      <div class="kc-top">
+        <div class="kc-nombre">${esc(pA.cliente)}</div>
+        <div style="display:flex;gap:4px;align-items:center;flex-shrink:0">
+          <div class="kc-orden">#${esc(pA.orden)}</div>
+          <span class="kc-pair-badge">A·B</span>
+        </div>
+      </div>
+      <div class="kc-lente-box">
+        <div class="kc-lente-label">Lente A / B</div>
+        <div class="kc-lente-val">${esc(pA.tipo_lente || '—')} / ${esc(pB.tipo_lente || '—')}</div>
+      </div>
+      <div class="${labBadgeCls}">
+        <div class="kc-lab-dot" style="background:${labColor}"></div>
+        ${esc(pA.laboratorio || '—')}
+        ${labStatus}
+      </div>
+      <div class="kc-footer">
+        <div class="${diasCls}">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          ${dhMax} día${dhMax !== 1 ? 's' : ''}
+        </div>
+        ${sigEstado ? `<button class="kc-mover" onclick="event.stopPropagation();App._moverKanbanPair('${pA.orden}','${sigEstado}')">Mover →</button>` : ''}
+      </div>
+    </div>`;
+  }
+
+  function _getSigEstado(estado) {
+    const map = {
+      'Cristales pedidos a lab':     'En laboratorio',
+      'Armazón enviado p/calibrado': 'En laboratorio',
+      'En laboratorio':              'Pendiente de retirar',
+      'Pendiente de retirar':        'Retirado',
+      'Retirado':                    null,
+    };
+    return map[estado] || null;
+  }
+
+  async function _moverKanbanCard(id, nuevoEstado) {
+    try {
+      await Pedidos.actualizarEstado(id, nuevoEstado);
+      toast(`→ ${nuevoEstado}`, 'success');
+      const p = _pedidosCache.find(x => x.id === id);
+      if (nuevoEstado === 'Retirado' && p) enviarNotificacion('✅ Retirado — OLVISIÓN', `#${p.orden} de ${p.cliente}`, false);
+      _pedidosCache = await Pedidos.getTodosPedidos();
+      _renderKanbanKPIs(_pedidosCache);
+      _renderKanban(_pedidosCache);
+      updateBadge();
+    } catch(e) { toast('Error: ' + e.message, 'error'); }
+  }
+
+  async function _moverKanbanPair(orden, nuevoEstado) {
+    const pares = _pedidosCache.filter(p => p.orden === orden && (p.sufijo === 'A' || p.sufijo === 'B'));
+    try {
+      for (const p of pares) await Pedidos.actualizarEstado(p.id, nuevoEstado);
+      toast(`→ ${nuevoEstado}`, 'success');
+      _pedidosCache = await Pedidos.getTodosPedidos();
+      _renderKanbanKPIs(_pedidosCache);
+      _renderKanban(_pedidosCache);
+      updateBadge();
+    } catch(e) { toast('Error: ' + e.message, 'error'); }
+  }
+
+  function _attachKanbanDnD(board) {
+    board.querySelectorAll('.kanban-card[draggable]').forEach(card => {
+      card.addEventListener('dragstart', e => {
+        _dragId = card.dataset.id || card.dataset.pairId;
+        card.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', _dragId);
+      });
+      card.addEventListener('dragend', () => {
+        card.classList.remove('dragging');
+        board.querySelectorAll('.drag-over').forEach(c => c.classList.remove('drag-over'));
+        _dragId = null;
+      });
+    });
+
+    board.querySelectorAll('.kanban-col-body').forEach(zone => {
+      zone.addEventListener('dragover', e => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        zone.classList.add('drag-over');
+      });
+      zone.addEventListener('dragleave', e => {
+        if (!zone.contains(e.relatedTarget)) zone.classList.remove('drag-over');
+      });
+      zone.addEventListener('drop', async e => {
+        e.preventDefault();
+        zone.classList.remove('drag-over');
+        const colKey = zone.dataset.col;
+        const col    = KANBAN_COLS.find(c => c.key === colKey);
+        if (!col || !_dragId) return;
+        const nuevoEstado = col.estados[col.estados.length - 1];
+        if (_dragId.startsWith('pair-')) {
+          const orden = _dragId.replace('pair-', '');
+          await _moverKanbanPair(orden, nuevoEstado);
+        } else {
+          const id = parseInt(_dragId);
+          const p  = _pedidosCache.find(x => x.id === id);
+          if (p && p.estado !== nuevoEstado) await _moverKanbanCard(id, nuevoEstado);
+        }
+      });
+    });
+  }
+
+  function _ensureKanbanDetalleModal() {
+    if (document.getElementById('kdetalle-modal')) return;
+    const el = document.createElement('div');
+    el.id = 'kdetalle-modal';
+    el.className = 'hidden';
+    el.innerHTML = `
+      <div class="kdetalle-sheet">
+        <div class="kdetalle-header">
+          <div class="kdetalle-header-top">
+            <div>
+              <span class="kdetalle-orden" id="kd-orden"></span>
+              <span class="kdetalle-estado-badge" id="kd-estado-badge" style="margin-left:10px"></span>
+            </div>
+            <button class="kdetalle-close" onclick="App._cerrarKanbanDetalle()">✕</button>
+          </div>
+          <div class="kdetalle-cliente-row">
+            <span class="kdetalle-cliente-name" id="kd-cliente"></span>
+          </div>
+        </div>
+        <div class="kdetalle-body" id="kd-body"></div>
+        <div class="kdetalle-footer">
+          <select class="kdetalle-estado-select" id="kd-estado-sel">
+            <option value="Cristales pedidos a lab">Cristales pedidos a lab</option>
+            <option value="En laboratorio">En laboratorio</option>
+            <option value="Pendiente de retirar">Pendiente de retirar</option>
+            <option value="Retirado">Retirado</option>
+          </select>
+          <div class="kdetalle-actions">
+            <button class="kdetalle-edit-btn" id="kd-edit-btn">✏️ Editar</button>
+            <button class="kdetalle-del-btn" id="kd-del-btn">🗑️</button>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(el);
+    el.addEventListener('click', e => { if (e.target === el) _cerrarKanbanDetalle(); });
+    document.getElementById('kd-estado-sel').addEventListener('change', async e => {
+      const nuevoEstado = e.target.value;
+      if (!_kanbanDetalleId) return;
+      await _moverKanbanCard(_kanbanDetalleId, nuevoEstado);
+      _cerrarKanbanDetalle();
+    });
+    document.getElementById('kd-edit-btn').addEventListener('click', () => {
+      _detalleId = _kanbanDetalleId; _cerrarKanbanDetalle(); abrirEdicion();
+    });
+    document.getElementById('kd-del-btn').addEventListener('click', () => {
+      if (_kanbanDetalleId) { _cerrarKanbanDetalle(); eliminarPedido(_kanbanDetalleId); }
+    });
+  }
+
+  function _abrirKanbanDetalle(id) {
+    _ensureKanbanDetalleModal();
+    _kanbanDetalleId = id;
+    const p = _pedidosCache.find(x => x.id === id);
+    if (!p) return;
+    const sufijo = p.sufijo ? `-${p.sufijo}` : '';
+    document.getElementById('kd-orden').textContent   = `#${p.orden}${sufijo}`;
+    document.getElementById('kd-cliente').textContent = p.cliente;
+    document.getElementById('kd-estado-badge').textContent = p.estado;
+    document.getElementById('kd-estado-sel').value    = p.estado;
+
+    const esAdmin = Auth.isAdmin();
+    document.getElementById('kd-edit-btn').style.display = esAdmin ? '' : 'none';
+    document.getElementById('kd-del-btn').style.display  = esAdmin ? '' : 'none';
+
+    const body     = document.getElementById('kd-body');
+    const labColor = getLabColor(p.laboratorio);
+    const cfg      = getCardConfig(p);
+
+    body.innerHTML = `
+      <div class="kdetalle-section-title">Especificaciones</div>
+      <div class="kdetalle-grid">
+        ${p.armazon ? `<div class="kdetalle-item kdetalle-item--full">
+          <div class="kdetalle-item-label">Armazón</div>
+          <div class="kdetalle-item-val">${esc(p.armazon)}</div>
+        </div>` : ''}
+        ${p.tipo_lente ? `<div class="kdetalle-item">
+          <div class="kdetalle-item-label">Lente</div>
+          <div class="kdetalle-item-val">${esc(p.tipo_lente)}</div>
+        </div>` : ''}
+        ${p.tratamiento ? `<div class="kdetalle-item">
+          <div class="kdetalle-item-label">Tratamiento</div>
+          <div class="kdetalle-item-val">${esc(p.tratamiento)}</div>
+        </div>` : ''}
+        ${p.graduacion ? `<div class="kdetalle-item kdetalle-item--full">
+          <div class="kdetalle-item-label">Graduación</div>
+          <div class="kdetalle-item-val" style="font-family:var(--font-mono);font-size:.8rem">${esc(p.graduacion).replace(/\|/g,' | ')}</div>
+        </div>` : ''}
+        ${p.observaciones ? `<div class="kdetalle-item kdetalle-item--full">
+          <div class="kdetalle-item-label">Observaciones</div>
+          <div class="kdetalle-item-val" style="font-style:italic">${esc(p.observaciones)}</div>
+        </div>` : ''}
+      </div>
+      <div class="kdetalle-section-title">Logística</div>
+      <div class="kdetalle-grid">
+        <div class="kdetalle-item">
+          <div class="kdetalle-item-label">Laboratorio</div>
+          <div class="kdetalle-item-val" style="display:flex;align-items:center;gap:6px">
+            <span style="width:8px;height:8px;border-radius:50%;background:${labColor};display:inline-block;flex-shrink:0"></span>
+            ${esc(p.laboratorio || '—')}
+          </div>
+        </div>
+        <div class="kdetalle-item">
+          <div class="kdetalle-item-label">Días en proceso</div>
+          <div class="kdetalle-item-val" style="color:${cfg.advertencia||p._est.valor==='critico'?'#DC2626':p._est.valor==='demorado'?'#D97706':'inherit'};font-weight:600">${cfg.dh}dh · ${p._est.texto}</div>
+        </div>
+        <div class="kdetalle-item">
+          <div class="kdetalle-item-label">Fecha pedido</div>
+          <div class="kdetalle-item-val">${new Date(p.fecha_pedido||p.fecha_carga).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'})}</div>
+        </div>
+        ${p.fecha_prometida ? `<div class="kdetalle-item">
+          <div class="kdetalle-item-label">Fecha prometida</div>
+          <div class="kdetalle-item-val" style="font-weight:600;color:${new Date(p.fecha_prometida+'T00:00:00')>=new Date(new Date().setHours(0,0,0,0))?'#16A34A':'#DC2626'}">📅 ${new Date(p.fecha_prometida+'T00:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'})}</div>
+        </div>` : ''}
+        <div class="kdetalle-item">
+          <div class="kdetalle-item-label">Tipo</div>
+          <div class="kdetalle-item-val">${esc(p.tipo||'—')}</div>
+        </div>
+        <div class="kdetalle-item">
+          <div class="kdetalle-item-label">Urgente</div>
+          <div class="kdetalle-item-val">${p.urgente==='Si'?'⚡ Sí':'No'}</div>
+        </div>
+        <div class="kdetalle-item">
+          <div class="kdetalle-item-label">Cargado por</div>
+          <div class="kdetalle-item-val">${esc(p.cargado_por||'—')}</div>
+        </div>
+        ${p.obra_social ? `<div class="kdetalle-item">
+          <div class="kdetalle-item-label">Obra social</div>
+          <div class="kdetalle-item-val">${esc(p.obra_social)}</div>
+        </div>` : ''}
+      </div>
+      ${p.foto_url ? `<div class="kdetalle-section-title">Foto</div>
+        <img src="${esc(p.foto_url)}" loading="lazy" onclick="App.abrirFotoViewer(${p.id})"
+             style="width:100%;max-height:180px;object-fit:cover;border-radius:var(--radius-sm);border:1.5px solid var(--gris-borde);cursor:pointer;margin-bottom:8px">` : ''}
+    `;
+
+    document.getElementById('kdetalle-modal').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function _abrirKanbanDetallePair(orden) {
+    const p = _pedidosCache.find(x => x.orden === orden && x.sufijo === 'A');
+    if (p) _abrirKanbanDetalle(p.id);
+  }
+
+  function _cerrarKanbanDetalle() {
+    document.getElementById('kdetalle-modal')?.classList.add('hidden');
+    document.body.style.overflow = '';
+    _kanbanDetalleId = null;
+  }
+
+  // Stubs para compatibilidad con funciones que el resto del código llama
+  function setSeguimientoFilter() { loadSeguimiento(); }
+  function setLabFilter()         { loadSeguimiento(); }
+  function onSegSearch()          {}
+  function toggleSegSection()     {}
+  function switchSegTab()         { loadSeguimiento(); }
+  function _renderSeguimientoFiltered() { _renderKanban(_pedidosCache); }
+
+  // ══════════════════════════════════════════════════
+  //  HELPERS usados por kanban y otras pantallas
+  // ══════════════════════════════════════════════════
 
   function estadoRowClass(estado) {
     const map = {
@@ -900,572 +1360,6 @@ const App = (() => {
     const dhB = calcDiasHabiles(b.fecha_pedido || b.fecha_carga);
     if (dhB !== dhA) return dhB - dhA;
     return new Date(b.fecha_carga) - new Date(a.fecha_carga);
-  }
-
-  function _buildSegHeader() {
-    const screen = document.getElementById('screen-seguimiento');
-    if (!screen || document.getElementById('seg-kpis-wrap')) return;
-    const tabs = screen.querySelector('.seg-tabs');
-    if (!tabs) return;
-    const wrap = document.createElement('div');
-    wrap.id = 'seg-header-wrap';
-    wrap.innerHTML = '<div id="seg-kpis-wrap"></div><div id="seg-chips-wrap"></div>';
-    tabs.parentNode.insertBefore(wrap, tabs);
-  }
-
-  async function loadSeguimiento() {
-    try {
-      const todos = await Pedidos.getPedidosActivos();
-      _pedidosCache = todos;
-      _buildSegHeader();
-      _renderSegKPIs(todos);
-      _renderSegChips(todos);
-      _renderSeguimientoFiltered();
-      updateBadge();
-      const criticos = todos.filter(p => p._est.valor === 'critico');
-      const demorados = todos.filter(p => p._est.valor === 'demorado');
-      if (criticos.length > 0) enviarNotificacion('🔴 Pedidos críticos — OLVISIÓN', `${criticos.length} pedido${criticos.length>1?'s':''} superó el tiempo límite`, true);
-      else if (demorados.length > 0) enviarNotificacion('⚠️ Demorados — OLVISIÓN', `${demorados.length} pedido${demorados.length>1?'s':''} demorado en laboratorio`, true);
-    } catch(e) { toast('Error: ' + e.message, 'error'); }
-  }
-
-  function _renderSegKPIs(todos) {
-    const el = document.getElementById('seg-kpis-wrap'); if (!el) return;
-    const activos  = todos.filter(p => p.estado !== 'Retirado');
-    const urgentes = activos.filter(p => p.urgente === 'Si');
-    const atencion = activos.filter(p => p.urgente !== 'Si' && (p._est?.valor === 'critico' || p._est?.valor === 'demorado'));
-    const retirar  = todos.filter(p => p.estado === 'Pendiente de retirar');
-    const contarFilas = (lista) => { const groups = groupPedidos(lista); return groups.length; };
-    el.innerHTML = `<div class="seg-kpi-grid">
-      <div class="seg-kpi-card" onclick="App.setSeguimientoFilter('todos')">
-        <div class="seg-kpi-icon-bg">📋</div>
-        <div class="seg-kpi-val">${contarFilas(activos)}</div>
-        <div class="seg-kpi-label">Pedidos activos</div>
-        <div class="seg-kpi-link">Ver todos →</div>
-      </div>
-      <div class="seg-kpi-card seg-kpi-card--red" onclick="App.setSeguimientoFilter('urgentes')">
-        <div class="seg-kpi-icon-bg">🚨</div>
-        <div class="seg-kpi-val seg-kpi-val--red">${contarFilas(urgentes)}</div>
-        <div class="seg-kpi-label">Urgentes</div>
-        <div class="seg-kpi-link seg-kpi-link--red">Ver urgentes →</div>
-      </div>
-      <div class="seg-kpi-card seg-kpi-card--amber" onclick="App.setSeguimientoFilter('atencion')">
-        <div class="seg-kpi-icon-bg">⚠️</div>
-        <div class="seg-kpi-val seg-kpi-val--amber">${contarFilas(atencion)}</div>
-        <div class="seg-kpi-label">Requieren atención</div>
-        <div class="seg-kpi-link seg-kpi-link--amber">Ver pendientes →</div>
-      </div>
-      <div class="seg-kpi-card seg-kpi-card--green" onclick="App.switchSegTab('retirar')">
-        <div class="seg-kpi-icon-bg">📅</div>
-        <div class="seg-kpi-val seg-kpi-val--green">${contarFilas(retirar)}</div>
-        <div class="seg-kpi-label">Listos para retirar</div>
-        <div class="seg-kpi-link seg-kpi-link--green">Ir a para retirar →</div>
-      </div>
-    </div>`;
-  }
-
-  function _renderSegChips(todos) {
-    const el = document.getElementById('seg-chips-wrap'); if (!el) return;
-    const activos = todos.filter(p => p.estado !== 'Retirado');
-    const labCounts = {};
-    activos.forEach(p => { if (p.laboratorio) labCounts[p.laboratorio] = (labCounts[p.laboratorio]||0)+1; });
-    const labs = Object.keys(labCounts).sort();
-    el.innerHTML = `<div class="seg-chips-row">
-      <div class="seg-chips-scroll">
-        <span class="seg-chip-label">Laboratorios</span>
-        ${labs.map(lab => `<button class="seg-lab-chip ${_labFilter===lab?'seg-lab-chip--active':''}" onclick="App.setLabFilter('${esc(lab)}')">
-          <span class="seg-lab-dot-sm" style="background:${getLabColor(lab)}"></span>
-          ${esc(lab)} <span class="seg-chip-count">${labCounts[lab]}</span>
-        </button>`).join('')}
-      </div>
-      <div class="seg-search-box">
-        <svg class="seg-search-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8">
-          <circle cx="8.5" cy="8.5" r="5.5"/><line x1="13" y1="13" x2="17" y2="17"/>
-        </svg>
-        <input type="text" class="seg-search-input" placeholder="Buscar pedido..."
-               value="${esc(_segSearch)}" oninput="App.onSegSearch(this.value)" autocomplete="off">
-      </div>
-    </div>`;
-  }
-
-  function _renderSeguimientoFiltered() {
-    const todos = _pedidosCache;
-    const searchPanel = document.getElementById('seg-search-results');
-    const tabsEl      = document.querySelector('#screen-seguimiento .seg-tabs');
-    const contentLab  = document.getElementById('seg-content-lab');
-    const contentRet  = document.getElementById('seg-content-retirar');
-
-    if (_segSearch) {
-      const q = _segSearch;
-      const match = p => p.cliente?.toLowerCase().includes(q) || String(p.orden).toLowerCase().includes(q);
-      let resultados = todos.filter(match);
-      if (_labFilter) resultados = resultados.filter(p => p.laboratorio === _labFilter);
-      if (tabsEl)     tabsEl.style.display     = 'none';
-      if (contentLab) contentLab.style.display  = 'none';
-      if (contentRet) contentRet.style.display  = 'none';
-      if (!searchPanel) {
-        const div = document.createElement('div'); div.id = 'seg-search-results';
-        contentLab?.parentNode.appendChild(div);
-      }
-      const panel = document.getElementById('seg-search-results');
-      if (!panel) return;
-      panel.style.display = 'block';
-      if (!resultados.length) {
-        panel.innerHTML = `<div class="empty-state"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><h3>Sin resultados</h3><p>No se encontró ningún pedido para "${esc(_segSearch)}"</p></div>`;
-        return;
-      }
-      const sorted = [...resultados].sort((a,b) => { const aR=a.estado==='Retirado'?1:0,bR=b.estado==='Retirado'?1:0; if(aR!==bR)return aR-bR; return new Date(b.fecha_carga)-new Date(a.fecha_carga); });
-      const groups = groupPedidos(sorted);
-      panel.innerHTML = `<div class="seg-search-header"><span class="seg-search-res-label">🔍 ${groups.length} resultado${groups.length!==1?'s':''} en toda la app</span></div>
-        <div class="seg-list">${groups.map(g => g.type==='pair' ? _renderSegPair(g.a,g.b) : _renderSegRow(g.p)).join('')}</div>`;
-      attachInlineSelects(panel);
-      return;
-    }
-
-    if (tabsEl)     tabsEl.style.display     = '';
-    if (contentLab) contentLab.style.display  = '';
-    if (contentRet) contentRet.style.display  = '';
-    if (searchPanel) searchPanel.style.display = 'none';
-
-    let enLab   = todos.filter(p => ['Cristales pedidos a lab','Armazón enviado p/calibrado','En laboratorio'].includes(p.estado));
-    let retirar = todos.filter(p => p.estado === 'Pendiente de retirar');
-    if (_labFilter) {
-      enLab   = enLab.filter(p => p.laboratorio === _labFilter);
-      retirar = retirar.filter(p => p.laboratorio === _labFilter);
-    }
-
-    const cntEl  = document.getElementById('seg-count-lab');
-    const cntRet = document.getElementById('seg-count-retirar');
-    if (cntEl)  cntEl.textContent = groupPedidos(enLab).length;
-    if (cntRet) cntRet.textContent = groupPedidos(retirar).length;
-
-    _renderSegList('seg-content-lab',     enLab.sort(sortPorPrioridad),   true);
-    _renderSegList('seg-content-retirar', retirar.sort(sortPorPrioridad), false);
-  }
-
-  function setLabFilter(lab) {
-    _labFilter = _labFilter === lab ? null : lab;
-    _renderSegChips(_pedidosCache);
-    _renderSeguimientoFiltered();
-  }
-
-  function onSegSearch(val) {
-    _segSearch = val.trim().toLowerCase();
-    if (_segSearch) _collapsedSections = {};
-    _renderSeguimientoFiltered();
-  }
-
-  function setSeguimientoFilter(type) {
-    _labFilter = null; _segSearch = '';
-    _renderSegChips(_pedidosCache);
-    switchSegTab('lab');
-    if (type === 'todos') { _collapsedSections = {}; }
-    else if (type === 'urgentes') { _collapsedSections = { atencion: true, lab: true }; }
-    else if (type === 'atencion') { _collapsedSections = { urgentes: true, lab: true }; }
-    _renderSeguimientoFiltered();
-    setTimeout(() => {
-      const ids = { urgentes:'sg-urgentes', atencion:'sg-atencion', todos:null };
-      const elId = ids[type];
-      if (elId) { const el = document.getElementById(elId); if (el) el.scrollIntoView({ behavior:'smooth', block:'start' }); }
-      else { document.getElementById('seg-content-lab')?.scrollIntoView({ behavior:'smooth', block:'start' }); }
-    }, 150);
-  }
-
-  function _renderSegList(containerId, pedidos, conGrupos) {
-    const el = document.getElementById(containerId); if (!el) return;
-    if (!pedidos.length) {
-      el.innerHTML = `<div class="empty-state"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><h3>Sin pedidos</h3><p>No hay pedidos en este estado</p></div>`;
-      return;
-    }
-    const groups = groupPedidos(pedidos);
-    if (!conGrupos) {
-      el.innerHTML = `<div class="seg-list">${groups.map(g => g.type==='pair' ? _renderSegPair(g.a,g.b) : _renderSegRow(g.p)).join('')}</div>`;
-      attachInlineSelects(el); return;
-    }
-    const SEG_CATS = [
-      { key:'urgentes', id:'sg-urgentes', icon:'⚡', label:'URGENTES',           color:'#DC2626', bg:'#FFF0F0' },
-      { key:'atencion', id:'sg-atencion', icon:'⚠️', label:'REQUIEREN ATENCIÓN', color:'#B45309', bg:'#FFFBEB' },
-      { key:'lab',      id:'sg-lab',      icon:'●',  label:'EN LABORATORIO',     color:'#034291', bg:'#EFF6FF' },
-    ];
-    const buckets = { urgentes:[], atencion:[], lab:[] };
-    groups.forEach(g => {
-      const p = g.type==='pair' ? g.a : g.p;
-      (buckets[getSegCatKey(p)] || buckets.lab).push(g);
-    });
-    const getDh = g => g.type==='pair' ? Math.max(getCardConfig(g.a).dh, getCardConfig(g.b).dh) : getCardConfig(g.p).dh;
-    Object.keys(buckets).forEach(k => buckets[k].sort((a,b) => getDh(b) - getDh(a)));
-
-    let html = '<div class="seg-list">';
-    SEG_CATS.forEach(cat => {
-      const items = buckets[cat.key]; if (!items.length) return;
-      const isCollapsed = !!_collapsedSections[cat.key];
-      html += `<div class="seg-gh seg-gh--clickable" id="${cat.id}" style="--gc:${cat.color};--gb:${cat.bg}" onclick="App.toggleSegSection('${cat.key}')">
-        <span class="seg-gh-icon">${cat.icon}</span>
-        <span class="seg-gh-label">${cat.label}</span>
-        <span class="seg-gh-count">(${items.length})</span>
-        <span class="seg-gh-arrow${isCollapsed?'':' seg-gh-arrow--open'}">›</span>
-      </div>`;
-      if (!isCollapsed) {
-        html += `<div class="seg-section-body">`;
-        html += _segTableHeader();
-        html += items.map(g => g.type==='pair' ? _renderSegPair(g.a,g.b) : _renderSegRow(g.p)).join('');
-        html += `</div>`;
-      }
-    });
-    html += '</div>';
-    el.innerHTML = html;
-    attachInlineSelects(el);
-  }
-
-  function toggleSegSection(key) {
-    _collapsedSections[key] = !_collapsedSections[key];
-    _renderSeguimientoFiltered();
-  }
-
-  function _segTableHeader() {
-    return `<div class="seg-th-row">
-      <div class="seg-th seg-th--orden"># ORDEN</div>
-      <div class="seg-th seg-th--paciente">PACIENTE</div>
-      <div class="seg-th seg-th--estado">ESTADO</div>
-      <div class="seg-th seg-th--tiempo">TIEMPO</div>
-      <div class="seg-th seg-th--arrow"></div>
-    </div>`;
-  }
-
-  function _renderSegRow(p) {
-    const sufijo   = p.sufijo ? `-${p.sufijo}` : '';
-    const isOpen   = _expandedId === p.id;
-    const cfg      = getCardConfig(p);
-    const d        = new Date(p.fecha_carga);
-    const fecha    = `${d.getDate()}/${d.getMonth()+1}`;
-    const labColor = getLabColor(p.laboratorio);
-    const isUrgente = p.urgente === 'Si' && p.estado !== 'Retirado';
-    let daysCls = 'seg-time';
-    if (isUrgente || cfg.advertencia || p._est?.valor === 'critico') daysCls = 'seg-time seg-time--red';
-    else if (p._est?.valor === 'demorado') daysCls = 'seg-time seg-time--amber';
-    const timeLabel = (isUrgente || cfg.advertencia) ? 'Demorado' : 'En curso';
-    const ESTADOS = ['Cristales pedidos a lab','Armazón enviado p/calibrado','En laboratorio','Pendiente de retirar','Retirado'];
-    const opts = ESTADOS.map(e=>`<option value="${e}"${e===p.estado?' selected':''}>${e}</option>`).join('');
-    const detalle = `<div class="ped-row-detail ${isOpen?'':'hidden'}" onclick="event.stopPropagation()">
-      <div class="ped-row-detail-grid">
-        ${p.tipo_lente?`<div class="prd-item"><span class="prd-label">Lente</span><span class="prd-val">${esc(p.tipo_lente)}</span></div>`:''}
-        ${p.tratamiento?`<div class="prd-item"><span class="prd-label">Tratamiento</span><span class="prd-val">${esc(p.tratamiento)}</span></div>`:''}
-        ${p.tipo?`<div class="prd-item"><span class="prd-label">Tipo</span><span class="prd-val">${esc(p.tipo)}</span></div>`:''}
-        ${p.dos_etapas==='Si'?`<div class="prd-item"><span class="prd-label">Etapas</span><span class="prd-val">2 etapas</span></div>`:''}
-        ${p.graduacion?`<div class="prd-item prd-item--full"><span class="prd-label">Graduación</span><span class="prd-val" style="font-family:var(--font-mono);font-size:.8rem">${esc(p.graduacion).replace(/\|/g,' | ')}</span></div>`:''}
-        ${p.armazon?`<div class="prd-item prd-item--full"><span class="prd-label">Armazón</span><span class="prd-val">${esc(p.armazon)}</span></div>`:''}
-        ${p.observaciones?`<div class="prd-item prd-item--full"><span class="prd-label">Obs.</span><span class="prd-val" style="font-style:italic;color:var(--gris-texto)">${esc(p.observaciones)}</span></div>`:''}
-        <div class="prd-item"><span class="prd-label">Est. inteligente</span><span class="prd-val">${p._est.texto}</span></div>
-        ${p.fecha_prometida?`<div class="prd-item"><span class="prd-label">Fecha prometida</span><span class="prd-val" style="font-weight:600;color:${new Date(p.fecha_prometida+'T00:00:00')>=new Date(new Date().setHours(0,0,0,0))?'#16A34A':'#DC2626'}">📅 ${new Date(p.fecha_prometida+'T00:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'})}</span></div>`:''}
-        <div class="prd-item"><span class="prd-label">Cargado por</span><span class="prd-val">${esc(p.cargado_por||'—')}</span></div>
-        ${_fotoDetalle(p)}
-      </div>
-      <div class="ped-row-detail-actions">
-        <select class="estado-select ${Pedidos.claseEstado(p.estado)} estado-select-inline" data-id="${p.id}" data-prev="${esc(p.estado)}" onclick="event.stopPropagation()">${opts}</select>
-        ${Auth.isAdmin()?`<button class="ped-row-edit-btn" onclick="event.stopPropagation();App._abrirDetalleRapido(${p.id})">✏️ Editar</button>`:''}
-        ${Auth.isAdmin()?`<button class="ped-row-del-btn" onclick="event.stopPropagation();App.eliminarPedido(${p.id})">🗑️</button>`:''}
-      </div>
-    </div>`;
-
-    return `<div class="seg-row ped-row${isUrgente?' seg-row--urg':''}" data-id="${p.id}">
-      <div class="seg-tr">
-        <div class="seg-td seg-td--orden">
-          <span class="seg-orden-num">#${esc(p.orden)}${sufijo}</span>
-          ${p.foto_url?'<span class="seg-foto-ic" title="Tiene foto">📷</span>':''}
-        </div>
-        <div class="seg-td seg-td--paciente">
-          <div class="seg-pac-name">${isUrgente?'<span class="seg-urg-ic">⚡</span>':''}${esc(p.cliente)}</div>
-          <div class="seg-pac-meta">
-            ${p.laboratorio?`<span class="seg-row-lab"><span class="seg-lab-dot-sm" style="background:${labColor}"></span>${esc(p.laboratorio)}</span><span class="seg-sep">·</span>`:''}
-            <span class="seg-row-date">${fecha}</span>
-          </div>
-        </div>
-        <div class="seg-td seg-td--estado" onclick="event.stopPropagation()">
-          <select class="seg-estado-select estado-select ${Pedidos.claseEstado(p.estado)}" data-id="${p.id}" data-prev="${esc(p.estado)}">${opts}</select>
-        </div>
-        <div class="seg-td seg-td--tiempo">
-          <span class="${daysCls}">${cfg.dh}dh</span>
-          <span class="seg-time-label">${timeLabel}</span>
-        </div>
-        <div class="seg-td seg-td--arrow" onclick="event.stopPropagation();App.togglePedidoRow(${p.id})">
-          <span class="ped-row-arrow ${isOpen?'open':''}">›</span>
-        </div>
-      </div>
-      ${detalle}
-    </div>`;
-  }
-
-  function _renderSegPair(pA, pB) {
-    const pairId   = `pair-${pA.orden}`;
-    const isOpen   = _expandedId === pairId;
-    const cfgA     = getCardConfig(pA);
-    const cfgB     = getCardConfig(pB);
-    const dhMax    = Math.max(cfgA.dh, cfgB.dh);
-    const advertencia = cfgA.advertencia || cfgB.advertencia;
-    const BORDER_PRIO = ['rojo','naranja','amarillo','indigo','azul','verde','teal','morado','gris'];
-    const prioA    = BORDER_PRIO.indexOf(cfgA.borderCls);
-    const prioB    = BORDER_PRIO.indexOf(cfgB.borderCls);
-    const worstCfg = prioA <= prioB ? cfgA : cfgB;
-    const urgente  = pA.urgente==='Si' || pB.urgente==='Si';
-    const d        = new Date(pA.fecha_carga);
-    const fecha    = `${d.getDate()}/${d.getMonth()+1}`;
-    const labColor = getLabColor(pA.laboratorio);
-    let daysCls = 'seg-time';
-    if (urgente || advertencia || worstCfg._est?.valor === 'critico') daysCls = 'seg-time seg-time--red';
-    else if (worstCfg._est?.valor === 'demorado') daysCls = 'seg-time seg-time--amber';
-    const timeLabel = (urgente || advertencia) ? 'Demorado' : 'En curso';
-    const ESTADOS = ['Cristales pedidos a lab','Armazón enviado p/calibrado','En laboratorio','Pendiente de retirar','Retirado'];
-    const subRow = (p, color) => {
-      const opts = ESTADOS.map(e=>`<option value="${e}"${e===p.estado?' selected':''}>${e}</option>`).join('');
-      const pcfg = getCardConfig(p);
-      let sdCls = 'seg-d';
-      if (pcfg.advertencia || p._est?.valor==='critico') sdCls='seg-d seg-d--red';
-      else if (p._est?.valor==='demorado') sdCls='seg-d seg-d--amber';
-      return `<div class="ped-pair-sub ped-pair-sub--${color}">
-        <div class="ped-pair-header">
-          <span class="ped-pair-badge ped-pair-badge--${color}">${p.sufijo}</span>
-          ${p.tipo_lente?`<span class="ped-pair-lente-chip">${esc(p.tipo_lente)}</span>`:''}
-          <span class="seg-badge badge--${pcfg.badgeCls}" style="font-size:.6rem;padding:2px 8px">${pcfg.icono} ${pcfg.label}</span>
-          ${p.laboratorio?`<span class="ped-row-lab">${esc(p.laboratorio)}</span>`:''}
-          <span class="ped-pair-spacer"></span>
-          <span class="${sdCls}">${pcfg.dh}dh</span>
-        </div>
-        ${p.graduacion?`<div class="ped-pair-grad">${esc(p.graduacion).replace(/\|/g,' | ')}</div>`:''}
-        ${p.observaciones?`<div class="ped-pair-obs">💬 ${esc(p.observaciones)}</div>`:''}
-        ${_fotoSubRow(p)}
-        <div class="ped-pair-actions">
-          <select class="estado-select ${Pedidos.claseEstado(p.estado)} estado-select-inline" data-id="${p.id}" data-prev="${esc(p.estado)}" onclick="event.stopPropagation()">${opts}</select>
-          ${Auth.isAdmin()?`<button class="ped-row-edit-btn" onclick="event.stopPropagation();App._abrirDetalleRapido(${p.id})">✏️</button>`:''}
-          ${Auth.isAdmin()?`<button class="ped-row-del-btn" onclick="event.stopPropagation();App.eliminarPedido(${p.id})">🗑️</button>`:''}
-        </div>
-      </div>`;
-    };
-
-    return `<div class="seg-row ped-row ped-row--pair${urgente?' seg-row--urg':''}" data-pair-id="${pairId}">
-      <div class="seg-tr">
-        <div class="seg-td seg-td--orden"><span class="seg-orden-num">#${esc(pA.orden)}</span></div>
-        <div class="seg-td seg-td--paciente">
-          <div class="seg-pac-name">${urgente?'<span class="seg-urg-ic">⚡</span>':''}${esc(pA.cliente)}</div>
-          <div class="seg-pac-meta">
-            ${pA.laboratorio?`<span class="seg-row-lab"><span class="seg-lab-dot-sm" style="background:${labColor}"></span>${esc(pA.laboratorio)}</span><span class="seg-sep">·</span>`:''}
-            <span class="seg-row-date">${fecha}</span>
-            <span class="ped-pair-ab-badge" style="margin-left:4px">A · B</span>
-          </div>
-        </div>
-        <div class="seg-td seg-td--estado" onclick="event.stopPropagation()">
-          <span class="seg-badge badge--${worstCfg.badgeCls}">${worstCfg.label}</span>
-        </div>
-        <div class="seg-td seg-td--tiempo">
-          <span class="${daysCls}">${dhMax}dh</span>
-          <span class="seg-time-label">${timeLabel}</span>
-        </div>
-        <div class="seg-td seg-td--arrow" onclick="event.stopPropagation();App.togglePedidoRow('${pairId}')">
-          <span class="ped-row-arrow ${isOpen?'open':''}">›</span>
-        </div>
-      </div>
-      <div class="ped-row-detail ${isOpen?'':'hidden'}" onclick="event.stopPropagation()">
-        ${subRow(pA,'azul')}${subRow(pB,'teal')}
-      </div>
-    </div>`;
-  }
-
-  function groupPedidos(list) {
-    const result = [], seen = new Set();
-    for (const p of list) {
-      if (seen.has(p.id)) continue;
-      if (p.sufijo === 'A') {
-        const b = list.find(x => x.orden === p.orden && x.sufijo === 'B' && !seen.has(x.id));
-        if (b) { result.push({ type:'pair', a:p, b }); seen.add(p.id); seen.add(b.id); continue; }
-      } else if (p.sufijo === 'B') {
-        const a = list.find(x => x.orden === p.orden && x.sufijo === 'A' && !seen.has(x.id));
-        if (a) { result.push({ type:'pair', a, b:p }); seen.add(a.id); seen.add(p.id); continue; }
-      }
-      result.push({ type:'single', p }); seen.add(p.id);
-    }
-    return result;
-  }
-
-  function _fotoDetalle(p) {
-    const isAdmin = Auth.isAdmin();
-    if (p.foto_url) {
-      const adminBtns = isAdmin
-        ? `<button class="btn-foto-sm btn-foto-cambiar" onclick="event.stopPropagation();App.cambiarFoto(${p.id})">🔄 Cambiar</button>
-           <button class="btn-foto-sm btn-foto-del" onclick="event.stopPropagation();App.eliminarFotoConfirm(${p.id})">🗑</button>`
-        : '';
-      return `<div class="prd-item prd-item--full"><span class="prd-label">Foto</span>
-        <div class="foto-detalle-wrap">
-          <img class="foto-thumb" src="${esc(p.foto_url)}" alt="Foto" loading="lazy" onclick="event.stopPropagation();App.abrirFotoViewer(${p.id})">
-          <div class="foto-detalle-btns">
-            <button class="btn-foto-sm" onclick="event.stopPropagation();App.abrirFotoViewer(${p.id})">👁 Ver</button>
-            ${adminBtns}
-          </div>
-        </div></div>`;
-    }
-    return `<div class="prd-item prd-item--full"><span class="prd-label">Foto</span>
-      <button class="btn-foto-upload-inline" onclick="event.stopPropagation();App.uploadFotoExistente(${p.id})">📷 Adjuntar foto</button></div>`;
-  }
-
-  function _fotoSubRow(p) {
-    const isAdmin = Auth.isAdmin();
-    if (p.foto_url) {
-      const adminBtns = isAdmin
-        ? `<button class="btn-foto-sm btn-foto-cambiar" onclick="event.stopPropagation();App.cambiarFoto(${p.id})">🔄</button>
-           <button class="btn-foto-sm btn-foto-del" onclick="event.stopPropagation();App.eliminarFotoConfirm(${p.id})">🗑</button>`
-        : '';
-      return `<div class="foto-sub-wrap">
-        <img class="foto-thumb foto-thumb--sm" src="${esc(p.foto_url)}" alt="Foto" loading="lazy" onclick="event.stopPropagation();App.abrirFotoViewer(${p.id})">
-        ${adminBtns}</div>`;
-    }
-    return `<button class="btn-foto-upload-inline btn-foto-upload-inline--sm" onclick="event.stopPropagation();App.uploadFotoExistente(${p.id})">📷 Foto</button>`;
-  }
-
-  function renderCompactRow(p) {
-    const sufijo = p.sufijo ? `-${p.sufijo}` : '';
-    const isOpen = _expandedId === p.id;
-    const cfg    = getCardConfig(p);
-    const ESTADOS = ['Cristales pedidos a lab','Armazón enviado p/calibrado','En laboratorio','Pendiente de retirar','Retirado'];
-    const opts   = ESTADOS.map(e=>`<option value="${e}"${e===p.estado?' selected':''}>${e}</option>`).join('');
-    const scls   = Pedidos.claseEstado(p.estado);
-    const fechaCorta = new Date(p.fecha_carga).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'});
-    const daysBadge = cfg.advertencia ? `<span class="ped-warning-badge">⚠️ ${cfg.dh}dh</span>` : `<span class="ped-days-badge">${cfg.dh}dh</span>`;
-    const urgenteBadge = p.urgente==='Si' && p.estado !== 'Retirado' ? '<span class="ped-urgente-chip">⚡ URGENTE</span>' : '';
-    const promBadge = (() => {
-      if (!p.fecha_prometida || p.estado === 'Retirado') return '';
-      const hoy = new Date(); hoy.setHours(0,0,0,0);
-      const prom = new Date(p.fecha_prometida + 'T00:00:00');
-      const diff = Math.floor((prom - hoy) / (1000*60*60*24));
-      const str  = prom.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'});
-      return diff >= 0
-        ? `<span class="ped-days-badge" style="color:#16A34A;background:#DCFCE7">📅 ${str}</span>`
-        : `<span class="ped-warning-badge">📅 ${str}</span>`;
-    })();
-    const detalle = `
-      <div class="ped-row-detail ${isOpen?'':'hidden'}" onclick="event.stopPropagation()">
-        <div class="ped-row-detail-grid">
-          ${p.laboratorio?`<div class="prd-item"><span class="prd-label">Lab</span><span class="prd-val">${esc(p.laboratorio)}</span></div>`:''}
-          ${p.tipo_lente ?`<div class="prd-item"><span class="prd-label">Lente</span><span class="prd-val">${esc(p.tipo_lente)}</span></div>`:''}
-          ${p.tratamiento?`<div class="prd-item"><span class="prd-label">Tratamiento</span><span class="prd-val">${esc(p.tratamiento)}</span></div>`:''}
-          ${p.tipo       ?`<div class="prd-item"><span class="prd-label">Tipo</span><span class="prd-val">${esc(p.tipo)}</span></div>`:''}
-          ${p.dos_etapas==='Si'?`<div class="prd-item"><span class="prd-label">Etapas</span><span class="prd-val">2 etapas</span></div>`:''}
-          ${p.graduacion ?`<div class="prd-item prd-item--full"><span class="prd-label">Graduación</span><span class="prd-val" style="font-family:var(--font-mono);font-size:.8rem">${esc(p.graduacion).replace(/\|/g,' | ')}</span></div>`:''}
-          ${p.armazon    ?`<div class="prd-item prd-item--full"><span class="prd-label">Armazón</span><span class="prd-val">${esc(p.armazon)}</span></div>`:''}
-          ${p.observaciones?`<div class="prd-item prd-item--full"><span class="prd-label">Observaciones</span><span class="prd-val" style="font-style:italic;color:var(--gris-texto)">${esc(p.observaciones)}</span></div>`:''}
-          <div class="prd-item"><span class="prd-label">Estado inteligente</span><span class="prd-val">${p._est.texto}</span></div>
-          ${p.fecha_prometida ? (() => {
-            const hoy = new Date(); hoy.setHours(0,0,0,0);
-            const prom = new Date(p.fecha_prometida + 'T00:00:00');
-            const ok   = prom >= hoy;
-            const str  = prom.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'});
-            return `<div class="prd-item"><span class="prd-label">Fecha prometida</span><span class="prd-val" style="font-weight:600;color:${ok?'#16A34A':'#DC2626'}">📅 ${str}</span></div>`;
-          })() : ''}
-          <div class="prd-item"><span class="prd-label">Cargado por</span><span class="prd-val">${esc(p.cargado_por||'—')}</span></div>
-          ${_fotoDetalle(p)}
-        </div>
-        <div class="ped-row-detail-actions">
-          <select class="estado-select ${scls} estado-select-inline" data-id="${p.id}" data-prev="${esc(p.estado)}" onclick="event.stopPropagation()">${opts}</select>
-          ${Auth.isAdmin()?`<button class="ped-row-edit-btn" onclick="event.stopPropagation();App._abrirDetalleRapido(${p.id})">✏️ Editar</button>`:''}
-          ${Auth.isAdmin()?`<button class="ped-row-del-btn" onclick="event.stopPropagation();App.eliminarPedido(${p.id})">🗑️</button>`:''}
-        </div>
-      </div>`;
-    return `<div class="ped-row ped-card ped-card--${cfg.borderCls}" data-id="${p.id}" onclick="App.togglePedidoRow(${p.id})">
-      <div class="ped-card-main">
-        <div class="ped-card-top-row">
-          <span class="ped-status-badge badge--${cfg.badgeCls}">${cfg.icono} ${cfg.label}</span>
-          <div class="ped-card-indicators">${urgenteBadge}${daysBadge}<span class="ped-row-arrow ${isOpen?'open':''}">›</span></div>
-        </div>
-        <div class="ped-card-cliente">${esc(p.cliente)}</div>
-        <div class="ped-card-meta">
-          <span class="ped-card-orden">#${esc(p.orden)}${sufijo}</span>
-          ${p.laboratorio?`<span class="meta-dot">·</span><span>${esc(p.laboratorio)}</span>`:''}
-          <span class="meta-dot">·</span><span>${fechaCorta}</span>
-          ${promBadge ? `<span class="meta-dot">·</span>${promBadge}` : ''}
-          ${p.foto_url ? '<span class="meta-dot">·</span><span style="font-size:.72rem">📷</span>' : ''}
-        </div>
-      </div>
-      ${detalle}
-    </div>`;
-  }
-
-  function renderPairedRow(pA, pB) {
-    const pairId = `pair-${pA.orden}`;
-    const isOpen = _expandedId === pairId;
-    const cfgA   = getCardConfig(pA);
-    const cfgB   = getCardConfig(pB);
-    const BORDER_PRIO = ['rojo','naranja','amarillo','indigo','azul','verde','teal','morado','gris'];
-    const prioA = BORDER_PRIO.indexOf(cfgA.borderCls);
-    const prioB = BORDER_PRIO.indexOf(cfgB.borderCls);
-    const borderCls = BORDER_PRIO[Math.min(prioA < 0 ? 99 : prioA, prioB < 0 ? 99 : prioB)] || 'gris';
-    const worstCfg  = (prioA <= prioB ? prioA : prioB) === prioA ? cfgA : cfgB;
-    const ambosRetirados = pA.estado === 'Retirado' && pB.estado === 'Retirado';
-    const urgente    = (pA.urgente==='Si' || pB.urgente==='Si') && !ambosRetirados;
-    const dhMax      = Math.max(cfgA.dh, cfgB.dh);
-    const advertencia = cfgA.advertencia || cfgB.advertencia;
-    const fechaCorta  = new Date(pA.fecha_carga).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'});
-    const ESTADOS = ['Cristales pedidos a lab','Armazón enviado p/calibrado','En laboratorio','Pendiente de retirar','Retirado'];
-    const daysBadge = advertencia ? `<span class="ped-warning-badge">⚠️ ${dhMax}dh</span>` : `<span class="ped-days-badge">${dhMax}dh</span>`;
-    const subRow = (p, color) => {
-      const opts = ESTADOS.map(e=>`<option value="${e}"${e===p.estado?' selected':''}>${e}</option>`).join('');
-      const scls = Pedidos.claseEstado(p.estado);
-      const pcfg = getCardConfig(p);
-      return `<div class="ped-pair-sub ped-pair-sub--${color}">
-        <div class="ped-pair-header">
-          <span class="ped-pair-badge ped-pair-badge--${color}">${p.sufijo}</span>
-          ${p.tipo_lente?`<span class="ped-pair-lente-chip">${esc(p.tipo_lente)}</span>`:''}
-          <span class="ped-status-badge badge--${pcfg.badgeCls}" style="font-size:.6rem;padding:2px 8px">${pcfg.icono} ${pcfg.label}</span>
-          ${p.laboratorio?`<span class="ped-row-lab">${esc(p.laboratorio)}</span>`:''}
-          <span class="ped-pair-spacer"></span>
-          ${(() => {
-            if (!p.fecha_prometida || p.estado === 'Retirado')
-              return pcfg.advertencia ? `<span class="ped-warning-badge">⚠️ ${pcfg.dh}dh</span>` : `<span class="ped-days-badge">${pcfg.dh}dh</span>`;
-            const hoy = new Date(); hoy.setHours(0,0,0,0);
-            const prom = new Date(p.fecha_prometida + 'T00:00:00');
-            const diff = Math.floor((prom - hoy) / (1000*60*60*24));
-            const str  = prom.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'});
-            return diff >= 0
-              ? `<span class="ped-days-badge" style="color:#16A34A;background:#DCFCE7">📅 ${str}</span>`
-              : `<span class="ped-warning-badge">📅 ${str}</span>`;
-          })()}
-        </div>
-        ${p.graduacion?`<div class="ped-pair-grad">${esc(p.graduacion).replace(/\|/g,' | ')}</div>`:''}
-        ${p.observaciones?`<div class="ped-pair-obs">💬 ${esc(p.observaciones)}</div>`:''}
-        ${_fotoSubRow(p)}
-        <div class="ped-pair-actions">
-          <select class="estado-select ${scls} estado-select-inline" data-id="${p.id}" data-prev="${esc(p.estado)}" onclick="event.stopPropagation()">${opts}</select>
-          ${Auth.isAdmin()?`<button class="ped-row-edit-btn" onclick="event.stopPropagation();App._abrirDetalleRapido(${p.id})">✏️</button>`:''}
-          ${Auth.isAdmin()?`<button class="ped-row-del-btn" onclick="event.stopPropagation();App.eliminarPedido(${p.id})">🗑️</button>`:''}
-        </div>
-      </div>`;
-    };
-    const tienenFoto = pA.foto_url || pB.foto_url;
-    return `<div class="ped-row ped-card ped-card--${borderCls} ped-row--pair" data-pair-id="${pairId}" onclick="App.togglePedidoRow('${pairId}')">
-      <div class="ped-card-main">
-        <div class="ped-card-top-row">
-          <span class="ped-status-badge badge--${worstCfg.badgeCls}">${worstCfg.icono} ${worstCfg.label}</span>
-          <div class="ped-card-indicators">
-            ${urgente?'<span class="ped-urgente-chip">⚡ URGENTE</span>':''}
-            ${daysBadge}
-            <span class="ped-pair-ab-badge">A · B</span>
-            <span class="ped-row-arrow ${isOpen?'open':''}">›</span>
-          </div>
-        </div>
-        <div class="ped-card-cliente">${esc(pA.cliente)}</div>
-        <div class="ped-card-meta">
-          <span class="ped-card-orden">#${esc(pA.orden)}</span>
-          <span class="meta-dot">·</span><span>${fechaCorta}</span>
-          ${tienenFoto ? '<span class="meta-dot">·</span><span style="font-size:.72rem">📷</span>' : ''}
-        </div>
-      </div>
-      <div class="ped-row-detail ${isOpen?'':'hidden'}" onclick="event.stopPropagation()">
-        ${subRow(pA,'azul')}${subRow(pB,'teal')}
-      </div>
-    </div>`;
-  }
-
-  function switchSegTab(tab) {
-    _segTab=tab;
-    document.querySelectorAll('.seg-tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===tab));
-    document.getElementById('seg-content-lab').classList.toggle('hidden',tab!=='lab');
-    document.getElementById('seg-content-retirar').classList.toggle('hidden',tab!=='retirar');
   }
 
   function mesLabel(d) { return d.toLocaleDateString('es-AR',{month:'long',year:'numeric'}).replace(/^\w/,c=>c.toUpperCase()); }
@@ -1567,7 +1461,6 @@ const App = (() => {
           if (est==='Retirado'&&p) enviarNotificacion('✅ Retirado — OLVISIÓN',`#${p.orden} de ${p.cliente}`,false);
           _pedidosCache=await Pedidos.getTodosPedidos();
           if (_currentScreen==='pedidos') renderPedidosList();
-          if (_currentScreen==='seguimiento') { _renderSegKPIs(_pedidosCache); _renderSegChips(_pedidosCache); _renderSeguimientoFiltered(); }
           updateBadge();
         } catch(err){
           toast(`Error: ${err.message}`,'error');
@@ -1672,7 +1565,6 @@ const App = (() => {
             </div></div>`
         : `<button type="button" class="btn btn-secondary btn-full" style="border-style:dashed" onclick="App.uploadFotoExistente(${p.id})">📷 Adjuntar foto del pedido</button>`;
 
-      // Campos PAMI en edición
       const pamiSection = p.obra_social === 'PAMI' ? `
         <div class="form-section"><div class="form-section-title">PAMI</div>
           <div class="form-group"><label class="form-label">N° de afiliado</label>
@@ -1748,7 +1640,6 @@ const App = (() => {
         armazon:document.getElementById('e-armazon')?.value.trim()||null,
         observaciones:document.getElementById('e-observaciones')?.value.trim()||null,
         estado:nuevoEstado,
-        // Campos PAMI (si existen en el formulario de edición)
         numero_afiliado:document.getElementById('e-num-afiliado')?.value.trim()||null,
         tipo_trabajo_pami:document.getElementById('e-tipo-trabajo-pami')?.value||null,
         diferencia_pami:document.getElementById('e-diferencia-pami')?.value||null,
@@ -1966,7 +1857,6 @@ const App = (() => {
         fecha_prometida:document.getElementById('f-fecha-prometida')?.value||null,
         celular:g('f-cliente-cel'), dni:g('f-cliente-dni'),
         obra_social: obraSocial || null,
-        // Campos PAMI — solo se capturan si la obra social es PAMI
         numero_afiliado:   obraSocial === 'PAMI' ? (g('f-num-afiliado')  || null) : null,
         tipo_trabajo_pami: obraSocial === 'PAMI' ? (g('f-tipo-trabajo-pami') || null) : null,
         diferencia_pami:   obraSocial === 'PAMI' ? (g('f-diferencia-pami')   || null) : null,
@@ -2112,7 +2002,6 @@ const App = (() => {
       ? `<div class="modal-row"><span class="modal-label">${label}</span><span class="modal-value">${esc(String(val))}</span></div>`
       : '';
 
-    // Datos base
     let html = rf('Cliente', data.base.cliente)
       + rf('Orden', data.doble ? `${data.base.orden}-A / -B` : data.base.orden)
       + rf('Tipo', data.base.tipo)
@@ -2121,7 +2010,6 @@ const App = (() => {
       + rf('Fecha prometida', data.base.fecha_prometida)
       + rf('Obra social', data.base.obra_social);
 
-    // Datos PAMI si corresponde
     if (data.base.obra_social === 'PAMI') {
       html += rf('N° afiliado', data.base.numero_afiliado)
            +  rf('Tipo de trabajo', data.base.tipo_trabajo_pami)
@@ -2224,7 +2112,6 @@ const App = (() => {
         fecha_carga:      fechaISO,
         fecha_pedido:     fechaISO,
         fecha_prometida:  data.base.fecha_prometida || null,
-        // Campos obra social / PAMI
         obra_social:      data.base.obra_social      || null,
         numero_afiliado:  data.base.numero_afiliado  || null,
         tipo_trabajo_pami:data.base.tipo_trabajo_pami|| null,
@@ -2264,7 +2151,6 @@ const App = (() => {
     _pendingGuardar=null;
     _ordenUltimaQuery = '';
     _renderOrdenStatus('idle');
-    // Limpiar PAMI
     document.getElementById('pami-extra-fields')?.classList.add('hidden');
     ['f-num-afiliado','f-tipo-trabajo-pami','f-diferencia-pami'].forEach(id => {
       const el = document.getElementById(id); if (el) el.value = '';
@@ -2380,7 +2266,6 @@ const App = (() => {
     if (osEl && cl.obra_social) {
       await _cargarObrasSocialesForm();
       osEl.value = cl.obra_social;
-      // Mostrar/ocultar campos PAMI automáticamente
       onObraSocialChange(cl.obra_social);
     }
     const chipNombre = document.getElementById('cliente-chip-nombre');
@@ -2417,6 +2302,199 @@ const App = (() => {
     if (typeof abrirFormCliente === 'function') abrirFormCliente();
   }
 
+  // ── Render helpers para historial ─────────────────
+  function groupPedidos(list) {
+    const result = [], seen = new Set();
+    for (const p of list) {
+      if (seen.has(p.id)) continue;
+      if (p.sufijo === 'A') {
+        const b = list.find(x => x.orden === p.orden && x.sufijo === 'B' && !seen.has(x.id));
+        if (b) { result.push({ type:'pair', a:p, b }); seen.add(p.id); seen.add(b.id); continue; }
+      } else if (p.sufijo === 'B') {
+        const a = list.find(x => x.orden === p.orden && x.sufijo === 'A' && !seen.has(x.id));
+        if (a) { result.push({ type:'pair', a, b:p }); seen.add(a.id); seen.add(p.id); continue; }
+      }
+      result.push({ type:'single', p }); seen.add(p.id);
+    }
+    return result;
+  }
+
+  function _fotoDetalle(p) {
+    const isAdmin = Auth.isAdmin();
+    if (p.foto_url) {
+      const adminBtns = isAdmin
+        ? `<button class="btn-foto-sm btn-foto-cambiar" onclick="event.stopPropagation();App.cambiarFoto(${p.id})">🔄 Cambiar</button>
+           <button class="btn-foto-sm btn-foto-del" onclick="event.stopPropagation();App.eliminarFotoConfirm(${p.id})">🗑</button>`
+        : '';
+      return `<div class="prd-item prd-item--full"><span class="prd-label">Foto</span>
+        <div class="foto-detalle-wrap">
+          <img class="foto-thumb" src="${esc(p.foto_url)}" alt="Foto" loading="lazy" onclick="event.stopPropagation();App.abrirFotoViewer(${p.id})">
+          <div class="foto-detalle-btns">
+            <button class="btn-foto-sm" onclick="event.stopPropagation();App.abrirFotoViewer(${p.id})">👁 Ver</button>
+            ${adminBtns}
+          </div>
+        </div></div>`;
+    }
+    return `<div class="prd-item prd-item--full"><span class="prd-label">Foto</span>
+      <button class="btn-foto-upload-inline" onclick="event.stopPropagation();App.uploadFotoExistente(${p.id})">📷 Adjuntar foto</button></div>`;
+  }
+
+  function _fotoSubRow(p) {
+    const isAdmin = Auth.isAdmin();
+    if (p.foto_url) {
+      const adminBtns = isAdmin
+        ? `<button class="btn-foto-sm btn-foto-cambiar" onclick="event.stopPropagation();App.cambiarFoto(${p.id})">🔄</button>
+           <button class="btn-foto-sm btn-foto-del" onclick="event.stopPropagation();App.eliminarFotoConfirm(${p.id})">🗑</button>`
+        : '';
+      return `<div class="foto-sub-wrap">
+        <img class="foto-thumb foto-thumb--sm" src="${esc(p.foto_url)}" alt="Foto" loading="lazy" onclick="event.stopPropagation();App.abrirFotoViewer(${p.id})">
+        ${adminBtns}</div>`;
+    }
+    return `<button class="btn-foto-upload-inline btn-foto-upload-inline--sm" onclick="event.stopPropagation();App.uploadFotoExistente(${p.id})">📷 Foto</button>`;
+  }
+
+  function renderCompactRow(p) {
+    const sufijo = p.sufijo ? `-${p.sufijo}` : '';
+    const isOpen = _expandedId === p.id;
+    const cfg    = getCardConfig(p);
+    const ESTADOS = ['Cristales pedidos a lab','Armazón enviado p/calibrado','En laboratorio','Pendiente de retirar','Retirado'];
+    const opts   = ESTADOS.map(e=>`<option value="${e}"${e===p.estado?' selected':''}>${e}</option>`).join('');
+    const scls   = Pedidos.claseEstado(p.estado);
+    const fechaCorta = new Date(p.fecha_carga).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'});
+    const daysBadge = cfg.advertencia ? `<span class="ped-warning-badge">⚠️ ${cfg.dh}dh</span>` : `<span class="ped-days-badge">${cfg.dh}dh</span>`;
+    const urgenteBadge = p.urgente==='Si' && p.estado !== 'Retirado' ? '<span class="ped-urgente-chip">⚡ URGENTE</span>' : '';
+    const promBadge = (() => {
+      if (!p.fecha_prometida || p.estado === 'Retirado') return '';
+      const hoy = new Date(); hoy.setHours(0,0,0,0);
+      const prom = new Date(p.fecha_prometida + 'T00:00:00');
+      const diff = Math.floor((prom - hoy) / (1000*60*60*24));
+      const str  = prom.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'});
+      return diff >= 0
+        ? `<span class="ped-days-badge" style="color:#16A34A;background:#DCFCE7">📅 ${str}</span>`
+        : `<span class="ped-warning-badge">📅 ${str}</span>`;
+    })();
+    const detalle = `
+      <div class="ped-row-detail ${isOpen?'':'hidden'}" onclick="event.stopPropagation()">
+        <div class="ped-row-detail-grid">
+          ${p.laboratorio?`<div class="prd-item"><span class="prd-label">Lab</span><span class="prd-val">${esc(p.laboratorio)}</span></div>`:''}
+          ${p.tipo_lente ?`<div class="prd-item"><span class="prd-label">Lente</span><span class="prd-val">${esc(p.tipo_lente)}</span></div>`:''}
+          ${p.tratamiento?`<div class="prd-item"><span class="prd-label">Tratamiento</span><span class="prd-val">${esc(p.tratamiento)}</span></div>`:''}
+          ${p.tipo       ?`<div class="prd-item"><span class="prd-label">Tipo</span><span class="prd-val">${esc(p.tipo)}</span></div>`:''}
+          ${p.dos_etapas==='Si'?`<div class="prd-item"><span class="prd-label">Etapas</span><span class="prd-val">2 etapas</span></div>`:''}
+          ${p.graduacion ?`<div class="prd-item prd-item--full"><span class="prd-label">Graduación</span><span class="prd-val" style="font-family:var(--font-mono);font-size:.8rem">${esc(p.graduacion).replace(/\|/g,' | ')}</span></div>`:''}
+          ${p.armazon    ?`<div class="prd-item prd-item--full"><span class="prd-label">Armazón</span><span class="prd-val">${esc(p.armazon)}</span></div>`:''}
+          ${p.observaciones?`<div class="prd-item prd-item--full"><span class="prd-label">Observaciones</span><span class="prd-val" style="font-style:italic;color:var(--gris-texto)">${esc(p.observaciones)}</span></div>`:''}
+          <div class="prd-item"><span class="prd-label">Estado inteligente</span><span class="prd-val">${p._est.texto}</span></div>
+          ${p.fecha_prometida ? (() => {
+            const hoy = new Date(); hoy.setHours(0,0,0,0);
+            const prom = new Date(p.fecha_prometida + 'T00:00:00');
+            const ok   = prom >= hoy;
+            const str  = prom.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'});
+            return `<div class="prd-item"><span class="prd-label">Fecha prometida</span><span class="prd-val" style="font-weight:600;color:${ok?'#16A34A':'#DC2626'}">📅 ${str}</span></div>`;
+          })() : ''}
+          <div class="prd-item"><span class="prd-label">Cargado por</span><span class="prd-val">${esc(p.cargado_por||'—')}</span></div>
+          ${_fotoDetalle(p)}
+        </div>
+        <div class="ped-row-detail-actions">
+          <select class="estado-select ${scls} estado-select-inline" data-id="${p.id}" data-prev="${esc(p.estado)}" onclick="event.stopPropagation()">${opts}</select>
+          ${Auth.isAdmin()?`<button class="ped-row-edit-btn" onclick="event.stopPropagation();App._abrirDetalleRapido(${p.id})">✏️ Editar</button>`:''}
+          ${Auth.isAdmin()?`<button class="ped-row-del-btn" onclick="event.stopPropagation();App.eliminarPedido(${p.id})">🗑️</button>`:''}
+        </div>
+      </div>`;
+    return `<div class="ped-row ped-card ped-card--${cfg.borderCls}" data-id="${p.id}" onclick="App.togglePedidoRow(${p.id})">
+      <div class="ped-card-main">
+        <div class="ped-card-top-row">
+          <span class="ped-status-badge badge--${cfg.badgeCls}">${cfg.icono} ${cfg.label}</span>
+          <div class="ped-card-indicators">${urgenteBadge}${daysBadge}<span class="ped-row-arrow ${isOpen?'open':''}">›</span></div>
+        </div>
+        <div class="ped-card-cliente">${esc(p.cliente)}</div>
+        <div class="ped-card-meta">
+          <span class="ped-card-orden">#${esc(p.orden)}${sufijo}</span>
+          ${p.laboratorio?`<span class="meta-dot">·</span><span>${esc(p.laboratorio)}</span>`:''}
+          <span class="meta-dot">·</span><span>${fechaCorta}</span>
+          ${promBadge ? `<span class="meta-dot">·</span>${promBadge}` : ''}
+          ${p.foto_url ? '<span class="meta-dot">·</span><span style="font-size:.72rem">📷</span>' : ''}
+        </div>
+      </div>
+      ${detalle}
+    </div>`;
+  }
+
+  function renderPairedRow(pA, pB) {
+    const pairId = `pair-${pA.orden}`;
+    const isOpen = _expandedId === pairId;
+    const cfgA   = getCardConfig(pA);
+    const cfgB   = getCardConfig(pB);
+    const BORDER_PRIO = ['rojo','naranja','amarillo','indigo','azul','verde','teal','morado','gris'];
+    const prioA = BORDER_PRIO.indexOf(cfgA.borderCls);
+    const prioB = BORDER_PRIO.indexOf(cfgB.borderCls);
+    const borderCls = BORDER_PRIO[Math.min(prioA < 0 ? 99 : prioA, prioB < 0 ? 99 : prioB)] || 'gris';
+    const worstCfg  = (prioA <= prioB ? prioA : prioB) === prioA ? cfgA : cfgB;
+    const ambosRetirados = pA.estado === 'Retirado' && pB.estado === 'Retirado';
+    const urgente    = (pA.urgente==='Si' || pB.urgente==='Si') && !ambosRetirados;
+    const dhMax      = Math.max(cfgA.dh, cfgB.dh);
+    const advertencia = cfgA.advertencia || cfgB.advertencia;
+    const fechaCorta  = new Date(pA.fecha_carga).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'});
+    const ESTADOS = ['Cristales pedidos a lab','Armazón enviado p/calibrado','En laboratorio','Pendiente de retirar','Retirado'];
+    const daysBadge = advertencia ? `<span class="ped-warning-badge">⚠️ ${dhMax}dh</span>` : `<span class="ped-days-badge">${dhMax}dh</span>`;
+    const subRow = (p, color) => {
+      const opts = ESTADOS.map(e=>`<option value="${e}"${e===p.estado?' selected':''}>${e}</option>`).join('');
+      const scls = Pedidos.claseEstado(p.estado);
+      const pcfg = getCardConfig(p);
+      return `<div class="ped-pair-sub ped-pair-sub--${color}">
+        <div class="ped-pair-header">
+          <span class="ped-pair-badge ped-pair-badge--${color}">${p.sufijo}</span>
+          ${p.tipo_lente?`<span class="ped-pair-lente-chip">${esc(p.tipo_lente)}</span>`:''}
+          <span class="ped-status-badge badge--${pcfg.badgeCls}" style="font-size:.6rem;padding:2px 8px">${pcfg.icono} ${pcfg.label}</span>
+          ${p.laboratorio?`<span class="ped-row-lab">${esc(p.laboratorio)}</span>`:''}
+          <span class="ped-pair-spacer"></span>
+          ${(() => {
+            if (!p.fecha_prometida || p.estado === 'Retirado')
+              return pcfg.advertencia ? `<span class="ped-warning-badge">⚠️ ${pcfg.dh}dh</span>` : `<span class="ped-days-badge">${pcfg.dh}dh</span>`;
+            const hoy = new Date(); hoy.setHours(0,0,0,0);
+            const prom = new Date(p.fecha_prometida + 'T00:00:00');
+            const diff = Math.floor((prom - hoy) / (1000*60*60*24));
+            const str  = prom.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'});
+            return diff >= 0
+              ? `<span class="ped-days-badge" style="color:#16A34A;background:#DCFCE7">📅 ${str}</span>`
+              : `<span class="ped-warning-badge">📅 ${str}</span>`;
+          })()}
+        </div>
+        ${p.graduacion?`<div class="ped-pair-grad">${esc(p.graduacion).replace(/\|/g,' | ')}</div>`:''}
+        ${p.observaciones?`<div class="ped-pair-obs">💬 ${esc(p.observaciones)}</div>`:''}
+        ${_fotoSubRow(p)}
+        <div class="ped-pair-actions">
+          <select class="estado-select ${scls} estado-select-inline" data-id="${p.id}" data-prev="${esc(p.estado)}" onclick="event.stopPropagation()">${opts}</select>
+          ${Auth.isAdmin()?`<button class="ped-row-edit-btn" onclick="event.stopPropagation();App._abrirDetalleRapido(${p.id})">✏️</button>`:''}
+          ${Auth.isAdmin()?`<button class="ped-row-del-btn" onclick="event.stopPropagation();App.eliminarPedido(${p.id})">🗑️</button>`:''}
+        </div>
+      </div>`;
+    };
+    const tienenFoto = pA.foto_url || pB.foto_url;
+    return `<div class="ped-row ped-card ped-card--${borderCls} ped-row--pair" data-pair-id="${pairId}" onclick="App.togglePedidoRow('${pairId}')">
+      <div class="ped-card-main">
+        <div class="ped-card-top-row">
+          <span class="ped-status-badge badge--${worstCfg.badgeCls}">${worstCfg.icono} ${worstCfg.label}</span>
+          <div class="ped-card-indicators">
+            ${urgente?'<span class="ped-urgente-chip">⚡ URGENTE</span>':''}
+            ${daysBadge}
+            <span class="ped-pair-ab-badge">A · B</span>
+            <span class="ped-row-arrow ${isOpen?'open':''}">›</span>
+          </div>
+        </div>
+        <div class="ped-card-cliente">${esc(pA.cliente)}</div>
+        <div class="ped-card-meta">
+          <span class="ped-card-orden">#${esc(pA.orden)}</span>
+          <span class="meta-dot">·</span><span>${fechaCorta}</span>
+          ${tienenFoto ? '<span class="meta-dot">·</span><span style="font-size:.72rem">📷</span>' : ''}
+        </div>
+      </div>
+      <div class="ped-row-detail ${isOpen?'':'hidden'}" onclick="event.stopPropagation()">
+        ${subRow(pA,'azul')}${subRow(pB,'teal')}
+      </div>
+    </div>`;
+  }
+
   // ── UTILS ─────────────────────────────────────────
   function todayStr() { return new Date().toISOString().slice(0,10); }
   function toast(msg,tipo='success') {
@@ -2451,8 +2529,10 @@ const App = (() => {
     abrirFotoViewer, cerrarFotoViewer,
     uploadFotoExistente, cambiarFoto, eliminarFotoConfirm,
     attachNumpadListeners,
-    // Seguimiento
+    // Seguimiento / Kanban
     setLabFilter, onSegSearch, setSeguimientoFilter, toggleSegSection,
+    _abrirKanbanDetalle, _abrirKanbanDetallePair, _cerrarKanbanDetalle,
+    _moverKanbanCard, _moverKanbanPair,
     // Duplicados
     _cerrarModalDuplicado, _confirmarSinImportarDuplicado,
     // PAMI
