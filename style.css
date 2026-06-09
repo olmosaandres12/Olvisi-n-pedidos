@@ -1179,3 +1179,7 @@ body:has(#screen-seguimiento.active) .app-content {
 .kanban-col {
   box-shadow: 0 2px 8px rgba(0,0,0,.08);
 }
+/* Ocultar kanban board cuando no está en pantalla Estado */
+#screen-seguimiento:not(.active) #kanban-board {
+  display: none !important;
+}
