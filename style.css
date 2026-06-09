@@ -1183,3 +1183,12 @@ body:has(#screen-seguimiento.active) .app-content {
 #screen-seguimiento:not(.active) #kanban-board {
   display: none !important;
 }
+/* Fix sidebar — texto visible */
+@media (min-width: 768px) {
+  :root { --sidebar-w: 185px; }
+  .nav-item { padding: 12px 16px; font-size: .85rem; gap: 11px; }
+  .nav-item svg { width: 19px; height: 19px; }
+}
+@media (min-width: 1024px) {
+  :root { --sidebar-w: 195px; }
+}
