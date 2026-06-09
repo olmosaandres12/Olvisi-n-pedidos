@@ -1192,3 +1192,49 @@ body:has(#screen-seguimiento.active) .app-content {
 @media (min-width: 1024px) {
   :root { --sidebar-w: 195px; }
 }
+/* ── Kanban search bar ───────────────────────────── */
+.kanban-search-bar {
+  flex-shrink: 0;
+  padding: 0 0 8px;
+}
+.kanban-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.kanban-search-icon {
+  position: absolute;
+  left: 11px;
+  width: 15px; height: 15px;
+  color: var(--gris-texto);
+  pointer-events: none;
+}
+.kanban-search-input {
+  width: 100%;
+  padding: 9px 36px 9px 34px;
+  border: 1.5px solid var(--gris-borde);
+  border-radius: var(--radius);
+  font-size: .88rem;
+  background: var(--blanco);
+  color: var(--gris-dark);
+  outline: none;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+.kanban-search-input:focus {
+  border-color: var(--azul);
+  box-shadow: 0 0 0 3px rgba(3,66,145,.1);
+}
+.kanban-search-input::placeholder { color: #B0B8C8; }
+.kanban-search-clear {
+  position: absolute;
+  right: 10px;
+  background: none;
+  border: none;
+  color: var(--gris-texto);
+  font-size: .85rem;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  line-height: 1;
+}
+.kanban-search-clear:hover { color: var(--gris-dark); }
