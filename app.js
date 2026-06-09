@@ -716,6 +716,9 @@ const App = (() => {
     if (name==='inicio') { setTimeout(_cargarObrasSocialesForm, 50); }
     const fab=document.getElementById('fab-nuevo-pedido');
     if (fab) fab.style.display=(name==='inicio'||name==='agenda'||name==='pami')?'none':'flex';
+    // Mostrar/ocultar barra de búsqueda kanban solo en Estado
+    const kb = document.getElementById('kanban-search-bar');
+    if (kb) kb.style.display = name==='seguimiento' ? '' : 'none';
   }
 
   // ══════════════════════════════════════════════════
@@ -885,6 +888,7 @@ const App = (() => {
   }
 
   let _kanbanSearchQuery = '';
+  let _historialQuery = '';
 
   function _renderKanban(todos) {
     const screen = document.getElementById('screen-seguimiento');
@@ -1337,6 +1341,15 @@ const App = (() => {
     _kanbanDetalleId = null;
   }
 
+  function _clearHistorialSearch() {
+    _historialQuery = '';
+    const inp = document.getElementById('historial-search-input');
+    if (inp) inp.value = '';
+    const clearBtn = document.getElementById('historial-search-clear');
+    if (clearBtn) clearBtn.classList.add('hidden');
+    renderPedidosList();
+  }
+
   // Stubs para compatibilidad con funciones que el resto del código llama
   function setSeguimientoFilter() { loadSeguimiento(); }
   function setLabFilter()         { loadSeguimiento(); }
@@ -1441,6 +1454,26 @@ const App = (() => {
     skel.style.display='flex'; skel.style.flexDirection='column';
     list.style.display='none'; sub.textContent='Cargando...';
     renderMesNav();
+    // Barra de búsqueda historial
+    if (!document.getElementById('historial-search-bar')) {
+      const screen = document.getElementById('screen-pedidos');
+      if (screen) {
+        const sb = document.createElement('div');
+        sb.id = 'historial-search-bar';
+        sb.className = 'kanban-search-bar';
+        sb.style.marginBottom = '10px';
+        sb.innerHTML = `<div class="kanban-search-wrap"><svg class="kanban-search-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8.5" cy="8.5" r="5.5"/><line x1="13" y1="13" x2="17" y2="17"/></svg><input type="text" id="historial-search-input" class="kanban-search-input" placeholder="Buscar por nombre o número de orden..." autocomplete="off"><button class="kanban-search-clear hidden" id="historial-search-clear" onclick="App._clearHistorialSearch()">✕</button></div>`;
+        const mesNav = screen.querySelector('#mes-nav-container');
+        if (mesNav) mesNav.insertAdjacentElement('afterend', sb);
+        else screen.querySelector('.section-header')?.insertAdjacentElement('afterend', sb);
+        document.getElementById('historial-search-input').addEventListener('input', e => {
+          _historialQuery = e.target.value.trim().toLowerCase();
+          const clearBtn = document.getElementById('historial-search-clear');
+          if (clearBtn) clearBtn.classList.toggle('hidden', !_historialQuery);
+          renderPedidosList();
+        });
+      }
+    }
     try {
       _pedidosCache=await Pedidos.getTodosPedidos();
       skel.style.display='none'; list.style.display='block';
@@ -1463,10 +1496,12 @@ const App = (() => {
     if (!container) return;
     const mesInicio=_mesActual;
     const mesFin=new Date(_mesActual.getFullYear(),_mesActual.getMonth()+1,1);
+    const q = _historialQuery;
     const filtered=_pedidosCache.filter(p=>{
       const fc=new Date(p.fecha_carga);
       if (fc<mesInicio||fc>=mesFin) return false;
       if (_estadoTab!=='todos'&&p.estado!==_estadoTab) return false;
+      if (q && !p.cliente?.toLowerCase().includes(q) && !String(p.orden).includes(q)) return false;
       return true;
     });
     sub.textContent=`${filtered.length} pedido${filtered.length!==1?'s':''}`;
@@ -2591,6 +2626,7 @@ const App = (() => {
     _abrirKanbanDetalle, _abrirKanbanDetallePair, _cerrarKanbanDetalle,
     _moverKanbanCard, _moverKanbanPair,
     _onKanbanSearch, _clearKanbanSearch,
+    _clearHistorialSearch,
     // Duplicados
     _cerrarModalDuplicado, _confirmarSinImportarDuplicado,
     // PAMI
