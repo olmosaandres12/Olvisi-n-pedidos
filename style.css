@@ -1151,3 +1151,31 @@ body:has(#screen-seguimiento.active) .app-content {
 .kdetalle-actions { display: flex; gap: 8px; }
 .kdetalle-edit-btn { flex: 1; padding: 10px; border-radius: var(--radius-sm); background: var(--azul-light); color: var(--azul); font-size: .85rem; font-weight: 600; border: 1px solid #BFD4F5; cursor: pointer; }
 .kdetalle-del-btn { width: 40px; height: 40px; border-radius: var(--radius-sm); background: var(--rojo-bg); color: var(--rojo); border: 1px solid var(--rojo-borde); font-size: .95rem; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+/* ── Kanban visual tweaks ────────────────────────── */
+
+/* Fondo más oscuro cuando está en Estado para que las columnas destaquen */
+body:has(#screen-seguimiento.active) {
+  background: #E2E8F0;
+}
+body:has(#screen-seguimiento.active) .app-content {
+  background: #E2E8F0;
+}
+
+/* Columnas más separadas y que llenen el ancho disponible */
+#kanban-board {
+  gap: 14px;
+  padding: 4px 2px 8px;
+}
+
+/* En desktop las columnas llenan todo el ancho sin máximo */
+@media (min-width: 768px) {
+  .kanban-col {
+    min-width: 0;
+    max-width: none;
+  }
+}
+
+/* Columnas con sombra para que resalten sobre el fondo */
+.kanban-col {
+  box-shadow: 0 2px 8px rgba(0,0,0,.08);
+}
