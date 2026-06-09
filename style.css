@@ -1238,3 +1238,21 @@ body:has(#screen-seguimiento.active) .app-content {
   line-height: 1;
 }
 .kanban-search-clear:hover { color: var(--gris-dark); }
+/* Fix ícono búsqueda kanban */
+.kanban-search-icon {
+  position: absolute !important;
+  left: 11px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 15px !important;
+  height: 15px !important;
+  color: var(--gris-texto);
+  pointer-events: none;
+  flex-shrink: 0;
+}
+
+.kanban-search-bar svg {
+  width: 15px !important;
+  height: 15px !important;
+  max-width: 15px !important;
+}
