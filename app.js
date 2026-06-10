@@ -725,80 +725,218 @@ const App = (() => {
   //  PANTALLA PAMI
   // ══════════════════════════════════════════════════
 
+  let _pamiSearchQuery = '';
+  let _pamiTodosCache  = [];
+
   async function loadPami() {
-    _renderPamiMesNav();
-    const listEl = document.getElementById('pami-list');
+    const listEl  = document.getElementById('pami-list');
     const statsEl = document.getElementById('pami-stats');
+    const kpisEl  = document.getElementById('pami-kpis-globales');
     if (!listEl) return;
 
-    listEl.innerHTML = `<div class="skeleton-card skeleton" style="height:72px;border-radius:12px;margin-bottom:4px"></div>
-      <div class="skeleton-card skeleton" style="height:72px;border-radius:12px;opacity:.6;margin-bottom:4px"></div>`;
+    // Barra de búsqueda
+    if (!document.getElementById('pami-search-bar')) {
+      const screen = document.getElementById('screen-pami');
+      if (screen) {
+        const sb = document.createElement('div');
+        sb.id = 'pami-search-bar';
+        sb.className = 'kanban-search-bar';
+        sb.style.cssText = 'margin:0 0 10px';
+        sb.innerHTML = `<div class="kanban-search-wrap">
+          <svg class="kanban-search-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8">
+            <circle cx="8.5" cy="8.5" r="5.5"/><line x1="13" y1="13" x2="17" y2="17"/>
+          </svg>
+          <input type="text" id="pami-search-input" class="kanban-search-input"
+                 placeholder="Buscar por nombre o número de orden..."
+                 autocomplete="off">
+          <button class="kanban-search-clear hidden" id="pami-search-clear" onclick="App._clearPamiSearch()">✕</button>
+        </div>`;
+        const mesNav = screen.querySelector('#pami-mes-nav');
+        if (mesNav) mesNav.insertAdjacentElement('afterend', sb);
+        document.getElementById('pami-search-input').addEventListener('input', e => {
+          _pamiSearchQuery = e.target.value.trim().toLowerCase();
+          const clearBtn = document.getElementById('pami-search-clear');
+          if (clearBtn) clearBtn.classList.toggle('hidden', !_pamiSearchQuery);
+          _renderPamiLista();
+        });
+      }
+    }
+
+    // Skeletons
+    listEl.innerHTML = `<div class="skeleton-card skeleton" style="height:80px;border-radius:12px;margin-bottom:6px"></div>
+      <div class="skeleton-card skeleton" style="height:80px;border-radius:12px;opacity:.6;margin-bottom:6px"></div>
+      <div class="skeleton-card skeleton" style="height:80px;border-radius:12px;opacity:.3"></div>`;
 
     try {
-      const mesInicio = _mesPami;
-      const mesFin    = new Date(_mesPami.getFullYear(), _mesPami.getMonth() + 1, 1);
-
-      const { data, error } = await window.supabaseClient
+      // Traer TODOS los pedidos PAMI para KPIs globales
+      const { data: todos, error: errTodos } = await window.supabaseClient
         .from('pedidos')
         .select('id, orden, sufijo, cliente, fecha_carga, tipo_trabajo_pami, diferencia_pami, numero_afiliado, estado, laboratorio')
         .eq('obra_social', 'PAMI')
-        .gte('fecha_carga', mesInicio.toISOString())
-        .lt('fecha_carga', mesFin.toISOString())
         .order('fecha_carga', { ascending: false });
+      if (errTodos) throw errTodos;
 
-      if (error) throw error;
+      _pamiTodosCache = todos || [];
 
-      const total    = data.length;
-      const sinCargo = data.filter(p => p.diferencia_pami === 'Sin cargo').length;
-      const conDif   = data.filter(p => p.diferencia_pami === 'Con diferencia').length;
+      // KPIs globales
+      if (kpisEl) {
+        const totalHistorico = _pamiTodosCache.length;
+        const totalSinCargo  = _pamiTodosCache.filter(p => p.diferencia_pami === 'Sin cargo').length;
+        const totalConDif    = _pamiTodosCache.filter(p => p.diferencia_pami === 'Con diferencia').length;
 
-      if (statsEl) {
-        statsEl.innerHTML = `<div class="pami-stats-grid">
-          <div class="pami-stat-card"><div class="pami-stat-val">${total}</div><div class="pami-stat-lbl">Total del mes</div></div>
-          <div class="pami-stat-card pami-stat-card--green"><div class="pami-stat-val">${sinCargo}</div><div class="pami-stat-lbl">Sin cargo</div></div>
-          <div class="pami-stat-card pami-stat-card--amber"><div class="pami-stat-val">${conDif}</div><div class="pami-stat-lbl">Con diferencia</div></div>
+        // Promedio por mes
+        const meses = {};
+        _pamiTodosCache.forEach(p => {
+          const d = new Date(p.fecha_carga);
+          const k = `${d.getFullYear()}-${d.getMonth()}`;
+          meses[k] = (meses[k] || 0) + 1;
+        });
+        const cantMeses = Object.keys(meses).length || 1;
+        const promedio  = (totalHistorico / cantMeses).toFixed(1);
+
+        kpisEl.innerHTML = `<div class="pami-kpis-grid">
+          <div class="pami-kpi-card pami-kpi-card--blue">
+            <div class="pami-kpi-icon">🏥</div>
+            <div class="pami-kpi-val">${totalHistorico}</div>
+            <div class="pami-kpi-lbl">Total histórico</div>
+          </div>
+          <div class="pami-kpi-card pami-kpi-card--indigo">
+            <div class="pami-kpi-icon">📅</div>
+            <div class="pami-kpi-val">${promedio}</div>
+            <div class="pami-kpi-lbl">Promedio / mes</div>
+          </div>
+          <div class="pami-kpi-card pami-kpi-card--green">
+            <div class="pami-kpi-icon">✅</div>
+            <div class="pami-kpi-val">${totalSinCargo}</div>
+            <div class="pami-kpi-lbl">Sin cargo (total)</div>
+          </div>
+          <div class="pami-kpi-card pami-kpi-card--amber">
+            <div class="pami-kpi-icon">💰</div>
+            <div class="pami-kpi-val">${totalConDif}</div>
+            <div class="pami-kpi-lbl">Con diferencia (total)</div>
+          </div>
         </div>`;
       }
 
-      if (!data.length) {
-        listEl.innerHTML = `<div class="empty-state">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
-          <h3>Sin trabajos PAMI</h3>
-          <p>No hay pedidos PAMI en ${mesLabel(_mesPami).toLowerCase()}</p>
-        </div>`;
-        return;
-      }
-
-      listEl.innerHTML = `<div class="pami-list-container">${data.map(p => _renderPamiRow(p)).join('')}</div>`;
+      // Stats y lista del mes seleccionado
+      _renderPamiMesNav();
+      _renderPamiMesStats(statsEl);
+      _renderPamiLista();
 
     } catch(e) {
       listEl.innerHTML = `<div class="empty-state"><p style="color:var(--rojo)">Error: ${esc(e.message)}</p></div>`;
     }
   }
 
+  function _renderPamiMesStats(statsEl) {
+    if (!statsEl) return;
+    const mesInicio = _mesPami;
+    const mesFin    = new Date(_mesPami.getFullYear(), _mesPami.getMonth() + 1, 1);
+    const delMes    = _pamiTodosCache.filter(p => {
+      const fc = new Date(p.fecha_carga);
+      return fc >= mesInicio && fc < mesFin;
+    });
+    const total    = delMes.length;
+    const sinCargo = delMes.filter(p => p.diferencia_pami === 'Sin cargo').length;
+    const conDif   = delMes.filter(p => p.diferencia_pami === 'Con diferencia').length;
+    const activos  = delMes.filter(p => p.estado !== 'Retirado').length;
+
+    statsEl.innerHTML = `<div class="pami-mes-stats">
+      <div class="pami-mes-stat">
+        <span class="pami-mes-stat-val">${total}</span>
+        <span class="pami-mes-stat-lbl">del mes</span>
+      </div>
+      <div class="pami-mes-stat pami-mes-stat--green">
+        <span class="pami-mes-stat-val">${sinCargo}</span>
+        <span class="pami-mes-stat-lbl">sin cargo</span>
+      </div>
+      <div class="pami-mes-stat pami-mes-stat--amber">
+        <span class="pami-mes-stat-val">${conDif}</span>
+        <span class="pami-mes-stat-lbl">con dif.</span>
+      </div>
+      <div class="pami-mes-stat pami-mes-stat--blue">
+        <span class="pami-mes-stat-val">${activos}</span>
+        <span class="pami-mes-stat-lbl">activos</span>
+      </div>
+    </div>`;
+  }
+
+  function _renderPamiLista() {
+    const listEl = document.getElementById('pami-list');
+    if (!listEl) return;
+    const q = _pamiSearchQuery;
+
+    let datos;
+    if (q) {
+      // Búsqueda: ignorar filtro de mes
+      datos = _pamiTodosCache.filter(p =>
+        p.cliente?.toLowerCase().includes(q) ||
+        String(p.orden).includes(q)
+      );
+    } else {
+      const mesInicio = _mesPami;
+      const mesFin    = new Date(_mesPami.getFullYear(), _mesPami.getMonth() + 1, 1);
+      datos = _pamiTodosCache.filter(p => {
+        const fc = new Date(p.fecha_carga);
+        return fc >= mesInicio && fc < mesFin;
+      });
+    }
+
+    if (!datos.length) {
+      listEl.innerHTML = `<div class="empty-state">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+        <h3>${q ? 'Sin resultados' : 'Sin trabajos PAMI'}</h3>
+        <p>${q ? `No hay resultados para "${esc(q)}"` : 'No hay pedidos PAMI en ' + mesLabel(_mesPami).toLowerCase()}</p>
+      </div>`;
+      return;
+    }
+
+    listEl.innerHTML = datos.map(p => _renderPamiRow(p)).join('');
+  }
+
+  function _clearPamiSearch() {
+    _pamiSearchQuery = '';
+    const inp = document.getElementById('pami-search-input');
+    if (inp) inp.value = '';
+    const clearBtn = document.getElementById('pami-search-clear');
+    if (clearBtn) clearBtn.classList.add('hidden');
+    _renderPamiLista();
+  }
+
   function _renderPamiRow(p) {
     const sufijo   = p.sufijo ? `-${p.sufijo}` : '';
     const fecha    = new Date(p.fecha_carga).toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric' });
     const esDif    = p.diferencia_pami === 'Con diferencia';
-    const difBadge = p.diferencia_pami
-      ? `<span class="pami-dif-badge ${esDif ? 'pami-dif-badge--amber' : 'pami-dif-badge--green'}">${p.diferencia_pami}</span>`
-      : '';
-    const tipoBadge = p.tipo_trabajo_pami
-      ? `<span class="pami-tipo-badge">${esc(p.tipo_trabajo_pami)}</span>`
-      : '';
-    const afiliadoTxt = p.numero_afiliado ? `<span class="pami-afiliado">Afil. ${esc(p.numero_afiliado)}</span>` : '';
+    const esSinCargo = p.diferencia_pami === 'Sin cargo';
     const estadoRetirado = p.estado === 'Retirado';
 
-    return `<div class="pami-row">
-      <div class="pami-row-left">
-        <div class="pami-row-cliente">${esc(p.cliente)}</div>
-        <div class="pami-row-meta">
-          <span class="pami-row-orden">#${esc(p.orden)}${sufijo}</span>
-          ${afiliadoTxt}
-          <span class="pami-row-fecha">${fecha}</span>
-          ${estadoRetirado ? '<span class="pami-retirado-ic">✔️</span>' : ''}
+    const estadoColor = {
+      'Cristales pedidos a lab': '#F59E0B', 'Armazón enviado p/calibrado': '#6366F1',
+      'En laboratorio': '#034291', 'Pendiente de retirar': '#10B981', 'Retirado': '#7C3AED',
+    };
+    const color = estadoColor[p.estado] || '#888';
+
+    const difBadge = p.diferencia_pami
+      ? `<span class="pami-dif-badge ${esDif ? 'pami-dif-badge--amber' : 'pami-dif-badge--green'}">${p.diferencia_pami}</span>` : '';
+    const tipoBadge = p.tipo_trabajo_pami
+      ? `<span class="pami-tipo-badge">${esc(p.tipo_trabajo_pami)}</span>` : '';
+    const afiliadoTxt = p.numero_afiliado
+      ? `<span class="pami-afiliado">🪪 ${esc(p.numero_afiliado)}</span>` : '';
+
+    return `<div class="pami-card">
+      <div class="pami-card-left" style="border-left-color:${color}">
+        <div class="pami-card-cliente">${esc(p.cliente)}</div>
+        <div class="pami-card-meta">
+          <span class="pami-card-orden">#${esc(p.orden)}${sufijo}</span>
+          <span class="pami-card-sep">·</span>
+          <span class="pami-card-fecha">${fecha}</span>
+          ${p.laboratorio ? `<span class="pami-card-sep">·</span><span class="pami-card-lab">${esc(p.laboratorio)}</span>` : ''}
         </div>
-        <div class="pami-row-badges">${tipoBadge}${difBadge}</div>
+        ${afiliadoTxt ? `<div class="pami-card-afiliado">${afiliadoTxt}</div>` : ''}
+        <div class="pami-card-badges">
+          ${tipoBadge}${difBadge}
+          <span class="pami-card-estado" style="color:${color}">${estadoRetirado ? '✔️ Retirado' : p.estado}</span>
+        </div>
       </div>
     </div>`;
   }
@@ -813,8 +951,22 @@ const App = (() => {
     </div>`;
   }
 
-  function pamiMesPrev() { _mesPami = new Date(_mesPami.getFullYear(), _mesPami.getMonth() - 1, 1); loadPami(); }
-  function pamiMesNext() { const n = new Date(_mesPami.getFullYear(), _mesPami.getMonth() + 1, 1); if (n > hoy) return; _mesPami = n; loadPami(); }
+  function pamiMesPrev() {
+    _mesPami = new Date(_mesPami.getFullYear(), _mesPami.getMonth() - 1, 1);
+    _renderPamiMesNav();
+    const statsEl = document.getElementById('pami-stats');
+    _renderPamiMesStats(statsEl);
+    _renderPamiLista();
+  }
+  function pamiMesNext() {
+    const n = new Date(_mesPami.getFullYear(), _mesPami.getMonth() + 1, 1);
+    if (n > hoy) return;
+    _mesPami = n;
+    _renderPamiMesNav();
+    const statsEl = document.getElementById('pami-stats');
+    _renderPamiMesStats(statsEl);
+    _renderPamiLista();
+  }
 
   // ══════════════════════════════════════════════════
   //  SEGUIMIENTO / KANBAN
@@ -2633,7 +2785,7 @@ const App = (() => {
     // Duplicados
     _cerrarModalDuplicado, _confirmarSinImportarDuplicado,
     // PAMI
-    onObraSocialChange, loadPami, pamiMesPrev, pamiMesNext,
+    onObraSocialChange, loadPami, pamiMesPrev, pamiMesNext, _clearPamiSearch,
   };
 })();
 
