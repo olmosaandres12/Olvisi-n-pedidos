@@ -100,7 +100,6 @@ function renderListaClientes(clientes) {
     return;
   }
 
-  // Agrupar por primera letra del apellido
   const grupos = {};
   clientes.forEach(c => {
     const letra = (c.apellido || '?')[0].toUpperCase();
@@ -140,9 +139,8 @@ function filtrarAgenda(valor) {
   loadClientes(valor);
 }
 
-// ─── ESTADO INTELIGENTE PARA FICHA (siempre computa, incluso Retirado) ───────
+// ─── ESTADO INTELIGENTE PARA FICHA ───────────────────────────
 function _estInteligenteFicha(p) {
-  // Prioridad: fecha prometida
   if (p.fecha_prometida) {
     const ref  = p.fecha_retiro ? new Date(p.fecha_retiro) : new Date();
     ref.setHours(0,0,0,0);
@@ -152,7 +150,6 @@ function _estInteligenteFicha(p) {
     if (atraso <= 1) return { texto: '⚠️ Demorado', bgColor: '#FEF3C7', textColor: '#92400E' };
     return                  { texto: '🔴 Crítico',  bgColor: '#FEE2E2', textColor: '#991B1B' };
   }
-  // Fallback: límites por laboratorio
   const LIMITES = {
     'Bichara': { ok:2, dem:4 }, 'Sol':     { ok:5, dem:7 },
     'Vitolen': { ok:5, dem:7 }, 'Cristian':{ ok:7, dem:10 },
@@ -248,7 +245,7 @@ function renderFichaCliente(cliente, pedidos) {
         ${cliente.email       ? filaInfo('✉️', 'Email', cliente.email) : ''}
         ${cliente.dni         ? filaInfo('🪪', 'DNI', cliente.dni) : ''}
         ${cliente.obra_social ? filaInfo('🏥', 'Obra social', cliente.obra_social) : ''}
-        ${cliente.medico      ? filaInfo('👨‍⚕️', 'Médico', `Dr. ${cliente.medico}`) : ''}
+        ${cliente.medico      ? filaInfo('👨‍⚕️', 'Médico', 'Dr. ' + cliente.medico) : ''}
         ${cliente.observaciones ? filaInfo('📝', 'Notas', cliente.observaciones) : ''}
       </div>
 
@@ -286,8 +283,7 @@ function cerrarFichaCliente() {
   }, 280);
 }
 
-// ─── GRADUACIÓN HISTÓRICA — helpers ───────────────────────────
-
+// ─── GRADUACIÓN HISTÓRICA ─────────────────────────────────────
 function _gradTablaHistHTML(dc) {
   const id = (campo, ojo) => `g-${dc}-${campo}-${ojo}-h`;
   return `<div class="grad-grid">
@@ -392,7 +388,6 @@ function renderFormCliente(cliente = null) {
 
       ${esEdicion ? `<input type="hidden" id="fc-id" value="${cliente.id}">` : ''}
 
-      <!-- ── Contacto ─────────────────────────────── -->
       <div class="detalle-seccion">
         <div class="detalle-seccion-title">Datos del cliente</div>
 
@@ -452,7 +447,6 @@ function renderFormCliente(cliente = null) {
         </div>
       </div>
 
-      <!-- ── Pedido histórico (solo en nuevo cliente) ── -->
       ${!esEdicion ? `
       <div class="detalle-seccion">
         <div class="detalle-seccion-title" style="cursor:pointer;user-select:none"
@@ -462,19 +456,16 @@ function renderFormCliente(cliente = null) {
         </div>
 
         <div id="bloque-pedido-historico" class="hidden">
-
           <div class="form-row" style="margin-top:12px">
             <div class="form-group">
               <label class="form-label">N° de orden</label>
-              <input type="text" id="fc-ped-orden" class="form-control"
-                     placeholder="12345" inputmode="numeric">
+              <input type="text" id="fc-ped-orden" class="form-control" placeholder="12345" inputmode="numeric">
             </div>
             <div class="form-group">
               <label class="form-label">Fecha</label>
               <input type="date" id="fc-ped-fecha" class="form-control">
             </div>
           </div>
-
           <div class="form-row">
             <div class="form-group">
               <label class="form-label">Tipo de pedido</label>
@@ -493,17 +484,13 @@ function renderFormCliente(cliente = null) {
               </select>
             </div>
           </div>
-
           <div class="form-row">
             <div class="form-group">
               <label class="form-label">Tipo de lente</label>
               <select id="fc-ped-lente" class="form-control">
                 <option value="">— Seleccionar —</option>
-                <option>Monofocal</option>
-                <option>Bifocal</option>
-                <option>Ocupacional</option>
-                <option>Progresivo</option>
-                <option>Teñido</option>
+                <option>Monofocal</option><option>Bifocal</option>
+                <option>Ocupacional</option><option>Progresivo</option><option>Teñido</option>
               </select>
             </div>
             <div class="form-group">
@@ -511,25 +498,18 @@ function renderFormCliente(cliente = null) {
               <input type="text" id="fc-ped-trat" class="form-control" placeholder="AR, Blue, etc.">
             </div>
           </div>
-
           <div class="form-group">
             <label class="form-label">Fecha prometida <span class="form-label-hint">(cuándo iba a estar listo)</span></label>
             <input type="date" id="fc-ped-fecha-prom" class="form-control">
           </div>
-
-          <!-- ── Graduación con tabla igual a pedidos ── -->
           <div class="form-group">
             <label class="form-label">Distancia</label>
             <div class="distancia-tabs" id="dist-tabs-h">
-              <button type="button" class="dist-tab active" data-dist="lejos"
-                      onclick="setDistanciaHist('lejos')">Lejos</button>
-              <button type="button" class="dist-tab" data-dist="cerca"
-                      onclick="setDistanciaHist('cerca')">Cerca</button>
-              <button type="button" class="dist-tab" data-dist="ambos"
-                      onclick="setDistanciaHist('ambos')">Ambos</button>
+              <button type="button" class="dist-tab active" data-dist="lejos" onclick="setDistanciaHist('lejos')">Lejos</button>
+              <button type="button" class="dist-tab" data-dist="cerca" onclick="setDistanciaHist('cerca')">Cerca</button>
+              <button type="button" class="dist-tab" data-dist="ambos" onclick="setDistanciaHist('ambos')">Ambos</button>
             </div>
           </div>
-
           <div class="grad-tabla" id="grad-lejos-h">
             <div class="grad-tabla-title">👁️ Lejos</div>
             ${_gradTablaHistHTML('L')}
@@ -538,13 +518,10 @@ function renderFormCliente(cliente = null) {
             <div class="grad-tabla-title">📖 Cerca</div>
             ${_gradTablaHistHTML('C')}
           </div>
-
           <div class="form-group" style="margin-top:12px">
             <label class="form-label">Armazón</label>
-            <input type="text" id="fc-ped-armazon" class="form-control"
-                   placeholder="Marca, material, color...">
+            <input type="text" id="fc-ped-armazon" class="form-control" placeholder="Marca, material, color...">
           </div>
-
           <div class="form-group">
             <label class="form-label">Estado</label>
             <select id="fc-ped-estado" class="form-control">
@@ -554,15 +531,12 @@ function renderFormCliente(cliente = null) {
               <option value="Cristales pedidos a lab">Cristales pedidos a lab</option>
             </select>
           </div>
-
-        </div><!-- /bloque-pedido-historico -->
+        </div>
       </div>
       ` : ''}
 
-      <!-- ── Acciones ───────────────────────────────── -->
       <div style="display:flex;gap:10px;margin-top:8px">
-        <button type="button" class="btn btn-secondary" style="flex:1"
-                onclick="cerrarFormCliente()">Cancelar</button>
+        <button type="button" class="btn btn-secondary" style="flex:1" onclick="cerrarFormCliente()">Cancelar</button>
         <button type="submit" class="btn btn-primary" style="flex:2" id="btn-guardar-cliente">
           ${esEdicion ? 'Guardar cambios' : '+ Crear cliente'}
         </button>
@@ -602,7 +576,6 @@ function setupMedicoAutocomplete() {
 function onMedicoInput(valor) {
   const sugEl = document.getElementById('medico-suggestions');
   if (!sugEl) return;
-
   const q = valor.toLowerCase().trim();
   if (!q) {
     const lista = agendaMedicos.slice(0, 8);
@@ -610,7 +583,6 @@ function onMedicoInput(valor) {
     renderMedicoSuggestions(lista, sugEl);
     return;
   }
-
   const filtrados = agendaMedicos.filter(m => m.toLowerCase().includes(q)).slice(0, 8);
   if (!filtrados.length) { sugEl.classList.add('hidden'); return; }
   renderMedicoSuggestions(filtrados, sugEl);
@@ -637,7 +609,6 @@ async function guardarCliente(e) {
   const idEl = document.getElementById('fc-id');
   const clienteId = idEl ? idEl.value : null;
 
-  // Procesar nombre completo → nombre + apellido
   const nombreCompleto = document.getElementById('fc-nombre-completo')?.value.trim() || '';
   let nombre = nombreCompleto, apellido = '';
   if (nombreCompleto.includes(',')) {
@@ -664,7 +635,6 @@ async function guardarCliente(e) {
   const btn = document.getElementById('btn-guardar-cliente');
   if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
 
-  // ── Validar teléfono duplicado (solo al crear, no al editar) ──
   if (!clienteId && datos.telefono) {
     const { data: existente } = await window.supabaseClient
       .from('clientes')
@@ -674,7 +644,7 @@ async function guardarCliente(e) {
 
     if (existente) {
       const nombreExistente = [existente.nombre, existente.apellido].filter(Boolean).join(' ');
-      showToast(`Ya existe "${nombreExistente}" con ese número de celular.`, 'error');
+      toast(`Ya existe "${nombreExistente}" con ese número de celular.`, 'error');
       if (btn) { btn.disabled = false; btn.textContent = '+ Crear cliente'; }
       return;
     }
@@ -693,16 +663,14 @@ async function guardarCliente(e) {
   }
 
   if (error) {
-    // Detectar violación de unique constraint (por si acaso llegó igual)
     const msg = error.code === '23505'
       ? 'Ya existe un cliente con ese número de celular.'
       : 'Error al guardar el cliente.';
-    showToast(msg, 'error');
+    toast(msg, 'error');
     if (btn) { btn.disabled = false; btn.textContent = clienteId ? 'Guardar cambios' : '+ Crear cliente'; }
     return;
   }
 
-  // Guardar pedido histórico si se completó el bloque
   if (!clienteId && nuevoClienteId) {
     const orden = document.getElementById('fc-ped-orden')?.value.trim();
     const lab   = document.getElementById('fc-ped-lab')?.value;
@@ -732,18 +700,17 @@ async function guardarCliente(e) {
         fecha_pedido: fechaISO,
         fecha_retiro: estadoPed === 'Retirado' ? fechaISO : null,
       }]);
-      showToast('Cliente y pedido guardados.', 'success');
+      toast('Cliente y pedido guardados.', 'success');
     } else {
-      showToast('Cliente creado.', 'success');
+      toast('Cliente creado.', 'success');
     }
   } else {
-    showToast(clienteId ? 'Cliente actualizado.' : 'Cliente creado.', 'success');
+    toast(clienteId ? 'Cliente actualizado.' : 'Cliente creado.', 'success');
   }
 
   cerrarFormCliente();
   await Promise.all([loadClientes(), loadMedicosUnicos()]);
 
-  // Refrescar ficha si estaba abierta
   if (clienteId) {
     const cliente = agendaClientes.find(c => c.id === clienteId);
     if (cliente) {
@@ -764,9 +731,8 @@ async function confirmarEliminarCliente(clienteId, nombreCompleto) {
 
 async function eliminarCliente(clienteId) {
   const { error } = await window.supabaseClient.from('clientes').delete().eq('id', clienteId);
-  if (error) { showToast('Error al eliminar el cliente.', 'error'); return; }
-
-  showToast('Cliente eliminado.', 'success');
+  if (error) { toast('Error al eliminar el cliente.', 'error'); return; }
+  toast('Cliente eliminado.', 'success');
   cerrarFichaCliente();
   await loadClientes();
 }
@@ -779,65 +745,48 @@ function initClienteAutocompletePedido() {
   const input = document.getElementById('cliente-search-input');
   const chip  = document.getElementById('cliente-seleccionado');
   const campo = document.getElementById('campo-cliente');
-
   if (!input) return;
-
   input.value = '';
   if (chip) chip.classList.add('hidden');
   if (campo) campo.value = '';
   const _cid = document.getElementById('campo-cliente-id'); if (_cid) _cid.value = '';
-
   document.addEventListener('click', (e) => {
-    if (!e.target.closest('.cliente-search-wrapper')) {
-      ocultarSugerenciasCliente();
-    }
+    if (!e.target.closest('.cliente-search-wrapper')) ocultarSugerenciasCliente();
   });
 }
 
 async function onClienteSearchInput(valor) {
   const sugEl = document.getElementById('cliente-suggestions');
   if (!sugEl) return;
-
   document.getElementById('campo-cliente').value = valor;
-
   const q = valor.toLowerCase().trim();
   if (q.length < 2) { sugEl.classList.add('hidden'); return; }
-
   const filtrados = agendaClientes.filter(c =>
     (c.nombre   || '').toLowerCase().includes(q) ||
     (c.apellido || '').toLowerCase().includes(q) ||
     (c.telefono || '').toLowerCase().includes(q)
   ).slice(0, 6);
-
   if (!filtrados.length) { sugEl.classList.add('hidden'); return; }
-
   sugEl.innerHTML = filtrados.map(c => `
     <div class="suggestion-item" onclick="seleccionarClientePedido('${c.id}')">
       <strong>${c.apellido}, ${c.nombre}</strong>
       <span class="sug-tel">${c.telefono}</span>
     </div>`).join('') +
-    `<div class="suggestion-item suggestion-nuevo" onclick="abrirFormClienteDesdeNuevoPedido()">
-      + Crear cliente nuevo
-    </div>`;
-
+    `<div class="suggestion-item suggestion-nuevo" onclick="abrirFormClienteDesdeNuevoPedido()">+ Crear cliente nuevo</div>`;
   sugEl.classList.remove('hidden');
 }
 
 function seleccionarClientePedido(clienteId) {
   const cliente = agendaClientes.find(c => c.id === clienteId);
   if (!cliente) return;
-
   _clienteSeleccionadoId = clienteId;
-
   const nombreCompleto = `${cliente.nombre} ${cliente.apellido}`;
   const _csi = document.getElementById('cliente-search-input'); if (_csi) _csi.value = '';
   document.getElementById('campo-cliente').value = nombreCompleto;
   document.getElementById('campo-cliente-id').value = clienteId;
-
   const chip = document.getElementById('cliente-seleccionado');
   document.getElementById('cliente-chip-nombre').textContent = nombreCompleto;
   chip.classList.remove('hidden');
-
   ocultarSugerenciasCliente();
 }
 
