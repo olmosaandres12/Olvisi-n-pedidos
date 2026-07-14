@@ -38,6 +38,26 @@ const App = (() => {
   const LAB_COLORS = { Sol:'#2563EB', Bichara:'#DC2626', Cristian:'#16A34A', Vitolen:'#7C3AED' };
   function getLabColor(lab) { return LAB_COLORS[lab] || '#6B7280'; }
 
+  // ══════════════════════════════════════════════════
+  //  BLOQUEO DE ORIENTACIÓN — solo en pantallas chicas
+  //  (celu queda fijo en vertical; tablet/desktop rota libre)
+  // ══════════════════════════════════════════════════
+  function aplicarBloqueoOrientacion() {
+    const esPantallaChica = window.matchMedia('(max-width: 767px)').matches;
+
+    if (esPantallaChica) {
+      if (screen.orientation && screen.orientation.lock) {
+        screen.orientation.lock('portrait').catch(() => {
+          // iOS o navegadores que no lo permiten fuera de fullscreen: no rompe nada
+        });
+      }
+    } else {
+      if (screen.orientation && screen.orientation.unlock) {
+        screen.orientation.unlock();
+      }
+    }
+  }
+
   // ── Numpad ───────────────────────────────────────
   let _numpadTarget = null, _numpadSign = '+', _numpadRaw = '', _numpadNext = null;
   let _numpadRepeatTimer = null, _numpadRepeatInterval = null;
@@ -348,6 +368,10 @@ const App = (() => {
     document.getElementById('cliente-form-overlay')?.addEventListener('click', () => {
       if (typeof cerrarFormCliente === 'function') cerrarFormCliente();
     });
+
+    // Bloqueo de orientación: celu fijo en vertical, tablet/desktop libre
+    aplicarBloqueoOrientacion();
+    window.addEventListener('resize', aplicarBloqueoOrientacion);
 
     initNumpad();
     _inyectarModalDuplicado();
