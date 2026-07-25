@@ -102,6 +102,7 @@ const Pedidos = (() => {
         fecha_pedido:    d.fecha_pedido    || new Date().toISOString(),
         fecha_prometida: d.fecha_prometida || null,
         fecha_retiro:    null,
+        codigo_seguimiento: d.codigo_seguimiento || null,
       };
 
       // Campos PAMI: solo se incluyen si el pedido tiene obra social PAMI
