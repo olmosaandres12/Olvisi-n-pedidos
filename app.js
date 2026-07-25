@@ -1561,7 +1561,7 @@ const App = (() => {
     const horaDecimal = hora + minutos / 60;
     // Buen día: 08:00 a 13:29 | Buenas tardes: 13:30 a 21:00 (y fuera de rango, por defecto tarde)
     const saludo = (horaDecimal >= 8 && horaDecimal < 13.5) ? 'Buen dia' : 'Buenas tardes';
-    return `${saludo}!! Me comunico de óptica olvisión😎 !! le informamos que sus anteojos ya están listos, puede pasar a retirarlos hasta las 13:00 hs y por la tarde de 17 hs a 21hs!`;
+    return `${saludo}!! Me comunico de óptica olvisión☺️ !! le informamos que sus anteojos ya están listos, puede pasar a retirarlos hasta las 13:00 hs y por la tarde de 17 hs a 21hs!`;
   }
 
   function _limpiarTelefono(tel) {
@@ -1740,7 +1740,7 @@ const App = (() => {
 
   function generarMensajeResena(cliente) {
     const nombre = _primerNombre(cliente);
-    return `Hola ${nombre}! 😊 Soy de óptica OLVISIÓN. Ya hace unos días que tenés tus anteojos nuevos — ¿cómo venís con ellos? Nos encantaría saber qué te pareció la experiencia. Si tenés 1 minutito, nos ayudaría muchísimo que nos dejes tu opinión en Google: ${LINK_RESENA_GOOGLE}\n\n¡Gracias por elegirnos! 🙌`;
+    return `Hola ${nombre}! ☺️ Soy de óptica OLVISIÓN. Ya hace unos días que tenés tus anteojos nuevos — ¿cómo venís con ellos? Nos encantaría saber qué te pareció la experiencia. Si tenés 1 minutito, nos ayudaría muchísimo que nos dejes tu opinión en Google: ${LINK_RESENA_GOOGLE}\n\n¡Gracias por elegirnos! ⭐`;
   }
 
   function _inyectarBadgeResenas() {
@@ -1801,6 +1801,8 @@ const App = (() => {
     document.getElementById('resena-modal')?.classList.add('hidden');
   }
 
+  let _resenaConfirmando = new Set();
+
   function _renderListaResenas() {
     const el = document.getElementById('resena-lista');
     if (!el) return;
@@ -1810,12 +1812,22 @@ const App = (() => {
     }
     el.innerHTML = _resenaPedidosCache.map(p => {
       const dias = Math.floor((new Date() - new Date(p.fecha_retiro)) / (1000*60*60*24));
+      const enConfirmacion = _resenaConfirmando.has(p.id);
+      const acciones = enConfirmacion
+        ? `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0">
+            <div style="font-size:.7rem;color:#888">¿Lo enviaste?</div>
+            <div style="display:flex;gap:6px">
+              <button onclick="App._confirmarResenaEnviada(${p.id},'${esc(String(p.orden))}')" style="background:#25D366;color:#fff;border:none;border-radius:8px;padding:7px 11px;font-weight:700;font-size:.75rem;cursor:pointer">✓ Sí</button>
+              <button onclick="App._cancelarConfirmacionResena(${p.id})" style="background:#F1F2F6;color:#555;border:none;border-radius:8px;padding:7px 11px;font-weight:700;font-size:.75rem;cursor:pointer">No</button>
+            </div>
+          </div>`
+        : `<button onclick="App._enviarWhatsappResena(${p.id},'${esc(String(p.orden))}')" style="background:#25D366;color:#fff;border:none;border-radius:10px;padding:9px 14px;font-weight:700;font-size:.8rem;cursor:pointer;white-space:nowrap;flex-shrink:0">📲 Pedir reseña</button>`;
       return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 4px;border-bottom:1px solid #EEE">
         <div style="min-width:0">
           <div style="font-weight:700;font-size:.88rem;color:#222">${esc(p.cliente)}</div>
           <div style="font-size:.74rem;color:#888;margin-top:1px">#${esc(p.orden)} · retirado hace ${dias} día${dias!==1?'s':''}</div>
         </div>
-        <button onclick="App._enviarWhatsappResena(${p.id},'${esc(String(p.orden))}')" style="background:#25D366;color:#fff;border:none;border-radius:10px;padding:9px 14px;font-weight:700;font-size:.8rem;cursor:pointer;white-space:nowrap;flex-shrink:0">📲 Pedir reseña</button>
+        ${acciones}
       </div>`;
     }).join('');
   }
@@ -1829,6 +1841,13 @@ const App = (() => {
     const nombreParaSaludo = datosCliente?.nombre || _primerNombre(p.cliente);
     const mensaje = generarMensajeResena(nombreParaSaludo);
     window.open(`https://wa.me/${telLimpio}?text=${encodeURIComponent(mensaje)}`, '_blank');
+    // No lo marcamos como enviado todavía: esperamos que confirme al volver
+    _resenaConfirmando.add(id);
+    _renderListaResenas();
+  }
+
+  async function _confirmarResenaEnviada(id, orden) {
+    _resenaConfirmando.delete(id);
     try {
       await Pedidos.marcarResenaSolicitada(orden);
       _resenaPedidosCache = _resenaPedidosCache.filter(x => x.orden !== orden);
@@ -1839,7 +1858,13 @@ const App = (() => {
         badge.textContent = n;
         badge.classList.toggle('hidden', n === 0);
       }
+      toast('Reseña marcada como pedida ✓', 'success');
     } catch (e) { console.warn('No se pudo marcar la reseña como solicitada:', e); }
+  }
+
+  function _cancelarConfirmacionResena(id) {
+    _resenaConfirmando.delete(id);
+    _renderListaResenas();
   }
 
   // ══════════════════════════════════════════════════
@@ -3135,6 +3160,7 @@ const App = (() => {
     _abrirModalSeguimiento, _cerrarSeguimientoModal, _copiarLinkSeguimiento,
     // Reseñas de Google
     _abrirModalResenas, _cerrarModalResenas, _enviarWhatsappResena, generarMensajeResena,
+    _confirmarResenaEnviada, _cancelarConfirmacionResena,
   };
 })();
 
