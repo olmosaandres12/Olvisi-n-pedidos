@@ -180,10 +180,32 @@ const Pedidos = (() => {
     return map[estado] || '';
   }
 
+  // ── Reseñas de Google ──────────────────────────────
+  async function getPedidosParaResenar() {
+    const desde = new Date(); desde.setDate(desde.getDate() - 7); desde.setHours(0,0,0,0);
+    const hasta = new Date(); hasta.setDate(hasta.getDate() - 5); hasta.setHours(23,59,59,999);
+    const { data, error } = await window.supabaseClient
+      .from('pedidos').select('*')
+      .eq('estado', 'Retirado')
+      .gte('fecha_retiro', desde.toISOString())
+      .lte('fecha_retiro', hasta.toISOString())
+      .or('resena_solicitada.is.null,resena_solicitada.eq.false')
+      .order('fecha_retiro', { ascending: true });
+    if (error) throw error;
+    return data;
+  }
+
+  async function marcarResenaSolicitada(orden) {
+    const { error } = await window.supabaseClient
+      .from('pedidos').update({ resena_solicitada: true }).eq('orden', orden);
+    if (error) throw error;
+  }
+
   return {
     getPedidosActivos, getTodosPedidos, getPedidoById,
     crearPedido, actualizarPedido, actualizarEstado,
     calcEstInteligente, calcDias, enrich, claseEstado,
     uploadFoto, eliminarFoto,
+    getPedidosParaResenar, marcarResenaSolicitada,
   };
 })();
