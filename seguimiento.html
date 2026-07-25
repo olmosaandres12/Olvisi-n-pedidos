@@ -82,7 +82,26 @@
   .contact-title{font-weight:800;color:var(--azul);font-size:.9rem}
   .contact-txt{font-size:.78rem;color:var(--gris-texto);margin-top:2px}
   .contact-wa{color:var(--azul);font-weight:700;font-size:.82rem;text-decoration:none;display:inline-flex;align-items:center;gap:6px;margin-top:4px}
-  .btn-contact{border:1.5px solid var(--azul);color:var(--azul);background:#fff;font-weight:700;padding:11px 20px;border-radius:10px;font-size:.85rem;text-decoration:none;white-space:nowrap}
+  .btn-contact{
+    display:inline-flex;align-items:center;gap:8px;
+    border:none;background:#25D366;color:#fff;
+    font-weight:700;padding:11px 18px;border-radius:10px;font-size:.85rem;
+    text-decoration:none;white-space:nowrap;
+  }
+  .btn-contact svg{width:20px;height:20px;flex-shrink:0}
+
+  .local-card{padding:0;overflow:hidden}
+  .local-carousel{position:relative;width:100%;height:190px;background:#0a2a5c}
+  .local-carousel img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity 1s ease}
+  .local-carousel img.active{opacity:1}
+  .local-body{padding:18px 20px}
+  .local-title{font-weight:800;color:var(--azul);font-size:.92rem;margin-bottom:3px}
+  .local-txt{font-size:.78rem;color:var(--gris-texto);line-height:1.4;margin-bottom:14px}
+  .btn-maps{
+    display:flex;align-items:center;justify-content:center;gap:8px;
+    background:var(--gris-claro);color:var(--azul);font-weight:700;font-size:.85rem;
+    padding:12px;border-radius:10px;text-decoration:none;
+  }
 
   .thanks-card{background:var(--amarillo);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
   .thanks-title{font-weight:800;color:var(--azul-oscuro);font-size:.92rem}
@@ -160,11 +179,25 @@
           <div class="info-title">Te notificaremos</div>
           <div class="info-txt">Recibirás un mensaje por WhatsApp cuando tu pedido esté listo.</div>
         </div>
-        <div class="info-item">
+        <a class="info-item" href="https://maps.app.goo.gl/3tH6eX82ewm9kyaP7" target="_blank" rel="noopener" style="text-decoration:none;color:inherit;cursor:pointer">
           <div class="info-icon">📍</div>
           <div class="info-title">Retiro en tienda</div>
-          <div class="info-txt">Podés retirar tu pedido en nuestro local.</div>
-        </div>
+          <div class="info-txt">Podés retirar tu pedido en nuestro local. Tocá para ver el mapa.</div>
+        </a>
+      </div>
+    </div>
+
+    <div class="card local-card">
+      <div class="local-carousel" id="local-carousel">
+        <img src="tienda-1.jpg" class="active" alt="Local OLVISIÓN">
+        <img src="tienda-2.jpg" alt="Local OLVISIÓN">
+      </div>
+      <div class="local-body">
+        <div class="local-title">Nuestro local</div>
+        <div class="local-txt">Te esperamos para que retires tus anteojos con toda la atención de siempre.</div>
+        <a class="btn-maps" href="https://maps.app.goo.gl/3tH6eX82ewm9kyaP7" target="_blank" rel="noopener">
+          📍 Ver ubicación en Google Maps
+        </a>
       </div>
     </div>
 
@@ -176,7 +209,10 @@
           <div class="contact-txt">Estamos para ayudarte.</div>
         </div>
       </div>
-      <a class="btn-contact" id="p-contacto" href="#" target="_blank" rel="noopener">Contactarnos</a>
+      <a class="btn-contact" id="p-contacto" href="#" target="_blank" rel="noopener">
+        <svg viewBox="0 0 32 32" fill="currentColor"><path d="M16.004 3C9.376 3 4 8.373 4 15c0 2.317.646 4.482 1.77 6.328L4 29l7.86-1.74A11.94 11.94 0 0 0 16.004 27C22.63 27 28 21.627 28 15S22.63 3 16.004 3zm.002 21.7c-1.86 0-3.6-.5-5.1-1.37l-.365-.213-4.664 1.033 1.02-4.55-.238-.375A9.63 9.63 0 0 1 5.35 15c0-5.32 4.33-9.65 9.656-9.65 5.325 0 9.654 4.33 9.654 9.65 0 5.32-4.33 9.65-9.654 9.7zm5.3-7.23c-.29-.145-1.716-.847-1.982-.944-.266-.097-.46-.145-.653.146-.194.29-.75.943-.92 1.137-.17.194-.34.218-.63.073-.29-.146-1.224-.451-2.332-1.437-.862-.768-1.444-1.716-1.613-2.006-.17-.29-.018-.447.127-.592.13-.13.29-.34.435-.51.145-.17.194-.29.29-.483.097-.194.048-.363-.024-.508-.073-.145-.653-1.574-.895-2.156-.236-.567-.475-.49-.653-.5-.17-.008-.363-.01-.556-.01-.194 0-.508.073-.774.363-.266.29-1.017.994-1.017 2.423 0 1.43 1.04 2.812 1.185 3.006.145.194 2.05 3.13 4.966 4.39.694.3 1.235.478 1.657.612.696.221 1.33.19 1.83.115.558-.083 1.716-.702 1.958-1.38.242-.678.242-1.26.17-1.38-.073-.122-.266-.194-.556-.34z"/></svg>
+        <span>Contactarnos</span>
+      </a>
     </div>
 
     <div class="card thanks-card">
@@ -288,6 +324,18 @@
     if (!f) return '';
     return new Date(f).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'});
   }
+
+  function initCarousel() {
+    const imgs = document.querySelectorAll('#local-carousel img');
+    if (imgs.length < 2) return;
+    let idx = 0;
+    setInterval(() => {
+      imgs[idx].classList.remove('active');
+      idx = (idx + 1) % imgs.length;
+      imgs[idx].classList.add('active');
+    }, 3500);
+  }
+  initCarousel();
 
   init();
 })();
