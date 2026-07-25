@@ -328,6 +328,7 @@ const App = (() => {
     document.getElementById('header-user').textContent  = Auth.getNombre();
     document.getElementById('logo-home-btn').addEventListener('click', () => showScreen('seguimiento'));
     document.getElementById('btn-logout').addEventListener('click', () => Auth.logout());
+    _inyectarBadgeResenas();
 
     if (Auth.isAdmin()) {
       document.getElementById('nav-panel').classList.remove('hidden');
@@ -1018,6 +1019,7 @@ const App = (() => {
       const demorados = todos.filter(p => p._est.valor === 'demorado');
       if (criticos.length > 0)       enviarNotificacion('🔴 Pedidos críticos — OLVISIÓN', `${criticos.length} pedido${criticos.length>1?'s':''} superó el tiempo límite`, true);
       else if (demorados.length > 0) enviarNotificacion('⚠️ Demorados — OLVISIÓN', `${demorados.length} pedido${demorados.length>1?'s':''} demorado en laboratorio`, true);
+      _cargarBadgeResenas();
     } catch(e) { toast('Error: ' + e.message, 'error'); }
   }
 
@@ -1707,6 +1709,126 @@ const App = (() => {
     let out = '';
     for (let i = 0; i < 8; i++) out += chars[Math.floor(Math.random() * chars.length)];
     return out;
+  }
+
+  // ══════════════════════════════════════════════════
+  //  RESEÑAS DE GOOGLE — aviso a los 5-7 días de retirado
+  // ══════════════════════════════════════════════════
+
+  const LINK_RESENA_GOOGLE = 'https://g.page/r/CW9wdY5jj220EBM/review';
+  let _resenaPedidosCache = [];
+
+  function _primerNombre(cliente) {
+    if (!cliente) return '';
+    let nombre = cliente;
+    if (cliente.includes(',')) {
+      const partes = cliente.split(',');
+      nombre = partes[1] ? partes[1].trim() : partes[0].trim();
+    }
+    return nombre.split(' ')[0];
+  }
+
+  function generarMensajeResena(cliente) {
+    const nombre = _primerNombre(cliente);
+    return `Hola ${nombre}! 😊 Soy de óptica OLVISIÓN. Ya hace unos días que tenés tus anteojos nuevos — ¿cómo veni con ellos? Nos encantaría saber qué te pareció la experiencia. Si tenés 1 minutito, nos ayudaría muchísimo que nos dejes tu opinión en Google: ${LINK_RESENA_GOOGLE}\n\n¡Gracias por elegirnos! 🙌`;
+  }
+
+  function _inyectarBadgeResenas() {
+    const btnLogout = document.getElementById('btn-logout');
+    if (!btnLogout || document.getElementById('btn-resenas')) return;
+    const btn = document.createElement('button');
+    btn.id = 'btn-resenas';
+    btn.style.cssText = 'position:relative;background:none;border:none;font-size:1.25rem;cursor:pointer;margin-right:10px;line-height:1';
+    btn.innerHTML = `⭐<span id="resenas-badge" class="hidden" style="position:absolute;top:-6px;right:-8px;background:#DC2626;color:#fff;font-size:.62rem;font-weight:800;border-radius:10px;min-width:16px;height:16px;display:flex;align-items:center;justify-content:center;padding:0 3px"></span>`;
+    btnLogout.parentNode.insertBefore(btn, btnLogout);
+    btn.addEventListener('click', _abrirModalResenas);
+    _cargarBadgeResenas();
+  }
+
+  async function _cargarBadgeResenas() {
+    try {
+      const data = await Pedidos.getPedidosParaResenar();
+      const vistos = new Set();
+      _resenaPedidosCache = data.filter(p => {
+        if (vistos.has(p.orden)) return false;
+        vistos.add(p.orden); return true;
+      });
+      const badge = document.getElementById('resenas-badge');
+      if (!badge) return;
+      const n = _resenaPedidosCache.length;
+      badge.textContent = n;
+      badge.classList.toggle('hidden', n === 0);
+    } catch (e) { console.warn('Error cargando reseñas pendientes:', e); }
+  }
+
+  function _ensureResenaModal() {
+    if (document.getElementById('resena-modal')) return;
+    const el = document.createElement('div');
+    el.id = 'resena-modal';
+    el.className = 'hidden';
+    el.style.cssText = 'position:fixed;inset:0;background:rgba(3,66,145,.55);z-index:10000;display:flex;align-items:flex-end;justify-content:center';
+    el.innerHTML = `
+      <div style="background:#fff;border-radius:20px 20px 0 0;max-width:480px;width:100%;padding:20px 18px 26px;max-height:85vh;overflow-y:auto">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <div style="font-weight:800;color:var(--azul,#034291);font-size:1.05rem">⭐ Para pedir reseña</div>
+          <button onclick="App._cerrarModalResenas()" style="border:none;background:none;font-size:1.2rem;color:#888;cursor:pointer">✕</button>
+        </div>
+        <div style="font-size:.8rem;color:#888;margin-bottom:14px">Clientes que retiraron hace 5-7 días. Tocá WhatsApp para mandarles el mensaje.</div>
+        <div id="resena-lista"></div>
+      </div>`;
+    document.body.appendChild(el);
+    el.addEventListener('click', e => { if (e.target === el) _cerrarModalResenas(); });
+  }
+
+  async function _abrirModalResenas() {
+    _ensureResenaModal();
+    document.getElementById('resena-modal').classList.remove('hidden');
+    await _cargarBadgeResenas();
+    _renderListaResenas();
+  }
+
+  function _cerrarModalResenas() {
+    document.getElementById('resena-modal')?.classList.add('hidden');
+  }
+
+  function _renderListaResenas() {
+    const el = document.getElementById('resena-lista');
+    if (!el) return;
+    if (!_resenaPedidosCache.length) {
+      el.innerHTML = `<div style="text-align:center;padding:24px 8px;color:#888;font-size:.85rem">No hay clientes en el rango de 5-7 días por ahora.</div>`;
+      return;
+    }
+    el.innerHTML = _resenaPedidosCache.map(p => {
+      const dias = Math.floor((new Date() - new Date(p.fecha_retiro)) / (1000*60*60*24));
+      return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 4px;border-bottom:1px solid #EEE">
+        <div style="min-width:0">
+          <div style="font-weight:700;font-size:.88rem;color:#222">${esc(p.cliente)}</div>
+          <div style="font-size:.74rem;color:#888;margin-top:1px">#${esc(p.orden)} · retirado hace ${dias} día${dias!==1?'s':''}</div>
+        </div>
+        <button onclick="App._enviarWhatsappResena(${p.id},'${esc(String(p.orden))}')" style="background:#25D366;color:#fff;border:none;border-radius:10px;padding:9px 14px;font-weight:700;font-size:.8rem;cursor:pointer;white-space:nowrap;flex-shrink:0">📲 Pedir reseña</button>
+      </div>`;
+    }).join('');
+  }
+
+  async function _enviarWhatsappResena(id, orden) {
+    const p = _resenaPedidosCache.find(x => x.id === id);
+    if (!p) return;
+    const telefono = await _buscarTelefonoCliente(p.cliente_id);
+    const telLimpio = _limpiarTelefono(telefono);
+    if (!telLimpio) { toast('Este cliente no tiene teléfono cargado', 'warn'); return; }
+    const mensaje = generarMensajeResena(p.cliente);
+    window.open(`https://wa.me/${telLimpio}?text=${encodeURIComponent(mensaje)}`, '_blank');
+    try {
+      await Pedidos.marcarResenaSolicitada(orden);
+      _resenaPedidosCache = _resenaPedidosCache.filter(x => x.orden !== orden);
+      _renderListaResenas();
+      const badge = document.getElementById('resenas-badge');
+      if (badge) {
+        const n = _resenaPedidosCache.length;
+        badge.textContent = n;
+        badge.classList.toggle('hidden', n === 0);
+      }
+    } catch (e) { console.warn('No se pudo marcar la reseña como solicitada:', e); }
   }
 
   // ══════════════════════════════════════════════════
@@ -3000,6 +3122,8 @@ const App = (() => {
     // WhatsApp + Seguimiento público
     _abrirEnvioWhatsapp, _cerrarWhatsappModal, generarMensajeListo,
     _abrirModalSeguimiento, _cerrarSeguimientoModal, _copiarLinkSeguimiento,
+    // Reseñas de Google
+    _abrirModalResenas, _cerrarModalResenas, _enviarWhatsappResena, generarMensajeResena,
   };
 })();
 
