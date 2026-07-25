@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>OLVISIÓN — Seguimiento de tu pedido</title>
+<link rel="icon" href="logo.png">
+<style>
+  :root{
+    --azul:#034291;
+    --azul-oscuro:#022c61;
+    --amarillo:#F9F4AB;
+    --gris-claro:#F5F6FA;
+    --gris-texto:#6B7280;
+    --verde:#16A34A;
+    --blanco:#FFFFFF;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    background:var(--gris-claro);
+    color:#1a1a2e;
+  }
+  .header{
+    background:linear-gradient(180deg,var(--azul),var(--azul-oscuro));
+    color:#fff;
+    text-align:center;
+    padding:40px 20px 56px;
+  }
+  .logo-text{
+    font-size:2.2rem;font-weight:900;letter-spacing:-1px;
+    display:flex;align-items:center;justify-content:center;gap:2px;
+  }
+  .logo-dot{color:var(--amarillo)}
+  .logo-sub{margin-top:6px;opacity:.85;font-size:.85rem}
+  .header h1{margin-top:28px;font-size:1.5rem;font-weight:800}
+  .header p{margin-top:8px;font-size:.9rem;opacity:.9;max-width:420px;margin-left:auto;margin-right:auto;line-height:1.5}
+
+  .wrap{max-width:640px;margin:-32px auto 0;padding:0 16px 32px}
+
+  .card{background:#fff;border-radius:18px;box-shadow:0 6px 24px rgba(3,66,145,.08);padding:22px;margin-bottom:16px}
+
+  .pedido-top{display:flex;align-items:center;gap:14px}
+  .pedido-icon{width:56px;height:56px;border-radius:50%;background:var(--amarillo);display:flex;align-items:center;justify-content:center;font-size:1.6rem;flex-shrink:0}
+  .pedido-info{flex:1;min-width:0}
+  .pedido-orden{font-weight:800;color:var(--azul);font-size:1.1rem}
+  .pedido-meta{font-size:.82rem;color:var(--gris-texto);margin-top:2px}
+  .badge-estado{background:var(--amarillo);color:#7A5200;font-weight:800;font-size:.72rem;padding:6px 14px;border-radius:20px;white-space:nowrap}
+  .badge-estado.retirado{background:#DCFCE7;color:#166534}
+
+  .estado-header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px;flex-wrap:wrap;gap:8px}
+  .estado-header h2{font-size:1.05rem;font-weight:800;color:var(--azul)}
+  .pct{text-align:right}
+  .pct-val{font-size:1.6rem;font-weight:900;color:var(--azul);line-height:1}
+  .pct-lbl{font-size:.68rem;color:var(--gris-texto);text-transform:uppercase;letter-spacing:.5px}
+
+  .progress-bar{height:8px;background:#E8ECF5;border-radius:8px;overflow:hidden;margin-bottom:22px}
+  .progress-fill{height:100%;background:linear-gradient(90deg,var(--azul),#0460D9);border-radius:8px;transition:width .4s}
+
+  .steps{display:flex;justify-content:space-between;margin-bottom:20px}
+  .step{flex:1;text-align:center;position:relative;padding:0 2px}
+  .step-circle{
+    width:40px;height:40px;border-radius:50%;background:#EDEFF5;color:#B0B5C4;
+    display:flex;align-items:center;justify-content:center;margin:0 auto 8px;font-size:1.1rem;
+    border:2px solid #EDEFF5;
+  }
+  .step.done .step-circle{background:var(--azul);border-color:var(--azul);color:#fff}
+  .step.active .step-circle{background:var(--amarillo);border-color:var(--amarillo);color:var(--azul)}
+  .step-label{font-size:.68rem;font-weight:700;color:#9098A8;line-height:1.2}
+  .step.done .step-label,.step.active .step-label{color:var(--azul)}
+  .step-date{font-size:.64rem;color:#B0B5C4;margin-top:2px}
+
+  .estado-msg{background:var(--gris-claro);border-radius:12px;padding:14px 16px;display:flex;gap:12px;align-items:flex-start}
+  .estado-msg-icon{font-size:1.4rem;flex-shrink:0}
+  .estado-msg-title{font-weight:800;color:var(--azul);font-size:.9rem}
+  .estado-msg-sub{font-size:.8rem;color:var(--gris-texto);margin-top:2px;line-height:1.4}
+
+  .info-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0}
+  .info-item{text-align:center;padding:6px 8px}
+  .info-icon{width:44px;height:44px;border-radius:50%;background:var(--gris-claro);display:flex;align-items:center;justify-content:center;margin:0 auto 8px;font-size:1.2rem}
+  .info-title{font-weight:800;color:var(--azul);font-size:.8rem;margin-bottom:4px}
+  .info-txt{font-size:.72rem;color:var(--gris-texto);line-height:1.4}
+  @media (max-width:480px){ .info-grid{grid-template-columns:1fr} .info-item{border-bottom:1px solid #EEE;padding:16px 8px} .info-item:last-child{border-bottom:none} }
+
+  .contact-row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .contact-icon{width:44px;height:44px;border-radius:50%;background:var(--gris-claro);display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0}
+  .contact-title{font-weight:800;color:var(--azul);font-size:.9rem}
+  .contact-txt{font-size:.78rem;color:var(--gris-texto);margin-top:2px}
+  .contact-wa{color:var(--azul);font-weight:700;font-size:.82rem;text-decoration:none;display:inline-flex;align-items:center;gap:6px;margin-top:4px}
+  .btn-contact{border:1.5px solid var(--azul);color:var(--azul);background:#fff;font-weight:700;padding:11px 20px;border-radius:10px;font-size:.85rem;text-decoration:none;white-space:nowrap}
+
+  .thanks-card{background:var(--amarillo);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .thanks-title{font-weight:800;color:var(--azul-oscuro);font-size:.92rem}
+  .thanks-txt{font-size:.78rem;color:#6B5E1F;margin-top:2px}
+  .thanks-logo{font-weight:900;color:var(--azul);font-size:1.15rem}
+
+  .footer{background:var(--azul-oscuro);color:#fff;text-align:center;padding:20px;font-size:.82rem;display:flex;align-items:center;justify-content:center;gap:14px}
+  .footer a{color:#fff;text-decoration:none}
+
+  .state-msg{max-width:420px;margin:80px auto;text-align:center;padding:0 20px;color:var(--gris-texto)}
+  .state-msg .em{font-size:3rem;margin-bottom:12px}
+  .hidden{display:none !important}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo-text">OLV<span class="logo-dot">Í</span>SIÓN</div>
+  <div class="logo-sub">👓</div>
+  <h1>Seguimiento de tu pedido</h1>
+  <p>Gracias por confiar en nosotros. Acá podés ver el estado de tu pedido en tiempo real.</p>
+</div>
+
+<div class="wrap">
+
+  <div id="loading-state" class="state-msg">
+    <div class="em">⏳</div>
+    <div>Buscando tu pedido...</div>
+  </div>
+
+  <div id="not-found-state" class="state-msg hidden">
+    <div class="em">🔍</div>
+    <div>No encontramos ningún pedido con este código.<br>Revisá el link o contactanos directamente.</div>
+  </div>
+
+  <div id="content" class="hidden">
+
+    <div class="card">
+      <div class="pedido-top">
+        <div class="pedido-icon">👓</div>
+        <div class="pedido-info">
+          <div class="pedido-orden" id="p-orden">Pedido #—</div>
+          <div class="pedido-meta" id="p-meta">Fecha: —</div>
+        </div>
+        <div class="badge-estado" id="p-badge">EN PROCESO</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="estado-header">
+        <h2>Estado actual de tu pedido</h2>
+        <div class="pct"><div class="pct-val" id="p-pct">0%</div><div class="pct-lbl">Completado</div></div>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" id="p-progress" style="width:0%"></div></div>
+
+      <div class="steps" id="p-steps"></div>
+
+      <div class="estado-msg">
+        <div class="estado-msg-icon" id="p-msg-icon">🔬</div>
+        <div>
+          <div class="estado-msg-title" id="p-msg-title">Tu pedido se encuentra en proceso</div>
+          <div class="estado-msg-sub" id="p-msg-sub">Estamos trabajando en tus lentes con el máximo cuidado y calidad.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="info-grid">
+        <div class="info-item">
+          <div class="info-icon">⏱️</div>
+          <div class="info-title">Tiempo estimado</div>
+          <div class="info-txt">Te avisaremos apenas esté listo para retirar.</div>
+        </div>
+        <div class="info-item">
+          <div class="info-icon">🔔</div>
+          <div class="info-title">Te notificaremos</div>
+          <div class="info-txt">Recibirás un mensaje por WhatsApp cuando tu pedido esté listo.</div>
+        </div>
+        <div class="info-item">
+          <div class="info-icon">📍</div>
+          <div class="info-title">Retiro en tienda</div>
+          <div class="info-txt">Podés retirar tu pedido en nuestro local.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card contact-row">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div class="contact-icon">❓</div>
+        <div>
+          <div class="contact-title">¿Tenés dudas?</div>
+          <div class="contact-txt">Estamos para ayudarte.</div>
+        </div>
+      </div>
+      <a class="btn-contact" id="p-contacto" href="#" target="_blank" rel="noopener">Contactarnos</a>
+    </div>
+
+    <div class="card thanks-card">
+      <div>
+        <div class="thanks-title">Gracias por elegir OLVISIÓN</div>
+        <div class="thanks-txt">Cuidamos tu visión con profesionalismo y dedicación.</div>
+      </div>
+      <div class="thanks-logo">OLVISIÓN</div>
+    </div>
+
+  </div>
+</div>
+
+<div class="footer">
+  <span>Seguinos en nuestras redes</span>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script>
+(function(){
+  const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  const PASOS = [
+    { estados: ['Cristales pedidos a lab'],                  label: 'Pedido\nrecibido',   icon: '✓' },
+    { estados: ['Armazón enviado p/calibrado'],               label: 'En\npreparación',    icon: '✓' },
+    { estados: ['En laboratorio'],                            label: 'En\nlaboratorio',    icon: '🔬' },
+    { estados: ['Pendiente de retirar'],                      label: 'Listo para\nretirar', icon: '👓' },
+    { estados: ['Retirado'],                                  label: 'Retirado',          icon: '📦' },
+  ];
+
+  function getStepIndex(estado) {
+    // "Cristales pedidos a lab" y "Armazón enviado p/calibrado" cuentan como los primeros 2 pasos ya cumplidos
+    const orden = ['Cristales pedidos a lab','Armazón enviado p/calibrado','En laboratorio','Pendiente de retirar','Retirado'];
+    const idx = orden.indexOf(estado);
+    return idx === -1 ? 0 : idx;
+  }
+
+  function esc(str){ if(!str) return ''; return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  async function init() {
+    const params = new URLSearchParams(window.location.search);
+    const codigo = params.get('codigo');
+    if (!codigo) { mostrarNoEncontrado(); return; }
+
+    try {
+      const { data, error } = await supabaseClient.rpc('obtener_seguimiento', { p_codigo: codigo });
+      if (error) throw error;
+      const pedido = Array.isArray(data) ? data[0] : data;
+      if (!pedido) { mostrarNoEncontrado(); return; }
+      render(pedido);
+    } catch (e) {
+      console.error(e);
+      mostrarNoEncontrado();
+    }
+  }
+
+  function mostrarNoEncontrado() {
+    document.getElementById('loading-state').classList.add('hidden');
+    document.getElementById('not-found-state').classList.remove('hidden');
+  }
+
+  function render(p) {
+    document.getElementById('loading-state').classList.add('hidden');
+    document.getElementById('content').classList.remove('hidden');
+
+    const sufijo = p.sufijo ? `-${p.sufijo}` : '';
+    document.getElementById('p-orden').textContent = `Pedido #${p.orden}${sufijo}`;
+    const fecha = p.fecha_pedido ? new Date(p.fecha_pedido).toLocaleDateString('es-AR',{day:'2-digit',month:'long',year:'numeric'}) : '—';
+    document.getElementById('p-meta').textContent = `Fecha: ${fecha}${p.tipo ? ' · Tipo: '+esc(p.tipo) : ''}`;
+
+    const badge = document.getElementById('p-badge');
+    if (p.estado === 'Retirado') { badge.textContent = 'RETIRADO'; badge.classList.add('retirado'); }
+    else { badge.textContent = 'EN PROCESO'; }
+
+    const stepIdx = getStepIndex(p.estado); // 0..4
+    const pct = Math.round(((stepIdx + 1) / PASOS.length) * 100);
+    document.getElementById('p-pct').textContent = pct + '%';
+    document.getElementById('p-progress').style.width = pct + '%';
+
+    const stepsEl = document.getElementById('p-steps');
+    stepsEl.innerHTML = PASOS.map((paso, i) => {
+      const done = i < stepIdx;
+      const active = i === stepIdx;
+      const icon = done ? '✓' : paso.icon;
+      const fecha = (done || active) ? (i===0 ? fecha_txt(p.fecha_pedido) : '') : '—';
+      return `<div class="step ${done?'done':''} ${active?'active':''}">
+        <div class="step-circle">${icon}</div>
+        <div class="step-label">${paso.label.split('\n').join('<br>')}</div>
+      </div>`;
+    }).join('');
+
+    const MSGS = {
+      'Cristales pedidos a lab':     { icon:'📋', title:'Recibimos tu pedido', sub:'Ya estamos gestionando los cristales de tus lentes.' },
+      'Armazón enviado p/calibrado': { icon:'📦', title:'Tu armazón está en preparación', sub:'Lo estamos enviando para el calibrado correspondiente.' },
+      'En laboratorio':              { icon:'🔬', title:'Tu pedido se encuentra en laboratorio', sub:'Estamos trabajando en tus lentes con el máximo cuidado y calidad.' },
+      'Pendiente de retirar':        { icon:'✅', title:'¡Tu pedido está listo!', sub:'Ya podés pasar a retirarlo por nuestro local.' },
+      'Retirado':                    { icon:'📦', title:'Pedido retirado', sub:'Gracias por confiar en OLVISIÓN.' },
+    };
+    const m = MSGS[p.estado] || MSGS['En laboratorio'];
+    document.getElementById('p-msg-icon').textContent = m.icon;
+    document.getElementById('p-msg-title').textContent = m.title;
+    document.getElementById('p-msg-sub').textContent = m.sub;
+
+    document.getElementById('p-contacto').href = 'https://wa.me/5493811234567';
+  }
+
+  function fecha_txt(f) {
+    if (!f) return '';
+    return new Date(f).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'});
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
