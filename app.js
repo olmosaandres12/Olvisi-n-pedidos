@@ -2146,22 +2146,26 @@ const App = (() => {
       const k = await Pedidos.getKPIsPostventa(_pvMesActual, mesFin);
       const fmtDias = v => v === null ? '—' : `${v.toFixed(1)}d`;
       const fmtPct  = v => v === null ? '—' : `${v.toFixed(0)}%`;
-      kpisEl.innerHTML = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <div style="background:#F0F4FF;border-radius:12px;padding:14px;border-left:4px solid var(--azul,#034291)">
-          <div style="font-size:1.5rem;font-weight:900;color:var(--azul,#034291)">${fmtDias(k.promEntrega)}</div>
-          <div style="font-size:.72rem;color:#666;margin-top:2px">Tiempo promedio de entrega</div>
+      kpisEl.innerHTML = `<div class="dash-kpi-grid">
+        <div class="dash-kpi-card dash-kpi-blue">
+          <div class="dash-kpi-icon">⏱️</div>
+          <div class="dash-kpi-value">${fmtDias(k.promEntrega)}</div>
+          <div class="dash-kpi-label">Tiempo promedio de entrega</div>
         </div>
-        <div style="background:#F0F4FF;border-radius:12px;padding:14px;border-left:4px solid var(--azul,#034291)">
-          <div style="font-size:1.5rem;font-weight:900;color:var(--azul,#034291)">${fmtDias(k.promRetiroPostAviso)}</div>
-          <div style="font-size:.72rem;color:#666;margin-top:2px">Días entre aviso "listo" y retiro real</div>
+        <div class="dash-kpi-card dash-kpi-teal">
+          <div class="dash-kpi-icon">📅</div>
+          <div class="dash-kpi-value">${fmtDias(k.promRetiroPostAviso)}</div>
+          <div class="dash-kpi-label">Días entre aviso y retiro real</div>
         </div>
-        <div style="background:#FFFBEB;border-radius:12px;padding:14px;border-left:4px solid #D97706">
-          <div style="font-size:1.5rem;font-weight:900;color:#92400E">${fmtPct(k.conversion)}</div>
-          <div style="font-size:.72rem;color:#666;margin-top:2px">Conversión de reseñas (${k.obtenidas}/${k.solicitadas} pedidas)</div>
+        <div class="dash-kpi-card dash-kpi-orange">
+          <div class="dash-kpi-icon">⭐</div>
+          <div class="dash-kpi-value">${fmtPct(k.conversion)}</div>
+          <div class="dash-kpi-label">Conversión de reseñas (${k.obtenidas}/${k.solicitadas} pedidas)</div>
         </div>
-        <div style="background:#F5F6FA;border-radius:12px;padding:14px;border-left:4px solid #6B7280">
-          <div style="font-size:1.5rem;font-weight:900;color:#374151">${k.totalRetirados}</div>
-          <div style="font-size:.72rem;color:#666;margin-top:2px">Pedidos retirados este mes</div>
+        <div class="dash-kpi-card dash-kpi-green">
+          <div class="dash-kpi-icon">📦</div>
+          <div class="dash-kpi-value">${k.totalRetirados}</div>
+          <div class="dash-kpi-label">Pedidos retirados este mes</div>
         </div>
       </div>`;
     } catch (e) {
@@ -2177,21 +2181,21 @@ const App = (() => {
       const activos = await Pedidos.getPedidosActivos();
       const criticos  = activos.filter(p => p._est.valor === 'critico');
       const demorados = activos.filter(p => p._est.valor === 'demorado');
-      const lista = [...criticos, ...demorados];
+      const lista = [...criticos, ...demorados].sort((a, b) => b._dias - a._dias);
       if (!lista.length) {
-        alertasEl.innerHTML = `<p style="color:#888;font-size:.85rem;text-align:center;padding:16px 0">✅ Sin pedidos demorados en este momento.</p>`;
+        alertasEl.innerHTML = `<p class="dash-empty">✅ Sin pedidos demorados en este momento.</p>`;
       } else {
-        alertasEl.innerHTML = lista.map(p => {
-          const color = p._est.valor === 'critico' ? '#DC2626' : '#D97706';
+        alertasEl.innerHTML = `<div class="dash-wide-card" style="padding:0">${lista.map(p => {
+          const estClase = p._est.valor === 'critico' ? 'critico' : 'demorado';
           const sufijo = p.sufijo ? `-${p.sufijo}` : '';
-          return `<div onclick="App._irADetallePostventa(${p.id})" style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 4px;border-bottom:1px solid #F1F2F6;cursor:pointer">
-            <div>
-              <div style="font-weight:700;font-size:.85rem">${esc(p.cliente)}</div>
-              <div style="font-size:.72rem;color:#888">#${esc(p.orden)}${sufijo} · ${esc(p.laboratorio||'—')} · ${p._dias}d</div>
-            </div>
-            <span style="color:${color};font-weight:700;font-size:.78rem">${p._est.texto}</span>
+          return `<div class="panel-row ${estClase}" style="cursor:pointer" onclick="App._irADetallePostventa(${p.id})">
+            <span class="pr-orden">#${esc(String(p.orden))}${sufijo}</span>
+            <span class="pr-cliente">${esc(p.cliente)}</span>
+            <span class="pr-lab">${esc(p.laboratorio || '—')}</span>
+            <span class="pr-dias">${p._dias}d</span>
+            <span class="pr-est">${p._est.texto}</span>
           </div>`;
-        }).join('');
+        }).join('')}</div>`;
       }
     } catch (e) {
       alertasEl.innerHTML = `<p style="color:var(--rojo,#DC2626);font-size:.85rem">Error: ${esc(e.message)}</p>`;
