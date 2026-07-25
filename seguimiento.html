@@ -28,7 +28,8 @@
     padding:40px 20px 56px;
   }
   .logo-img{height:64px;width:auto;display:block;margin:0 auto}
-  .header h1{margin-top:28px;font-size:1.5rem;font-weight:800}
+  .saludo{margin-top:18px;font-size:1.02rem;font-weight:700;opacity:.95}
+  .header h1{margin-top:10px;font-size:1.5rem;font-weight:800}
   .header p{margin-top:8px;font-size:.9rem;opacity:.9;max-width:420px;margin-left:auto;margin-right:auto;line-height:1.5}
 
   .wrap{max-width:640px;margin:-32px auto 0;padding:0 16px 32px}
@@ -108,8 +109,17 @@
   .thanks-txt{font-size:.78rem;color:#6B5E1F;margin-top:2px}
   .thanks-logo{font-weight:900;color:var(--azul);font-size:1.15rem}
 
-  .footer{background:var(--azul-oscuro);color:#fff;text-align:center;padding:20px;font-size:.82rem;display:flex;align-items:center;justify-content:center;gap:14px}
-  .footer a{color:#fff;text-decoration:none}
+  .footer{background:var(--azul-oscuro);color:#fff;text-align:center;padding:22px 20px;font-size:.82rem}
+  .footer-txt{opacity:.85;margin-bottom:12px}
+  .footer-icons{display:flex;align-items:center;justify-content:center;gap:14px}
+  .footer-icon{
+    width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,.12);
+    display:flex;align-items:center;justify-content:center;color:#fff;text-decoration:none;
+    transition:background .2s;
+  }
+  .footer-icon:hover{background:rgba(255,255,255,.22)}
+  .footer-icon svg{width:22px;height:22px}
+  .footer-icon.google{font-size:1.3rem}
 
   .state-msg{max-width:420px;margin:80px auto;text-align:center;padding:0 20px;color:var(--gris-texto)}
   .state-msg .em{font-size:3rem;margin-bottom:12px}
@@ -120,6 +130,7 @@
 
 <div class="header">
   <img class="logo-img" src="logo-white.png" alt="OLVISIÓN">
+  <div class="saludo hidden" id="p-saludo"></div>
   <h1>Seguimiento de tu pedido</h1>
   <p>Gracias por confiar en nosotros. Acá podés ver el estado de tu pedido en tiempo real.</p>
 </div>
@@ -203,7 +214,7 @@
 
     <div class="card contact-row">
       <div style="display:flex;align-items:center;gap:12px">
-        <div class="contact-icon">❓</div>
+        <div class="contact-icon" style="background:var(--azul)"><img src="logo-white.png" alt="OLVISIÓN" style="width:26px;height:auto"></div>
         <div>
           <div class="contact-title">¿Tenés dudas?</div>
           <div class="contact-txt">Estamos para ayudarte.</div>
@@ -227,7 +238,15 @@
 </div>
 
 <div class="footer">
-  <span>Seguinos en nuestras redes</span>
+  <div class="footer-txt">Seguinos y contanos qué te pareció</div>
+  <div class="footer-icons">
+    <a class="footer-icon" href="https://www.instagram.com/optica.olvision/" target="_blank" rel="noopener" aria-label="Instagram">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4.2"/><circle cx="17.4" cy="6.6" r="1.1" fill="currentColor" stroke="none"/></svg>
+    </a>
+    <a class="footer-icon google" href="https://tr.ee/aixa1xl_eS" target="_blank" rel="noopener" aria-label="Calificanos en Google">
+      ⭐
+    </a>
+  </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -252,6 +271,15 @@
   }
 
   function esc(str){ if(!str) return ''; return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  function formatearNombre(cliente) {
+    // El nombre suele venir como "Apellido, Nombre" — para el saludo lo mostramos más natural
+    if (cliente.includes(',')) {
+      const [apellido, nombre] = cliente.split(',').map(s => s.trim());
+      return nombre ? `${nombre} ${apellido}` : apellido;
+    }
+    return cliente;
+  }
 
   async function init() {
     const params = new URLSearchParams(window.location.search);
@@ -278,6 +306,12 @@
   function render(p) {
     document.getElementById('loading-state').classList.add('hidden');
     document.getElementById('content').classList.remove('hidden');
+
+    if (p.cliente) {
+      const saludoEl = document.getElementById('p-saludo');
+      saludoEl.textContent = `¡Hola, ${formatearNombre(p.cliente)}! 👋`;
+      saludoEl.classList.remove('hidden');
+    }
 
     const sufijo = p.sufijo ? `-${p.sufijo}` : '';
     document.getElementById('p-orden').textContent = `Pedido #${p.orden}${sufijo}`;
