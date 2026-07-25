@@ -1754,14 +1754,64 @@ const App = (() => {
   const LINK_RESENA_GOOGLE = 'https://g.page/r/CW9wdY5jj220EBM/review';
   let _resenaPedidosCache = [];
 
+  // ══════════════════════════════════════════════════
+  //  DETECCIÓN NOMBRE / APELLIDO — para cuando el nombre
+  //  se carga como texto libre y el orden no es fijo
+  //  (algunos cargan "Apellido Nombre", otros al revés)
+  // ══════════════════════════════════════════════════
+  const NOMBRES_COMUNES = new Set([
+    'juan','jose','josé','carlos','luis','jorge','miguel','pedro','pablo','martin','martín','diego','sergio','ricardo','roberto','fernando','alberto',
+    'daniel','david','rafael','raul','raúl','hector','héctor','oscar','óscar','eduardo','francisco','javier','gonzalo','ignacio','alejandro','andres','andrés',
+    'gustavo','marcelo','walter','claudio','ruben','rubén','hugo','ramon','ramón','victor','víctor','adrian','adrián','matias','matías','nicolas','nicolás',
+    'facundo','tomas','tomás','maximiliano','emanuel','ezequiel','leandro','lucas','gabriel','guillermo','german','germán','cristian','christian','damian','damián',
+    'esteban','federico','franco','ivan','iván','joaquin','joaquín','manuel','mariano','mauricio','maximo','máximo','nahuel','norberto','omar','patricio',
+    'rodolfo','rodrigo','santiago','sebastian','sebastián','agustin','agustín','bruno','bautista','benjamin','benjamín','dario','darío','enzo',
+    'gaston','gastón','ismael','julio','leonardo','marcos','nicanor','octavio','osvaldo','rolando','salvador','simon','simón','angel','ángel','antonio',
+    'alfredo','alfonso','arturo','armando','baltazar','cesar','césar','emilio','felipe','fabian','fabián','fabricio','gerardo','gregorio','horacio',
+    'humberto','isidro','leon','león','lorenzo','maximiliano','nestor','néstor','orlando','pascual','ramiro','reynaldo','sixto','tobias','tobías','uriel',
+    'maria','maría','ana','laura','claudia','patricia','silvia','monica','mónica','andrea','sandra','mariana','gabriela','veronica','verónica','paula','carolina',
+    'valeria','natalia','florencia','lucia','lucía','sofia','sofía','camila','julieta','victoria','martina','agustina','micaela','carla','cecilia','daniela',
+    'elena','elsa','emilia','eugenia','fernanda','gimena','graciela','ines','inés','irene','ivana','jimena','karina','leticia','liliana','lorena','luciana',
+    'macarena','marcela','marisa','marta','melisa','mercedes','miriam','nadia','noelia','norma','olga','pilar','rocio','rocío','rosa','rosana','sabrina',
+    'susana','teresa','vanesa','vanessa','virginia','yamila','yanina','yolanda','antonella','belen','belén','brenda','candela','constanza','delfina',
+    'estefania','estefanía','guadalupe','josefina','malena','milagros','morena','priscila','romina','tamara','valentina','abril','aldana','ayelen','ayelén',
+    'azul','celeste','cintia','cynthia','dana','erica','érica','flavia','giselle','ludmila','magali','marilina','melina','miranda','noemi','noemí',
+    'paola','perla','soledad','yesica','yésica','ariadna','beatriz','carmen','celia','dolores','esperanza','eva','gladys','herminia','ivonne','luz',
+  ]);
+
+  function _detectarNombreApellido(textoCompleto) {
+    const texto = (textoCompleto || '').trim();
+    if (!texto) return { nombre: '', apellido: '' };
+    if (texto.includes(',')) {
+      const [apellido, nombre] = texto.split(',').map(s => s.trim());
+      return { nombre: nombre || apellido || '', apellido: nombre ? apellido : '' };
+    }
+    const partes = texto.split(/\s+/).filter(Boolean);
+    if (partes.length === 1) return { nombre: partes[0], apellido: '' };
+    if (partes.length === 2) {
+      const [a, b] = partes;
+      const aEsNombre = NOMBRES_COMUNES.has(a.toLowerCase());
+      const bEsNombre = NOMBRES_COMUNES.has(b.toLowerCase());
+      if (aEsNombre && !bEsNombre) return { nombre: a, apellido: b };
+      if (bEsNombre && !aEsNombre) return { nombre: b, apellido: a };
+      // Ninguna palabra coincide (o coinciden las dos) — no hay forma de saber con certeza,
+      // se mantiene el criterio anterior: la última palabra como apellido
+      return { nombre: partes.slice(0, -1).join(' '), apellido: partes.slice(-1)[0] };
+    }
+    // 3+ palabras: buscamos la primera que matchee con un nombre conocido
+    const idxNombre = partes.findIndex(p => NOMBRES_COMUNES.has(p.toLowerCase()));
+    if (idxNombre !== -1) {
+      const nombre = partes[idxNombre];
+      const apellido = partes.filter((_, i) => i !== idxNombre).join(' ');
+      return { nombre, apellido };
+    }
+    return { nombre: partes.slice(0, -1).join(' '), apellido: partes.slice(-1)[0] };
+  }
+
   function _primerNombre(cliente) {
     if (!cliente) return '';
-    let nombre = cliente;
-    if (cliente.includes(',')) {
-      const partes = cliente.split(',');
-      nombre = partes[1] ? partes[1].trim() : partes[0].trim();
-    }
-    return nombre.split(' ')[0];
+    const { nombre } = _detectarNombreApellido(cliente);
+    return (nombre || cliente).split(' ')[0];
   }
 
   function generarMensajeResena(cliente) {
@@ -2716,12 +2766,9 @@ const App = (() => {
       let clienteId = data.base.cliente_id;
       if (!clienteId && data.base.cliente) {
         try {
-          const nombreCompleto = data.base.cliente.trim();
-          let apellido = '', nombre = '';
-          if (nombreCompleto.includes(',')) { apellido = nombreCompleto.split(',')[0].trim(); nombre = nombreCompleto.split(',').slice(1).join(',').trim(); }
-          else { const partes = nombreCompleto.split(' '); apellido = partes.slice(-1)[0]; nombre = partes.slice(0,-1).join(' '); }
+          const { nombre: nombrePila, apellido } = _detectarNombreApellido(data.base.cliente);
           const { data: nuevo } = await window.supabaseClient.from('clientes').insert([{
-            nombre, apellido,
+            nombre: nombrePila, apellido,
             telefono:    data.base.celular || '—',
             dni:         data.base.dni || null,
             obra_social: data.base.obra_social || null,
