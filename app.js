@@ -1309,6 +1309,7 @@ const App = (() => {
       _renderKanbanKPIs(_pedidosCache);
       _renderKanban(_pedidosCache);
       updateBadge();
+      if (nuevoEstado === 'Pendiente de retirar' && p) _ofrecerAvisoListo([p]);
     } catch(e) { toast('Error: ' + e.message, 'error'); }
   }
 
@@ -1321,6 +1322,7 @@ const App = (() => {
       _renderKanbanKPIs(_pedidosCache);
       _renderKanban(_pedidosCache);
       updateBadge();
+      if (nuevoEstado === 'Pendiente de retirar' && pares.length) _ofrecerAvisoListo(pares);
     } catch(e) { toast('Error: ' + e.message, 'error'); }
   }
 
@@ -1394,7 +1396,9 @@ const App = (() => {
             <option value="Pendiente de retirar">Pendiente de retirar</option>
             <option value="Retirado">Retirado</option>
           </select>
-          <div class="kdetalle-actions">
+          <div class="kdetalle-actions" style="flex-wrap:wrap">
+            <button id="kd-whatsapp-btn" style="background:#25D366;color:#fff;border:none;border-radius:10px;padding:9px 14px;font-weight:700;font-size:.82rem;cursor:pointer">📲 WhatsApp</button>
+            <button id="kd-seg-btn" style="background:#EBF2FF;color:var(--azul,#034291);border:none;border-radius:10px;padding:9px 14px;font-weight:700;font-size:.82rem;cursor:pointer">🔗 Seguimiento</button>
             <button class="kdetalle-edit-btn" id="kd-edit-btn">✏️ Editar</button>
             <button class="kdetalle-del-btn" id="kd-del-btn">🗑️</button>
           </div>
@@ -1413,6 +1417,16 @@ const App = (() => {
     });
     document.getElementById('kd-del-btn').addEventListener('click', () => {
       if (_kanbanDetalleId) { _cerrarKanbanDetalle(); eliminarPedido(_kanbanDetalleId); }
+    });
+    document.getElementById('kd-whatsapp-btn').addEventListener('click', async () => {
+      if (!_kanbanDetalleId) return;
+      const p = _pedidosCache.find(x => x.id === _kanbanDetalleId);
+      if (p) await _abrirEnvioWhatsapp([p]);
+    });
+    document.getElementById('kd-seg-btn').addEventListener('click', () => {
+      if (!_kanbanDetalleId) return;
+      const p = _pedidosCache.find(x => x.id === _kanbanDetalleId);
+      if (p) _abrirModalSeguimiento(p);
     });
   }
 
@@ -1533,6 +1547,167 @@ const App = (() => {
   function toggleSegSection()     {}
   function switchSegTab()         { loadSeguimiento(); }
   function _renderSeguimientoFiltered() { _renderKanban(_pedidosCache); }
+
+  // ══════════════════════════════════════════════════
+  //  WHATSAPP — mensaje de "listo para retirar"
+  // ══════════════════════════════════════════════════
+
+  function generarMensajeListo() {
+    const ahora = new Date();
+    const hora = ahora.getHours();
+    const minutos = ahora.getMinutes();
+    const horaDecimal = hora + minutos / 60;
+    // Buen día: 08:00 a 13:29 | Buenas tardes: 13:30 a 21:00 (y fuera de rango, por defecto tarde)
+    const saludo = (horaDecimal >= 8 && horaDecimal < 13.5) ? 'Buen dia' : 'Buenas tardes';
+    return `${saludo}!! Me comunico de óptica olvisión😎 !! le informamos que sus anteojos ya están listos, puede pasar a retirarlos hasta las 13:00 hs y por la tarde de 17 hs a 21hs!`;
+  }
+
+  function _limpiarTelefono(tel) {
+    if (!tel) return '';
+    let t = String(tel).replace(/[^\d]/g, '');
+    if (!t) return '';
+    // Si ya viene con código de país (54) lo dejamos; si no, se lo agregamos (Argentina)
+    if (!t.startsWith('54')) t = '54' + t;
+    return t;
+  }
+
+  async function _buscarTelefonoCliente(clienteId) {
+    if (!clienteId) return '';
+    try {
+      const { data, error } = await window.supabaseClient
+        .from('clientes').select('telefono').eq('id', clienteId).maybeSingle();
+      if (error || !data) return '';
+      return data.telefono || '';
+    } catch { return ''; }
+  }
+
+  async function _ofrecerAvisoListo(pedidos) {
+    // pedidos: array (uno o el par A/B) que acaba de pasar a "Pendiente de retirar"
+    await _abrirEnvioWhatsapp(pedidos, true);
+  }
+
+  function _ensureWhatsappModal() {
+    if (document.getElementById('wa-modal')) return;
+    const el = document.createElement('div');
+    el.id = 'wa-modal';
+    el.className = 'hidden';
+    el.style.cssText = 'position:fixed;inset:0;background:rgba(3,66,145,.55);z-index:10000;display:flex;align-items:flex-end;justify-content:center';
+    el.innerHTML = `
+      <div class="wa-sheet" style="background:#fff;border-radius:20px 20px 0 0;max-width:460px;width:100%;padding:22px 20px 26px;max-height:88vh;overflow-y:auto">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <div style="font-weight:800;color:var(--azul,#034291);font-size:1.05rem">🎉 Pedido listo para retirar</div>
+          <button onclick="App._cerrarWhatsappModal()" style="border:none;background:none;font-size:1.2rem;color:#888;cursor:pointer">✕</button>
+        </div>
+        <div id="wa-cliente-nombre" style="font-size:.9rem;color:#555;margin-bottom:14px"></div>
+        <div style="background:#F0F4FF;border-radius:12px;padding:14px;font-size:.88rem;color:#222;line-height:1.5;margin-bottom:14px;white-space:pre-wrap" id="wa-mensaje-preview"></div>
+        <div id="wa-sin-telefono" class="hidden" style="background:#FFF8E1;border:1px solid #FDE68A;border-radius:10px;padding:10px 12px;font-size:.82rem;color:#7A5200;margin-bottom:12px">
+          ⚠️ Este cliente no tiene un teléfono cargado. Agregalo en la ficha del cliente para poder enviar el WhatsApp.
+        </div>
+        <a id="wa-enviar-link" href="#" target="_blank" rel="noopener"
+           style="display:block;text-align:center;background:#25D366;color:#fff;font-weight:700;padding:14px;border-radius:12px;text-decoration:none;font-size:.95rem;margin-bottom:10px">
+          📲 Enviar por WhatsApp
+        </a>
+        <button onclick="App._cerrarWhatsappModal()" style="width:100%;padding:12px;border-radius:12px;border:1.5px solid var(--gris-borde,#E2E5EC);background:#fff;color:#555;font-weight:600;font-size:.9rem">
+          Ahora no
+        </button>
+      </div>`;
+    document.body.appendChild(el);
+    el.addEventListener('click', e => { if (e.target === el) _cerrarWhatsappModal(); });
+  }
+
+  async function _abrirEnvioWhatsapp(pedidos) {
+    _ensureWhatsappModal();
+    const p = pedidos[0];
+    const nombreEl = document.getElementById('wa-cliente-nombre');
+    const sufijos  = pedidos.map(x => x.sufijo).filter(Boolean).join('/');
+    const ordenTxt = sufijos ? `#${p.orden}-${sufijos}` : `#${p.orden}`;
+    if (nombreEl) nombreEl.textContent = `${p.cliente} — ${ordenTxt}`;
+
+    const mensaje = generarMensajeListo();
+    document.getElementById('wa-mensaje-preview').textContent = mensaje;
+
+    const telefono = await _buscarTelefonoCliente(p.cliente_id);
+    const telLimpio = _limpiarTelefono(telefono);
+    const linkEl = document.getElementById('wa-enviar-link');
+    const sinTelEl = document.getElementById('wa-sin-telefono');
+
+    if (telLimpio) {
+      linkEl.href = `https://wa.me/${telLimpio}?text=${encodeURIComponent(mensaje)}`;
+      linkEl.classList.remove('hidden');
+      sinTelEl.classList.add('hidden');
+    } else {
+      linkEl.classList.add('hidden');
+      sinTelEl.classList.remove('hidden');
+    }
+
+    document.getElementById('wa-modal').classList.remove('hidden');
+  }
+
+  function _cerrarWhatsappModal() {
+    document.getElementById('wa-modal')?.classList.add('hidden');
+  }
+
+  // ══════════════════════════════════════════════════
+  //  SEGUIMIENTO PÚBLICO — link + QR
+  // ══════════════════════════════════════════════════
+
+  function _ensureSeguimientoModal() {
+    if (document.getElementById('seg-pub-modal')) return;
+    const el = document.createElement('div');
+    el.id = 'seg-pub-modal';
+    el.className = 'hidden';
+    el.style.cssText = 'position:fixed;inset:0;background:rgba(3,66,145,.55);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px';
+    el.innerHTML = `
+      <div style="background:#fff;border-radius:18px;max-width:340px;width:100%;padding:24px 20px;text-align:center">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <div style="font-weight:800;color:var(--azul,#034291);font-size:1rem">🔗 Seguimiento del pedido</div>
+          <button onclick="App._cerrarSeguimientoModal()" style="border:none;background:none;font-size:1.2rem;color:#888;cursor:pointer">✕</button>
+        </div>
+        <div id="seg-pub-orden" style="font-size:.85rem;color:#555;margin-bottom:14px"></div>
+        <img id="seg-pub-qr" src="" alt="Código QR" style="width:180px;height:180px;margin:0 auto 14px;border-radius:8px;border:1px solid #eee">
+        <div style="font-size:.75rem;color:#888;margin-bottom:10px">El cliente puede escanear el código o abrir el link para ver el estado en tiempo real.</div>
+        <input id="seg-pub-link" type="text" readonly style="width:100%;padding:10px;border-radius:8px;border:1.5px solid #E2E5EC;font-size:.78rem;color:#333;margin-bottom:10px;text-align:center">
+        <button onclick="App._copiarLinkSeguimiento()" style="width:100%;padding:12px;border-radius:12px;border:none;background:var(--azul,#034291);color:#fff;font-weight:700;font-size:.9rem">
+          📋 Copiar link
+        </button>
+      </div>`;
+    document.body.appendChild(el);
+    el.addEventListener('click', e => { if (e.target === el) _cerrarSeguimientoModal(); });
+  }
+
+  function _abrirModalSeguimiento(p) {
+    if (!p.codigo_seguimiento) {
+      toast('Este pedido no tiene código de seguimiento (fue creado antes de esta función)', 'warn');
+      return;
+    }
+    _ensureSeguimientoModal();
+    const sufijo = p.sufijo ? `-${p.sufijo}` : '';
+    document.getElementById('seg-pub-orden').textContent = `${p.cliente} — #${p.orden}${sufijo}`;
+    const url = `${window.location.origin}/seguimiento.html?codigo=${encodeURIComponent(p.codigo_seguimiento)}`;
+    document.getElementById('seg-pub-link').value = url;
+    document.getElementById('seg-pub-qr').src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(url)}`;
+    document.getElementById('seg-pub-modal').classList.remove('hidden');
+  }
+
+  function _cerrarSeguimientoModal() {
+    document.getElementById('seg-pub-modal')?.classList.add('hidden');
+  }
+
+  function _copiarLinkSeguimiento() {
+    const inp = document.getElementById('seg-pub-link');
+    if (!inp) return;
+    inp.select();
+    navigator.clipboard?.writeText(inp.value).then(() => toast('Link copiado ✓', 'success')).catch(() => {
+      document.execCommand('copy'); toast('Link copiado ✓', 'success');
+    });
+  }
+
+  function _generarCodigoSeguimiento() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let out = '';
+    for (let i = 0; i < 8; i++) out += chars[Math.floor(Math.random() * chars.length)];
+    return out;
+  }
 
   // ══════════════════════════════════════════════════
   //  HELPERS usados por kanban y otras pantallas
@@ -1730,6 +1905,7 @@ const App = (() => {
           await Pedidos.actualizarEstado(id,est); toast(`Estado: ${est}`,'success');
           const p=_pedidosCache.find(x=>x.id===id);
           if (est==='Retirado'&&p) enviarNotificacion('✅ Retirado — OLVISIÓN',`#${p.orden} de ${p.cliente}`,false);
+          if (est==='Pendiente de retirar'&&p) _ofrecerAvisoListo([p]);
           _pedidosCache=await Pedidos.getTodosPedidos();
           if (_currentScreen==='pedidos') renderPedidosList();
           updateBadge();
@@ -1897,6 +2073,7 @@ const App = (() => {
     if (btn){btn.textContent='Guardando...';btn.disabled=true;}
     try {
       const nuevoEstado=document.getElementById('e-estado')?.value;
+      const estadoAnterior = _pedidosCache.find(x=>x.id===id)?.estado;
       const campos={
         cliente:document.getElementById('e-cliente')?.value.trim(),
         orden:document.getElementById('e-orden')?.value.trim(),
@@ -1921,6 +2098,10 @@ const App = (() => {
       _pedidosCache=await Pedidos.getTodosPedidos();
       if (_currentScreen==='pedidos') renderPedidosList();
       if (_currentScreen==='seguimiento') loadSeguimiento();
+      if (nuevoEstado==='Pendiente de retirar' && estadoAnterior!=='Pendiente de retirar') {
+        const p=_pedidosCache.find(x=>x.id===id);
+        if (p) _ofrecerAvisoListo([p]);
+      }
     } catch(e){toast(`Error: ${e.message}`,'error'); if(btn){btn.textContent='Guardar cambios';btn.disabled=false;}}
   }
 
@@ -2365,6 +2546,8 @@ const App = (() => {
         } catch(e) { console.warn('No se pudo crear cliente:', e); }
       }
 
+      const codigoSeg = _generarCodigoSeguimiento();
+
       const buildRow = (ant, sufijo) => ({
         cliente:          data.base.cliente,
         cliente_id:       clienteId,
@@ -2387,6 +2570,7 @@ const App = (() => {
         numero_afiliado:  data.base.numero_afiliado  || null,
         tipo_trabajo_pami:data.base.tipo_trabajo_pami|| null,
         diferencia_pami:  data.base.diferencia_pami  || null,
+        codigo_seguimiento: codigoSeg,
       });
 
       const rows=data.doble?[buildRow(data.ant1,'A'),buildRow(data.ant2,'B')]:[buildRow(data.ant1,null)];
@@ -2668,6 +2852,7 @@ const App = (() => {
         </div>
         <div class="ped-row-detail-actions">
           <select class="estado-select ${scls} estado-select-inline" data-id="${p.id}" data-prev="${esc(p.estado)}" onclick="event.stopPropagation()">${opts}</select>
+          <button onclick="event.stopPropagation();App._abrirEnvioWhatsapp([App._pedidoPorId(${p.id})])" style="background:#25D366;color:#fff;border:none;border-radius:8px;padding:8px 12px;font-weight:700;font-size:.82rem;cursor:pointer">📲</button>
           ${Auth.isAdmin()?`<button class="ped-row-edit-btn" onclick="event.stopPropagation();App._abrirDetalleRapido(${p.id})">✏️ Editar</button>`:''}
           ${Auth.isAdmin()?`<button class="ped-row-del-btn" onclick="event.stopPropagation();App.eliminarPedido(${p.id})">🗑️</button>`:''}
         </div>
@@ -2766,6 +2951,8 @@ const App = (() => {
     </div>`;
   }
 
+  function _pedidoPorId(id) { return _pedidosCache.find(x => x.id === id); }
+
   // ── UTILS ─────────────────────────────────────────
   function todayStr() { return new Date().toISOString().slice(0,10); }
   function toast(msg,tipo='success') {
@@ -2793,7 +2980,7 @@ const App = (() => {
     addObraSocial, deleteObraSocial, startEditOS, saveConfigOS,
     guardarEdicion, eliminarPedido, activarNotificaciones,
     togglePedidoRow, mesPrev, mesNext,
-    _abrirDetalleRapido,
+    _abrirDetalleRapido, _pedidoPorId,
     onClienteInput, seleccionarCliente, crearClienteDesdeNuevo, limpiarClienteForm,
     initClienteSearch,
     onFotoSelected, clearFoto,
@@ -2810,6 +2997,9 @@ const App = (() => {
     _cerrarModalDuplicado, _confirmarSinImportarDuplicado,
     // PAMI
     onObraSocialChange, loadPami, pamiMesPrev, pamiMesNext, _clearPamiSearch,
+    // WhatsApp + Seguimiento público
+    _abrirEnvioWhatsapp, _cerrarWhatsappModal, generarMensajeListo,
+    _abrirModalSeguimiento, _cerrarSeguimientoModal, _copiarLinkSeguimiento,
   };
 })();
 
