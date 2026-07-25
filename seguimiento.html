@@ -278,13 +278,39 @@
 
   function esc(str){ if(!str) return ''; return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
+  const NOMBRES_COMUNES = new Set([
+    'juan','jose','josé','carlos','luis','jorge','miguel','pedro','pablo','martin','martín','diego','sergio','ricardo','roberto','fernando','alberto',
+    'daniel','david','rafael','raul','raúl','hector','héctor','oscar','óscar','eduardo','francisco','javier','gonzalo','ignacio','alejandro','andres','andrés',
+    'gustavo','marcelo','walter','claudio','ruben','rubén','hugo','ramon','ramón','victor','víctor','adrian','adrián','matias','matías','nicolas','nicolás',
+    'facundo','tomas','tomás','maximiliano','emanuel','ezequiel','leandro','lucas','gabriel','guillermo','german','germán','cristian','christian','damian','damián',
+    'esteban','federico','franco','ivan','iván','joaquin','joaquín','manuel','mariano','mauricio','maximo','máximo','nahuel','norberto','omar','patricio',
+    'rodolfo','rodrigo','santiago','sebastian','sebastián','agustin','agustín','bruno','bautista','benjamin','benjamín','dario','darío','enzo',
+    'gaston','gastón','ismael','julio','leonardo','marcos','nicanor','octavio','osvaldo','rolando','salvador','simon','simón','angel','ángel','antonio',
+    'alfredo','alfonso','arturo','armando','baltazar','cesar','césar','emilio','felipe','fabian','fabián','fabricio','gerardo','gregorio','horacio',
+    'humberto','isidro','leon','león','lorenzo','nestor','néstor','orlando','pascual','ramiro','reynaldo','sixto','tobias','tobías','uriel',
+    'maria','maría','ana','laura','claudia','patricia','silvia','monica','mónica','andrea','sandra','mariana','gabriela','veronica','verónica','paula','carolina',
+    'valeria','natalia','florencia','lucia','lucía','sofia','sofía','camila','julieta','victoria','martina','agustina','micaela','carla','cecilia','daniela',
+    'elena','elsa','emilia','eugenia','fernanda','gimena','graciela','ines','inés','irene','ivana','jimena','karina','leticia','liliana','lorena','luciana',
+    'macarena','marcela','marisa','marta','melisa','mercedes','miriam','nadia','noelia','norma','olga','pilar','rocio','rocío','rosa','rosana','sabrina',
+    'susana','teresa','vanesa','vanessa','virginia','yamila','yanina','yolanda','antonella','belen','belén','brenda','candela','constanza','delfina',
+    'estefania','estefanía','guadalupe','josefina','malena','milagros','morena','priscila','romina','tamara','valentina','abril','aldana','ayelen','ayelén',
+    'azul','celeste','cintia','cynthia','dana','erica','érica','flavia','giselle','ludmila','magali','marilina','melina','miranda','noemi','noemí',
+    'paola','perla','soledad','yesica','yésica','ariadna','beatriz','carmen','celia','dolores','esperanza','eva','gladys','herminia','ivonne','luz',
+  ]);
+
   function formatearNombre(cliente) {
-    // El nombre suele venir como "Apellido, Nombre" — para el saludo lo mostramos más natural
+    if (!cliente) return '';
     if (cliente.includes(',')) {
       const [apellido, nombre] = cliente.split(',').map(s => s.trim());
       return nombre ? `${nombre} ${apellido}` : apellido;
     }
-    return cliente;
+    const partes = cliente.trim().split(/\s+/).filter(Boolean);
+    if (partes.length !== 2) return cliente;
+    const [a, b] = partes;
+    const aEsNombre = NOMBRES_COMUNES.has(a.toLowerCase());
+    const bEsNombre = NOMBRES_COMUNES.has(b.toLowerCase());
+    if (bEsNombre && !aEsNombre) return `${b} ${a}`; // estaba como "Apellido Nombre"
+    return cliente; // ya está como "Nombre Apellido", o no se pudo determinar
   }
 
   async function init() {
