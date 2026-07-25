@@ -1583,6 +1583,16 @@ const App = (() => {
     } catch { return ''; }
   }
 
+  async function _buscarDatosCliente(clienteId) {
+    if (!clienteId) return null;
+    try {
+      const { data, error } = await window.supabaseClient
+        .from('clientes').select('nombre, telefono').eq('id', clienteId).maybeSingle();
+      if (error || !data) return null;
+      return data;
+    } catch { return null; }
+  }
+
   async function _ofrecerAvisoListo(pedidos) {
     // pedidos: array (uno o el par A/B) que acaba de pasar a "Pendiente de retirar"
     await _abrirEnvioWhatsapp(pedidos, true);
@@ -1730,7 +1740,7 @@ const App = (() => {
 
   function generarMensajeResena(cliente) {
     const nombre = _primerNombre(cliente);
-    return `Hola ${nombre}! 😊 Soy de óptica OLVISIÓN. Ya hace unos días que tenés tus anteojos nuevos — ¿cómo veni con ellos? Nos encantaría saber qué te pareció la experiencia. Si tenés 1 minutito, nos ayudaría muchísimo que nos dejes tu opinión en Google: ${LINK_RESENA_GOOGLE}\n\n¡Gracias por elegirnos! 🙌`;
+    return `Hola ${nombre}! 😊 Soy de óptica OLVISIÓN. Ya hace unos días que tenés tus anteojos nuevos — ¿cómo venís con ellos? Nos encantaría saber qué te pareció la experiencia. Si tenés 1 minutito, nos ayudaría muchísimo que nos dejes tu opinión en Google: ${LINK_RESENA_GOOGLE}\n\n¡Gracias por elegirnos! 🙌`;
   }
 
   function _inyectarBadgeResenas() {
@@ -1813,10 +1823,11 @@ const App = (() => {
   async function _enviarWhatsappResena(id, orden) {
     const p = _resenaPedidosCache.find(x => x.id === id);
     if (!p) return;
-    const telefono = await _buscarTelefonoCliente(p.cliente_id);
-    const telLimpio = _limpiarTelefono(telefono);
+    const datosCliente = await _buscarDatosCliente(p.cliente_id);
+    const telLimpio = _limpiarTelefono(datosCliente?.telefono);
     if (!telLimpio) { toast('Este cliente no tiene teléfono cargado', 'warn'); return; }
-    const mensaje = generarMensajeResena(p.cliente);
+    const nombreParaSaludo = datosCliente?.nombre || _primerNombre(p.cliente);
+    const mensaje = generarMensajeResena(nombreParaSaludo);
     window.open(`https://wa.me/${telLimpio}?text=${encodeURIComponent(mensaje)}`, '_blank');
     try {
       await Pedidos.marcarResenaSolicitada(orden);
