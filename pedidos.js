@@ -131,11 +131,14 @@ const Pedidos = (() => {
     if (error) throw error;
   }
 
-  async function actualizarEstado(id, nuevoEstado) {
+  async function actualizarEstado(id, nuevoEstado, usuario) {
+    const { data: actual } = await window.supabaseClient
+      .from('pedidos').select('estado').eq('id', id).maybeSingle();
     const updates = { estado: nuevoEstado };
     if (nuevoEstado === 'Retirado') updates.fecha_retiro = new Date().toISOString();
     const { error } = await window.supabaseClient.from('pedidos').update(updates).eq('id', id);
     if (error) throw error;
+    registrarCambioEstado(id, actual?.estado || null, nuevoEstado, usuario);
   }
 
   async function uploadFoto(id, file) {
@@ -201,11 +204,99 @@ const Pedidos = (() => {
     if (error) throw error;
   }
 
+  // ── Postventa: historial de estados ────────────────
+  async function registrarCambioEstado(pedidoId, estadoAnterior, estadoNuevo, usuario) {
+    try {
+      await window.supabaseClient.from('pedidos_historial_estados').insert({
+        pedido_id: pedidoId,
+        estado_anterior: estadoAnterior || null,
+        estado_nuevo: estadoNuevo,
+        usuario: usuario || null,
+      });
+    } catch (e) { console.warn('No se pudo registrar historial de estado:', e); }
+  }
+
+  // ── Postventa: comunicaciones (WhatsApp) ───────────
+  async function registrarComunicacion(pedidoId, orden, tipo, enviado, usuario) {
+    try {
+      await window.supabaseClient.from('pedidos_comunicaciones').insert({
+        pedido_id: pedidoId,
+        orden: orden != null ? String(orden) : null,
+        tipo, enviado,
+        usuario: usuario || null,
+      });
+    } catch (e) { console.warn('No se pudo registrar comunicación:', e); }
+  }
+
+  async function getHistorialCompleto(pedidoId) {
+    const [estadosRes, comsRes] = await Promise.all([
+      window.supabaseClient.from('pedidos_historial_estados').select('*').eq('pedido_id', pedidoId).order('fecha_hora', { ascending: true }),
+      window.supabaseClient.from('pedidos_comunicaciones').select('*').eq('pedido_id', pedidoId).order('fecha_hora', { ascending: true }),
+    ]);
+    return { estados: estadosRes.data || [], comunicaciones: comsRes.data || [] };
+  }
+
+  // ── Postventa: resultado de reseña y satisfacción ──
+  async function actualizarResenaResultado(orden, resultado) {
+    const { error } = await window.supabaseClient
+      .from('pedidos').update({ resena_resultado: resultado }).eq('orden', orden);
+    if (error) throw error;
+  }
+
+  async function actualizarPostventa(id, campos) {
+    const { error } = await window.supabaseClient.from('pedidos').update(campos).eq('id', id);
+    if (error) throw error;
+  }
+
+  // ── Postventa: KPIs mensuales ───────────────────────
+  async function getKPIsPostventa(mesInicio, mesFin) {
+    const { data: retirados, error } = await window.supabaseClient
+      .from('pedidos')
+      .select('id, orden, fecha_pedido, fecha_carga, fecha_retiro, resena_solicitada, resena_resultado')
+      .eq('estado', 'Retirado')
+      .gte('fecha_retiro', mesInicio.toISOString())
+      .lt('fecha_retiro', mesFin.toISOString());
+    if (error) throw error;
+
+    const tiemposEntrega = retirados
+      .map(p => (new Date(p.fecha_retiro) - new Date(p.fecha_pedido || p.fecha_carga)) / (1000*60*60*24))
+      .filter(n => n >= 0);
+    const promEntrega = tiemposEntrega.length ? (tiemposEntrega.reduce((a,b)=>a+b,0) / tiemposEntrega.length) : null;
+
+    let promRetiroPostAviso = null;
+    const ids = retirados.map(p => p.id);
+    if (ids.length) {
+      const { data: historial } = await window.supabaseClient
+        .from('pedidos_historial_estados').select('pedido_id, fecha_hora')
+        .in('pedido_id', ids).eq('estado_nuevo', 'Pendiente de retirar')
+        .order('fecha_hora', { ascending: true });
+      const avisoPorPedido = {};
+      (historial || []).forEach(h => { if (!avisoPorPedido[h.pedido_id]) avisoPorPedido[h.pedido_id] = h.fecha_hora; });
+      const tiemposRetiro = retirados
+        .filter(p => avisoPorPedido[p.id])
+        .map(p => (new Date(p.fecha_retiro) - new Date(avisoPorPedido[p.id])) / (1000*60*60*24))
+        .filter(n => n >= 0);
+      if (tiemposRetiro.length) promRetiroPostAviso = tiemposRetiro.reduce((a,b)=>a+b,0) / tiemposRetiro.length;
+    }
+
+    const solicitados = retirados.filter(p => p.resena_solicitada);
+    const obtenidas    = solicitados.filter(p => p.resena_resultado === 'obtenida');
+    const conversion   = solicitados.length ? (obtenidas.length / solicitados.length) * 100 : null;
+
+    return {
+      totalRetirados: retirados.length,
+      promEntrega, promRetiroPostAviso,
+      solicitadas: solicitados.length, obtenidas: obtenidas.length, conversion,
+    };
+  }
+
   return {
     getPedidosActivos, getTodosPedidos, getPedidoById,
     crearPedido, actualizarPedido, actualizarEstado,
     calcEstInteligente, calcDias, enrich, claseEstado,
     uploadFoto, eliminarFoto,
     getPedidosParaResenar, marcarResenaSolicitada,
+    registrarCambioEstado, registrarComunicacion, getHistorialCompleto,
+    actualizarResenaResultado, actualizarPostventa, getKPIsPostventa,
   };
 })();
