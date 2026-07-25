@@ -1561,7 +1561,7 @@ const App = (() => {
     const horaDecimal = hora + minutos / 60;
     // Buen día: 08:00 a 13:29 | Buenas tardes: 13:30 a 21:00 (y fuera de rango, por defecto tarde)
     const saludo = (horaDecimal >= 8 && horaDecimal < 13.5) ? 'Buen dia' : 'Buenas tardes';
-    return `${saludo}!! Me comunico de óptica olvisión☺️ !! le informamos que sus anteojos ya están listos, puede pasar a retirarlos hasta las 13:00 hs y por la tarde de 17 hs a 21hs!`;
+    return `${saludo}!! Me comunico de óptica olvisión😎 !! le informamos que sus anteojos ya están listos, puede pasar a retirarlos hasta las 13:00 hs y por la tarde de 17 hs a 21hs!`;
   }
 
   function _limpiarTelefono(tel) {
