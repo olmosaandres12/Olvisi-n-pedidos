@@ -349,6 +349,23 @@
       </div>
     </section>
 
+    <!-- ═══ POSTVENTA (admin) ═══ -->
+    <section id="screen-postventa" class="screen">
+      <div class="section-header">
+        <div><h1 class="section-title">Postventa</h1><p class="section-subtitle">Comunicación y seguimiento post-venta</p></div>
+      </div>
+      <div id="pv-mes-nav"></div>
+      <div id="pv-kpis" style="margin:14px 0 22px">
+        <div class="skeleton-card skeleton" style="height:80px;border-radius:12px;margin-bottom:10px"></div>
+        <div class="skeleton-card skeleton" style="height:80px;border-radius:12px;opacity:.6"></div>
+      </div>
+      <div class="detalle-seccion-title" style="margin:0 0 10px">🔴 Alertas activas ahora</div>
+      <div id="pv-alertas">
+        <div class="skeleton-card skeleton" style="height:56px;border-radius:12px;margin-bottom:4px"></div>
+        <div class="skeleton-card skeleton" style="height:56px;border-radius:12px;opacity:.6"></div>
+      </div>
+    </section>
+
     <!-- ═══ AGENDA ═══ -->
     <section id="screen-agenda" class="screen">
       <div class="section-header">
@@ -469,6 +486,10 @@
     <button class="nav-item hidden" id="nav-panel" onclick="App.showScreen('panel')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
       Panel
+    </button>
+    <button class="nav-item hidden" id="nav-postventa" onclick="App.showScreen('postventa')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3v18h18"/><path d="M7 15l4-6 3 3 5-7"/></svg>
+      Postventa
     </button>
     <button class="nav-item hidden" id="nav-config" onclick="App.showScreen('config')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
