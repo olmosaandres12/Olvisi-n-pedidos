@@ -333,6 +333,7 @@ const App = (() => {
     if (Auth.isAdmin()) {
       document.getElementById('nav-panel').classList.remove('hidden');
       document.getElementById('nav-config').classList.remove('hidden');
+      document.getElementById('nav-postventa')?.classList.remove('hidden');
     }
 
     const fechaEl = document.getElementById('f-fecha-carga');
@@ -736,11 +737,12 @@ const App = (() => {
     if (name==='seguimiento') loadSeguimiento();
     if (name==='panel')       refreshPanel();
     if (name==='config')      loadConfigScreen();
+    if (name==='postventa')   loadPostventa();
     if (name==='pami')        loadPami();
     if (name==='agenda' && typeof loadClientes === 'function') loadClientes();
     if (name==='inicio') { setTimeout(_cargarObrasSocialesForm, 50); }
     const fab=document.getElementById('fab-nuevo-pedido');
-    if (fab) fab.style.display=(name==='inicio'||name==='agenda'||name==='pami')?'none':'flex';
+    if (fab) fab.style.display=(name==='inicio'||name==='agenda'||name==='pami'||name==='postventa')?'none':'flex';
     // Mostrar/ocultar barra de búsqueda kanban solo en Estado
     const kb = document.getElementById('kanban-search-bar');
     if (kb) kb.style.display = name==='seguimiento' ? '' : 'none';
@@ -1303,7 +1305,7 @@ const App = (() => {
 
   async function _moverKanbanCard(id, nuevoEstado) {
     try {
-      await Pedidos.actualizarEstado(id, nuevoEstado);
+      await Pedidos.actualizarEstado(id, nuevoEstado, Auth.getNombre());
       toast(`→ ${nuevoEstado}`, 'success');
       const p = _pedidosCache.find(x => x.id === id);
       if (nuevoEstado === 'Retirado' && p) enviarNotificacion('✅ Retirado — OLVISIÓN', `#${p.orden} de ${p.cliente}`, false);
@@ -1318,7 +1320,7 @@ const App = (() => {
   async function _moverKanbanPair(orden, nuevoEstado) {
     const pares = _pedidosCache.filter(p => p.orden === orden && (p.sufijo === 'A' || p.sufijo === 'B'));
     try {
-      for (const p of pares) await Pedidos.actualizarEstado(p.id, nuevoEstado);
+      for (const p of pares) await Pedidos.actualizarEstado(p.id, nuevoEstado, Auth.getNombre());
       toast(`→ ${nuevoEstado}`, 'success');
       _pedidosCache = await Pedidos.getTodosPedidos();
       _renderKanbanKPIs(_pedidosCache);
@@ -1432,11 +1434,14 @@ const App = (() => {
     });
   }
 
-  function _abrirKanbanDetalle(id) {
+  async function _abrirKanbanDetalle(id) {
     _ensureKanbanDetalleModal();
     _kanbanDetalleId = id;
-    const p = _pedidosCache.find(x => x.id === id);
-    if (!p) return;
+    let p = _pedidosCache.find(x => x.id === id);
+    if (!p) {
+      try { p = await Pedidos.getPedidoById(id); _pedidosCache.push(p); }
+      catch (e) { toast('No se pudo cargar el pedido: ' + e.message, 'error'); return; }
+    }
     const sufijo = p.sufijo ? `-${p.sufijo}` : '';
     document.getElementById('kd-orden').textContent   = `#${p.orden}${sufijo}`;
     document.getElementById('kd-cliente').textContent = p.cliente;
@@ -1516,10 +1521,95 @@ const App = (() => {
       ${p.foto_url ? `<div class="kdetalle-section-title">Foto</div>
         <img src="${esc(p.foto_url)}" loading="lazy" onclick="App.abrirFotoViewer(${p.id})"
              style="width:100%;max-height:180px;object-fit:cover;border-radius:var(--radius-sm);border:1.5px solid var(--gris-borde);cursor:pointer;margin-bottom:8px">` : ''}
+      ${esAdmin ? `
+      <div class="kdetalle-section-title">📊 Postventa</div>
+      <div class="kdetalle-grid">
+        <div class="kdetalle-item">
+          <div class="kdetalle-item-label">Reseña de Google</div>
+          <select id="kd-pv-resena" style="width:100%;padding:8px 10px;border-radius:8px;border:1.5px solid #E2E5EC;font-size:.82rem">
+            <option value="pendiente"${p.resena_resultado!=='obtenida'&&p.resena_resultado!=='descartada'?' selected':''}>Pendiente</option>
+            <option value="obtenida"${p.resena_resultado==='obtenida'?' selected':''}>✅ Obtenida</option>
+            <option value="descartada"${p.resena_resultado==='descartada'?' selected':''}>✕ Descartada</option>
+          </select>
+        </div>
+        <div class="kdetalle-item">
+          <div class="kdetalle-item-label">Satisfacción del cliente</div>
+          <select id="kd-pv-satisfaccion" style="width:100%;padding:8px 10px;border-radius:8px;border:1.5px solid #E2E5EC;font-size:.82rem">
+            <option value=""${!p.satisfaccion_posventa?' selected':''}>— Sin registrar —</option>
+            <option value="satisfecho"${p.satisfaccion_posventa==='satisfecho'?' selected':''}>🙂 Satisfecho</option>
+            <option value="neutral"${p.satisfaccion_posventa==='neutral'?' selected':''}>😐 Neutral</option>
+            <option value="insatisfecho"${p.satisfaccion_posventa==='insatisfecho'?' selected':''}>🙁 Insatisfecho</option>
+          </select>
+        </div>
+        <div class="kdetalle-item kdetalle-item--full">
+          <div class="kdetalle-item-label">Incidencia posventa (opcional)</div>
+          <textarea id="kd-pv-incidencia" rows="2" placeholder="Reclamos, devoluciones, ajustes..." style="width:100%;padding:8px 10px;border-radius:8px;border:1.5px solid #E2E5EC;font-size:.82rem;resize:vertical;font-family:inherit">${esc(p.incidencia_posventa||'')}</textarea>
+        </div>
+      </div>
+      <button id="kd-pv-guardar" style="width:100%;padding:10px;border-radius:10px;border:none;background:var(--azul,#034291);color:#fff;font-weight:700;font-size:.85rem;cursor:pointer;margin-bottom:14px">Guardar postventa</button>
+      <div class="kdetalle-section-title">🕓 Historial</div>
+      <div id="kd-historial" style="font-size:.78rem;color:#888;padding:6px 0">Cargando...</div>
+      ` : ''}
     `;
+
+    if (esAdmin) {
+      document.getElementById('kd-pv-guardar').addEventListener('click', async () => {
+        const btn = document.getElementById('kd-pv-guardar');
+        btn.textContent = 'Guardando...'; btn.disabled = true;
+        try {
+          const resena = document.getElementById('kd-pv-resena').value;
+          const satisfaccion = document.getElementById('kd-pv-satisfaccion').value || null;
+          const incidencia = document.getElementById('kd-pv-incidencia').value.trim() || null;
+          await Pedidos.actualizarResenaResultado(p.orden, resena);
+          await Pedidos.actualizarPostventa(p.id, { satisfaccion_posventa: satisfaccion, incidencia_posventa: incidencia });
+          toast('Postventa guardada ✓', 'success');
+        } catch (e) { toast('Error: ' + e.message, 'error'); }
+        finally { btn.textContent = 'Guardar postventa'; btn.disabled = false; }
+      });
+      _renderHistorialKdetalle(p.id);
+    }
 
     document.getElementById('kdetalle-modal').classList.remove('hidden');
     document.body.style.overflow = 'hidden';
+  }
+
+  const TIPO_COMUNICACION_LABEL = {
+    listo_retirar: '📲 Aviso "listo para retirar"',
+    seguimiento:   '🔗 Link de seguimiento',
+    resena:        '⭐ Pedido de reseña',
+  };
+
+  async function _renderHistorialKdetalle(pedidoId) {
+    const el = document.getElementById('kd-historial');
+    if (!el) return;
+    try {
+      const { estados, comunicaciones } = await Pedidos.getHistorialCompleto(pedidoId);
+      const eventos = [
+        ...estados.map(e => ({
+          fecha: e.fecha_hora,
+          texto: e.estado_anterior ? `${esc(e.estado_anterior)} → ${esc(e.estado_nuevo)}` : `Creado como "${esc(e.estado_nuevo)}"`,
+          usuario: e.usuario,
+        })),
+        ...comunicaciones.map(c => ({
+          fecha: c.fecha_hora,
+          texto: `${TIPO_COMUNICACION_LABEL[c.tipo] || c.tipo} — ${c.enviado ? '✓ enviado' : '✕ no enviado'}`,
+          usuario: c.usuario,
+        })),
+      ].sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+
+      if (!eventos.length) { el.innerHTML = 'Sin registros todavía.'; return; }
+
+      el.innerHTML = eventos.map(ev => {
+        const f = new Date(ev.fecha).toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric' });
+        const h = new Date(ev.fecha).toLocaleTimeString('es-AR', { hour:'2-digit', minute:'2-digit' });
+        return `<div style="display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid #F1F2F6">
+          <span>${ev.texto}${ev.usuario ? ` <span style="color:#bbb">· ${esc(ev.usuario)}</span>` : ''}</span>
+          <span style="white-space:nowrap;color:#aaa">${f} ${h}</span>
+        </div>`;
+      }).join('');
+    } catch (e) {
+      el.innerHTML = `Error al cargar historial: ${esc(e.message)}`;
+    }
   }
 
   function _abrirKanbanDetallePair(orden) {
@@ -1598,6 +1688,8 @@ const App = (() => {
     await _abrirEnvioWhatsapp(pedidos, true);
   }
 
+  let _waPedidosActuales = [];
+
   function _ensureWhatsappModal() {
     if (document.getElementById('wa-modal')) return;
     const el = document.createElement('div');
@@ -1615,13 +1707,22 @@ const App = (() => {
         <div id="wa-sin-telefono" class="hidden" style="background:#FFF8E1;border:1px solid #FDE68A;border-radius:10px;padding:10px 12px;font-size:.82rem;color:#7A5200;margin-bottom:12px">
           ⚠️ Este cliente no tiene un teléfono cargado. Agregalo en la ficha del cliente para poder enviar el WhatsApp.
         </div>
-        <a id="wa-enviar-link" href="#" target="_blank" rel="noopener"
-           style="display:block;text-align:center;background:#25D366;color:#fff;font-weight:700;padding:14px;border-radius:12px;text-decoration:none;font-size:.95rem;margin-bottom:10px">
-          📲 Enviar por WhatsApp
-        </a>
-        <button onclick="App._cerrarWhatsappModal()" style="width:100%;padding:12px;border-radius:12px;border:1.5px solid var(--gris-borde,#E2E5EC);background:#fff;color:#555;font-weight:600;font-size:.9rem">
-          Ahora no
-        </button>
+        <div id="wa-paso-enviar">
+          <button onclick="App._enviarWaListo()" id="wa-enviar-btn"
+             style="display:block;width:100%;text-align:center;background:#25D366;color:#fff;font-weight:700;padding:14px;border-radius:12px;border:none;font-size:.95rem;margin-bottom:10px;cursor:pointer">
+            📲 Enviar por WhatsApp
+          </button>
+          <button onclick="App._cerrarWhatsappModal()" style="width:100%;padding:12px;border-radius:12px;border:1.5px solid var(--gris-borde,#E2E5EC);background:#fff;color:#555;font-weight:600;font-size:.9rem">
+            Ahora no
+          </button>
+        </div>
+        <div id="wa-paso-confirmar" class="hidden">
+          <div style="text-align:center;font-size:.85rem;color:#555;margin-bottom:10px">¿Enviaste el mensaje?</div>
+          <div style="display:flex;gap:10px">
+            <button onclick="App._confirmarWaListoEnviado()" style="flex:1;padding:12px;border-radius:12px;border:none;background:#25D366;color:#fff;font-weight:700;font-size:.9rem;cursor:pointer">✓ Sí, lo envié</button>
+            <button onclick="App._cancelarWaListoEnviado()" style="flex:1;padding:12px;border-radius:12px;border:1.5px solid var(--gris-borde,#E2E5EC);background:#fff;color:#555;font-weight:600;font-size:.9rem;cursor:pointer">No</button>
+          </div>
+        </div>
       </div>`;
     document.body.appendChild(el);
     el.addEventListener('click', e => { if (e.target === el) _cerrarWhatsappModal(); });
@@ -1629,6 +1730,9 @@ const App = (() => {
 
   async function _abrirEnvioWhatsapp(pedidos) {
     _ensureWhatsappModal();
+    _waPedidosActuales = pedidos;
+    document.getElementById('wa-paso-enviar').classList.remove('hidden');
+    document.getElementById('wa-paso-confirmar').classList.add('hidden');
     const p = pedidos[0];
     const nombreEl = document.getElementById('wa-cliente-nombre');
     const sufijos  = pedidos.map(x => x.sufijo).filter(Boolean).join('/');
@@ -1638,21 +1742,39 @@ const App = (() => {
     const mensaje = generarMensajeListo();
     document.getElementById('wa-mensaje-preview').textContent = mensaje;
 
-    const telefono = await _buscarTelefonoCliente(p.cliente_id);
-    const telLimpio = _limpiarTelefono(telefono);
-    const linkEl = document.getElementById('wa-enviar-link');
+    const datosCliente = await _buscarDatosCliente(p.cliente_id);
+    const telLimpio = _limpiarTelefono(datosCliente?.telefono);
+    const btnEl    = document.getElementById('wa-enviar-btn');
     const sinTelEl = document.getElementById('wa-sin-telefono');
 
     if (telLimpio) {
-      linkEl.href = `https://wa.me/${telLimpio}?text=${encodeURIComponent(mensaje)}`;
-      linkEl.classList.remove('hidden');
+      btnEl.dataset.href = `https://wa.me/${telLimpio}?text=${encodeURIComponent(mensaje)}`;
+      btnEl.classList.remove('hidden');
       sinTelEl.classList.add('hidden');
     } else {
-      linkEl.classList.add('hidden');
+      btnEl.classList.add('hidden');
       sinTelEl.classList.remove('hidden');
     }
 
     document.getElementById('wa-modal').classList.remove('hidden');
+  }
+
+  function _enviarWaListo() {
+    const btnEl = document.getElementById('wa-enviar-btn');
+    if (btnEl?.dataset.href) window.open(btnEl.dataset.href, '_blank');
+    document.getElementById('wa-paso-enviar').classList.add('hidden');
+    document.getElementById('wa-paso-confirmar').classList.remove('hidden');
+  }
+
+  function _confirmarWaListoEnviado() {
+    _waPedidosActuales.forEach(p => Pedidos.registrarComunicacion(p.id, p.orden, 'listo_retirar', true, Auth.getNombre()));
+    toast('Mensaje registrado ✓', 'success');
+    _cerrarWhatsappModal();
+  }
+
+  function _cancelarWaListoEnviado() {
+    _waPedidosActuales.forEach(p => Pedidos.registrarComunicacion(p.id, p.orden, 'listo_retirar', false, Auth.getNombre()));
+    _cerrarWhatsappModal();
   }
 
   function _cerrarWhatsappModal() {
@@ -1662,6 +1784,8 @@ const App = (() => {
   // ══════════════════════════════════════════════════
   //  SEGUIMIENTO PÚBLICO — link + QR
   // ══════════════════════════════════════════════════
+
+  let _segPedidoActual = null;
 
   function _ensureSeguimientoModal() {
     if (document.getElementById('seg-pub-modal')) return;
@@ -1679,15 +1803,24 @@ const App = (() => {
         <img id="seg-pub-qr" src="" alt="Código QR" style="width:180px;height:180px;margin:0 auto 14px;border-radius:8px;border:1px solid #eee">
         <div style="font-size:.75rem;color:#888;margin-bottom:10px">El cliente puede escanear el código o abrir el link para ver el estado en tiempo real.</div>
         <input id="seg-pub-link" type="text" readonly style="width:100%;padding:10px;border-radius:8px;border:1.5px solid #E2E5EC;font-size:.78rem;color:#333;margin-bottom:10px;text-align:center">
-        <a id="seg-pub-wa" href="#" target="_blank" rel="noopener" style="display:block;text-align:center;background:#25D366;color:#fff;font-weight:700;padding:12px;border-radius:12px;text-decoration:none;font-size:.9rem;margin-bottom:10px">
-          📲 Enviar por WhatsApp
-        </a>
         <div id="seg-pub-sin-tel" class="hidden" style="background:#FFF8E1;border:1px solid #FDE68A;border-radius:10px;padding:9px 11px;font-size:.75rem;color:#7A5200;margin-bottom:10px">
           ⚠️ Este cliente no tiene teléfono cargado.
         </div>
-        <button onclick="App._copiarLinkSeguimiento()" style="width:100%;padding:12px;border-radius:12px;border:none;background:var(--azul,#034291);color:#fff;font-weight:700;font-size:.9rem">
-          📋 Copiar link
-        </button>
+        <div id="seg-pub-paso-enviar">
+          <button id="seg-pub-wa" onclick="App._enviarWaSeguimiento()" style="display:block;width:100%;text-align:center;background:#25D366;color:#fff;font-weight:700;padding:12px;border-radius:12px;border:none;font-size:.9rem;margin-bottom:10px;cursor:pointer">
+            📲 Enviar por WhatsApp
+          </button>
+          <button onclick="App._copiarLinkSeguimiento()" style="width:100%;padding:12px;border-radius:12px;border:none;background:var(--azul,#034291);color:#fff;font-weight:700;font-size:.9rem">
+            📋 Copiar link
+          </button>
+        </div>
+        <div id="seg-pub-paso-confirmar" class="hidden">
+          <div style="font-size:.82rem;color:#555;margin-bottom:10px">¿Enviaste el mensaje?</div>
+          <div style="display:flex;gap:10px">
+            <button onclick="App._confirmarWaSeguimientoEnviado()" style="flex:1;padding:11px;border-radius:12px;border:none;background:#25D366;color:#fff;font-weight:700;font-size:.85rem;cursor:pointer">✓ Sí</button>
+            <button onclick="App._cancelarWaSeguimientoEnviado()" style="flex:1;padding:11px;border-radius:12px;border:1.5px solid var(--gris-borde,#E2E5EC);background:#fff;color:#555;font-weight:600;font-size:.85rem;cursor:pointer">No</button>
+          </div>
+        </div>
       </div>`;
     document.body.appendChild(el);
     el.addEventListener('click', e => { if (e.target === el) _cerrarSeguimientoModal(); });
@@ -1704,27 +1837,48 @@ const App = (() => {
       return;
     }
     _ensureSeguimientoModal();
+    _segPedidoActual = p;
+    document.getElementById('seg-pub-paso-enviar').classList.remove('hidden');
+    document.getElementById('seg-pub-paso-confirmar').classList.add('hidden');
     const sufijo = p.sufijo ? `-${p.sufijo}` : '';
     document.getElementById('seg-pub-orden').textContent = `${p.cliente} — #${p.orden}${sufijo}`;
     const url = `${window.location.origin}/seguimiento.html?codigo=${encodeURIComponent(p.codigo_seguimiento)}`;
     document.getElementById('seg-pub-link').value = url;
     document.getElementById('seg-pub-qr').src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(url)}`;
 
-    const waLink   = document.getElementById('seg-pub-wa');
+    const btnEl    = document.getElementById('seg-pub-wa');
     const sinTelEl = document.getElementById('seg-pub-sin-tel');
     const datosCliente = await _buscarDatosCliente(p.cliente_id);
     const telLimpio = _limpiarTelefono(datosCliente?.telefono);
     if (telLimpio) {
       const mensaje = generarMensajeSeguimiento(datosCliente?.nombre || p.cliente, url);
-      waLink.href = `https://wa.me/${telLimpio}?text=${encodeURIComponent(mensaje)}`;
-      waLink.classList.remove('hidden');
+      btnEl.dataset.href = `https://wa.me/${telLimpio}?text=${encodeURIComponent(mensaje)}`;
+      btnEl.classList.remove('hidden');
       sinTelEl.classList.add('hidden');
     } else {
-      waLink.classList.add('hidden');
+      btnEl.classList.add('hidden');
       sinTelEl.classList.remove('hidden');
     }
 
     document.getElementById('seg-pub-modal').classList.remove('hidden');
+  }
+
+  function _enviarWaSeguimiento() {
+    const btnEl = document.getElementById('seg-pub-wa');
+    if (btnEl?.dataset.href) window.open(btnEl.dataset.href, '_blank');
+    document.getElementById('seg-pub-paso-enviar').classList.add('hidden');
+    document.getElementById('seg-pub-paso-confirmar').classList.remove('hidden');
+  }
+
+  function _confirmarWaSeguimientoEnviado() {
+    if (_segPedidoActual) Pedidos.registrarComunicacion(_segPedidoActual.id, _segPedidoActual.orden, 'seguimiento', true, Auth.getNombre());
+    toast('Mensaje registrado ✓', 'success');
+    _cerrarSeguimientoModal();
+  }
+
+  function _cancelarWaSeguimientoEnviado() {
+    if (_segPedidoActual) Pedidos.registrarComunicacion(_segPedidoActual.id, _segPedidoActual.orden, 'seguimiento', false, Auth.getNombre());
+    _cerrarSeguimientoModal();
   }
 
   function _cerrarSeguimientoModal() {
@@ -1926,6 +2080,7 @@ const App = (() => {
     _resenaConfirmando.delete(id);
     try {
       await Pedidos.marcarResenaSolicitada(orden);
+      Pedidos.registrarComunicacion(id, orden, 'resena', true, Auth.getNombre());
       _resenaPedidosCache = _resenaPedidosCache.filter(x => x.orden !== orden);
       _renderListaResenas();
       const badge = document.getElementById('resenas-badge');
@@ -1940,7 +2095,112 @@ const App = (() => {
 
   function _cancelarConfirmacionResena(id) {
     _resenaConfirmando.delete(id);
+    const p = _resenaPedidosCache.find(x => x.id === id);
+    if (p) Pedidos.registrarComunicacion(id, p.orden, 'resena', false, Auth.getNombre());
     _renderListaResenas();
+  }
+
+  // ══════════════════════════════════════════════════
+  //  PANTALLA POSTVENTA (solo admin) — KPIs y alertas
+  // ══════════════════════════════════════════════════
+
+  let _pvMesActual = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+
+  async function loadPostventa() {
+    if (!Auth.isAdmin()) return;
+    _renderPvMesNav();
+    await _renderPvKPIs();
+    await _renderPvAlertas();
+  }
+
+  function _renderPvMesNav() {
+    const container = document.getElementById('pv-mes-nav');
+    if (!container) return;
+    const esHoy = _pvMesActual.getFullYear() === hoy.getFullYear() && _pvMesActual.getMonth() === hoy.getMonth();
+    container.innerHTML = `<div class="mes-nav">
+      <button class="mes-nav-btn" onclick="App._pvMesPrev()">‹</button>
+      <span class="mes-nav-label">${mesLabel(_pvMesActual)}</span>
+      <button class="mes-nav-btn ${esHoy?'mes-nav-btn--disabled':''}" onclick="App._pvMesNext()" ${esHoy?'disabled':''}>›</button>
+    </div>`;
+  }
+
+  async function _pvMesPrev() {
+    _pvMesActual = new Date(_pvMesActual.getFullYear(), _pvMesActual.getMonth() - 1, 1);
+    _renderPvMesNav();
+    await _renderPvKPIs();
+  }
+  async function _pvMesNext() {
+    const n = new Date(_pvMesActual.getFullYear(), _pvMesActual.getMonth() + 1, 1);
+    if (n > hoy) return;
+    _pvMesActual = n;
+    _renderPvMesNav();
+    await _renderPvKPIs();
+  }
+
+  async function _renderPvKPIs() {
+    const kpisEl = document.getElementById('pv-kpis');
+    if (!kpisEl) return;
+    kpisEl.innerHTML = 'Cargando...';
+    try {
+      const mesFin = new Date(_pvMesActual.getFullYear(), _pvMesActual.getMonth() + 1, 1);
+      const k = await Pedidos.getKPIsPostventa(_pvMesActual, mesFin);
+      const fmtDias = v => v === null ? '—' : `${v.toFixed(1)}d`;
+      const fmtPct  = v => v === null ? '—' : `${v.toFixed(0)}%`;
+      kpisEl.innerHTML = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div style="background:#F0F4FF;border-radius:12px;padding:14px;border-left:4px solid var(--azul,#034291)">
+          <div style="font-size:1.5rem;font-weight:900;color:var(--azul,#034291)">${fmtDias(k.promEntrega)}</div>
+          <div style="font-size:.72rem;color:#666;margin-top:2px">Tiempo promedio de entrega</div>
+        </div>
+        <div style="background:#F0F4FF;border-radius:12px;padding:14px;border-left:4px solid var(--azul,#034291)">
+          <div style="font-size:1.5rem;font-weight:900;color:var(--azul,#034291)">${fmtDias(k.promRetiroPostAviso)}</div>
+          <div style="font-size:.72rem;color:#666;margin-top:2px">Días entre aviso "listo" y retiro real</div>
+        </div>
+        <div style="background:#FFFBEB;border-radius:12px;padding:14px;border-left:4px solid #D97706">
+          <div style="font-size:1.5rem;font-weight:900;color:#92400E">${fmtPct(k.conversion)}</div>
+          <div style="font-size:.72rem;color:#666;margin-top:2px">Conversión de reseñas (${k.obtenidas}/${k.solicitadas} pedidas)</div>
+        </div>
+        <div style="background:#F5F6FA;border-radius:12px;padding:14px;border-left:4px solid #6B7280">
+          <div style="font-size:1.5rem;font-weight:900;color:#374151">${k.totalRetirados}</div>
+          <div style="font-size:.72rem;color:#666;margin-top:2px">Pedidos retirados este mes</div>
+        </div>
+      </div>`;
+    } catch (e) {
+      kpisEl.innerHTML = `<p style="color:var(--rojo,#DC2626);font-size:.85rem">Error: ${esc(e.message)}</p>`;
+    }
+  }
+
+  async function _renderPvAlertas() {
+    const alertasEl = document.getElementById('pv-alertas');
+    if (!alertasEl) return;
+    alertasEl.innerHTML = 'Cargando...';
+    try {
+      const activos = await Pedidos.getPedidosActivos();
+      const criticos  = activos.filter(p => p._est.valor === 'critico');
+      const demorados = activos.filter(p => p._est.valor === 'demorado');
+      const lista = [...criticos, ...demorados];
+      if (!lista.length) {
+        alertasEl.innerHTML = `<p style="color:#888;font-size:.85rem;text-align:center;padding:16px 0">✅ Sin pedidos demorados en este momento.</p>`;
+      } else {
+        alertasEl.innerHTML = lista.map(p => {
+          const color = p._est.valor === 'critico' ? '#DC2626' : '#D97706';
+          const sufijo = p.sufijo ? `-${p.sufijo}` : '';
+          return `<div onclick="App._irADetallePostventa(${p.id})" style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 4px;border-bottom:1px solid #F1F2F6;cursor:pointer">
+            <div>
+              <div style="font-weight:700;font-size:.85rem">${esc(p.cliente)}</div>
+              <div style="font-size:.72rem;color:#888">#${esc(p.orden)}${sufijo} · ${esc(p.laboratorio||'—')} · ${p._dias}d</div>
+            </div>
+            <span style="color:${color};font-weight:700;font-size:.78rem">${p._est.texto}</span>
+          </div>`;
+        }).join('');
+      }
+    } catch (e) {
+      alertasEl.innerHTML = `<p style="color:var(--rojo,#DC2626);font-size:.85rem">Error: ${esc(e.message)}</p>`;
+    }
+  }
+
+  async function _irADetallePostventa(id) {
+    showScreen('seguimiento');
+    await _abrirKanbanDetalle(id);
   }
 
   // ══════════════════════════════════════════════════
@@ -2136,7 +2396,7 @@ const App = (() => {
         e.target.dataset.prev=est;
         e.target.className=`estado-select ${Pedidos.claseEstado(est)} estado-select-inline`;
         try {
-          await Pedidos.actualizarEstado(id,est); toast(`Estado: ${est}`,'success');
+          await Pedidos.actualizarEstado(id,est, Auth.getNombre()); toast(`Estado: ${est}`,'success');
           const p=_pedidosCache.find(x=>x.id===id);
           if (est==='Retirado'&&p) enviarNotificacion('✅ Retirado — OLVISIÓN',`#${p.orden} de ${p.cliente}`,false);
           if (est==='Pendiente de retirar'&&p) _ofrecerAvisoListo([p]);
@@ -2328,6 +2588,7 @@ const App = (() => {
       };
       if (nuevoEstado==='Retirado') campos.fecha_retiro=new Date().toISOString();
       await Pedidos.actualizarPedido(id,campos);
+      if (nuevoEstado !== estadoAnterior) Pedidos.registrarCambioEstado(id, estadoAnterior, nuevoEstado, Auth.getNombre());
       cerrarEdicion(); toast('Pedido actualizado ✓','success');
       _pedidosCache=await Pedidos.getTodosPedidos();
       if (_currentScreen==='pedidos') renderPedidosList();
@@ -3230,10 +3491,14 @@ const App = (() => {
     onObraSocialChange, loadPami, pamiMesPrev, pamiMesNext, _clearPamiSearch,
     // WhatsApp + Seguimiento público
     _abrirEnvioWhatsapp, _cerrarWhatsappModal, generarMensajeListo,
+    _enviarWaListo, _confirmarWaListoEnviado, _cancelarWaListoEnviado,
     _abrirModalSeguimiento, _cerrarSeguimientoModal, _copiarLinkSeguimiento, generarMensajeSeguimiento,
+    _enviarWaSeguimiento, _confirmarWaSeguimientoEnviado, _cancelarWaSeguimientoEnviado,
     // Reseñas de Google
     _abrirModalResenas, _cerrarModalResenas, _enviarWhatsappResena, generarMensajeResena,
     _confirmarResenaEnviada, _cancelarConfirmacionResena,
+    // Pantalla de Postventa (admin)
+    loadPostventa, _pvMesPrev, _pvMesNext, _irADetallePostventa,
   };
 })();
 
