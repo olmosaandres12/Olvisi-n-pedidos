@@ -1679,6 +1679,12 @@ const App = (() => {
         <img id="seg-pub-qr" src="" alt="Código QR" style="width:180px;height:180px;margin:0 auto 14px;border-radius:8px;border:1px solid #eee">
         <div style="font-size:.75rem;color:#888;margin-bottom:10px">El cliente puede escanear el código o abrir el link para ver el estado en tiempo real.</div>
         <input id="seg-pub-link" type="text" readonly style="width:100%;padding:10px;border-radius:8px;border:1.5px solid #E2E5EC;font-size:.78rem;color:#333;margin-bottom:10px;text-align:center">
+        <a id="seg-pub-wa" href="#" target="_blank" rel="noopener" style="display:block;text-align:center;background:#25D366;color:#fff;font-weight:700;padding:12px;border-radius:12px;text-decoration:none;font-size:.9rem;margin-bottom:10px">
+          📲 Enviar por WhatsApp
+        </a>
+        <div id="seg-pub-sin-tel" class="hidden" style="background:#FFF8E1;border:1px solid #FDE68A;border-radius:10px;padding:9px 11px;font-size:.75rem;color:#7A5200;margin-bottom:10px">
+          ⚠️ Este cliente no tiene teléfono cargado.
+        </div>
         <button onclick="App._copiarLinkSeguimiento()" style="width:100%;padding:12px;border-radius:12px;border:none;background:var(--azul,#034291);color:#fff;font-weight:700;font-size:.9rem">
           📋 Copiar link
         </button>
@@ -1687,7 +1693,12 @@ const App = (() => {
     el.addEventListener('click', e => { if (e.target === el) _cerrarSeguimientoModal(); });
   }
 
-  function _abrirModalSeguimiento(p) {
+  function generarMensajeSeguimiento(cliente, url) {
+    const nombre = _primerNombre(cliente);
+    return `Hola ${nombre}! ☺️ Te dejamos este link para que puedas ver en cualquier momento cómo va tu pedido de anteojos, en tiempo real: ${url}\n\nApenas esté listo para retirar, te vamos a avisar por este mismo medio ✅`;
+  }
+
+  async function _abrirModalSeguimiento(p) {
     if (!p.codigo_seguimiento) {
       toast('Este pedido no tiene código de seguimiento (fue creado antes de esta función)', 'warn');
       return;
@@ -1698,6 +1709,21 @@ const App = (() => {
     const url = `${window.location.origin}/seguimiento.html?codigo=${encodeURIComponent(p.codigo_seguimiento)}`;
     document.getElementById('seg-pub-link').value = url;
     document.getElementById('seg-pub-qr').src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(url)}`;
+
+    const waLink   = document.getElementById('seg-pub-wa');
+    const sinTelEl = document.getElementById('seg-pub-sin-tel');
+    const datosCliente = await _buscarDatosCliente(p.cliente_id);
+    const telLimpio = _limpiarTelefono(datosCliente?.telefono);
+    if (telLimpio) {
+      const mensaje = generarMensajeSeguimiento(datosCliente?.nombre || p.cliente, url);
+      waLink.href = `https://wa.me/${telLimpio}?text=${encodeURIComponent(mensaje)}`;
+      waLink.classList.remove('hidden');
+      sinTelEl.classList.add('hidden');
+    } else {
+      waLink.classList.add('hidden');
+      sinTelEl.classList.remove('hidden');
+    }
+
     document.getElementById('seg-pub-modal').classList.remove('hidden');
   }
 
@@ -3157,7 +3183,7 @@ const App = (() => {
     onObraSocialChange, loadPami, pamiMesPrev, pamiMesNext, _clearPamiSearch,
     // WhatsApp + Seguimiento público
     _abrirEnvioWhatsapp, _cerrarWhatsappModal, generarMensajeListo,
-    _abrirModalSeguimiento, _cerrarSeguimientoModal, _copiarLinkSeguimiento,
+    _abrirModalSeguimiento, _cerrarSeguimientoModal, _copiarLinkSeguimiento, generarMensajeSeguimiento,
     // Reseñas de Google
     _abrirModalResenas, _cerrarModalResenas, _enviarWhatsappResena, generarMensajeResena,
     _confirmarResenaEnviada, _cancelarConfirmacionResena,
