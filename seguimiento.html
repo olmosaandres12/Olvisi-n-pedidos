@@ -66,6 +66,7 @@
   .step.done .step-label,.step.active .step-label{color:var(--azul)}
   .step-date{font-size:.64rem;color:#B0B5C4;margin-top:2px}
 
+  .trabajo-titulo{font-weight:800;color:var(--azul);font-size:.85rem;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid #EEF1F8}
   .estado-msg{background:var(--gris-claro);border-radius:12px;padding:14px 16px;display:flex;gap:12px;align-items:flex-start}
   .estado-msg-icon{font-size:1.4rem;flex-shrink:0}
   .estado-msg-title{font-weight:800;color:var(--azul);font-size:.9rem}
@@ -162,23 +163,7 @@
       </div>
     </div>
 
-    <div class="card">
-      <div class="estado-header">
-        <h2>Estado actual de tu pedido</h2>
-        <div class="pct"><div class="pct-val" id="p-pct">0%</div><div class="pct-lbl">Completado</div></div>
-      </div>
-      <div class="progress-bar"><div class="progress-fill" id="p-progress" style="width:0%"></div></div>
-
-      <div class="steps" id="p-steps"></div>
-
-      <div class="estado-msg">
-        <div class="estado-msg-icon" id="p-msg-icon">🔬</div>
-        <div>
-          <div class="estado-msg-title" id="p-msg-title">Tu pedido se encuentra en proceso</div>
-          <div class="estado-msg-sub" id="p-msg-sub">Estamos trabajando en tus lentes con el máximo cuidado y calidad.</div>
-        </div>
-      </div>
-    </div>
+    <div id="p-estados-container"></div>
 
     <div class="card">
       <div class="info-grid">
@@ -321,9 +306,9 @@
     try {
       const { data, error } = await supabaseClient.rpc('obtener_seguimiento', { p_codigo: codigo });
       if (error) throw error;
-      const pedido = Array.isArray(data) ? data[0] : data;
-      if (!pedido) { mostrarNoEncontrado(); return; }
-      render(pedido);
+      const pedidos = Array.isArray(data) ? data : (data ? [data] : []);
+      if (!pedidos.length) { mostrarNoEncontrado(); return; }
+      render(pedidos);
     } catch (e) {
       console.error(e);
       mostrarNoEncontrado();
@@ -335,53 +320,79 @@
     document.getElementById('not-found-state').classList.remove('hidden');
   }
 
-  function render(p) {
+  const MSGS = {
+    'Cristales pedidos a lab':     { icon:'📋', title:'Recibimos tu pedido', sub:'Ya estamos gestionando los cristales de tus lentes.' },
+    'Armazón enviado p/calibrado': { icon:'📦', title:'Tu armazón está en preparación', sub:'Lo estamos enviando para el calibrado correspondiente.' },
+    'En laboratorio':              { icon:'🔬', title:'Tu pedido se encuentra en laboratorio', sub:'Estamos trabajando en tus lentes con el máximo cuidado y calidad.' },
+    'Pendiente de retirar':        { icon:'✅', title:'¡Tu pedido está listo!', sub:'Ya podés pasar a retirarlo por nuestro local.' },
+    'Retirado':                    { icon:'📦', title:'Pedido retirado', sub:'Gracias por confiar en OLVISIÓN.' },
+  };
+
+  function labelTrabajo(p) {
+    const partes = [];
+    if (p.tipo_lente)   partes.push(esc(p.tipo_lente));
+    if (p.tratamiento)  partes.push(esc(p.tratamiento));
+    if (partes.length) return `👓 ${partes.join(' · ')}`;
+    if (p.armazon) return `👓 ${esc(p.armazon)}`;
+    return p.sufijo ? `👓 Trabajo ${esc(p.sufijo)}` : '👓 Tu pedido';
+  }
+
+  function buildEstadoCardHTML(p, titulo) {
+    const stepIdx = getStepIndex(p.estado); // 0..4
+    const pct = Math.round(((stepIdx + 1) / PASOS.length) * 100);
+    const stepsHtml = PASOS.map((paso, i) => {
+      const done = i < stepIdx;
+      const active = i === stepIdx;
+      const icon = done ? '✓' : paso.icon;
+      return `<div class="step ${done?'done':''} ${active?'active':''}">
+        <div class="step-circle">${icon}</div>
+        <div class="step-label">${paso.label.split('\n').join('<br>')}</div>
+      </div>`;
+    }).join('');
+    const m = MSGS[p.estado] || MSGS['En laboratorio'];
+    return `
+    <div class="card">
+      ${titulo ? `<div class="trabajo-titulo">${titulo}</div>` : ''}
+      <div class="estado-header">
+        <h2>Estado actual${titulo ? '' : ' de tu pedido'}</h2>
+        <div class="pct"><div class="pct-val">${pct}%</div><div class="pct-lbl">Completado</div></div>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+      <div class="steps">${stepsHtml}</div>
+      <div class="estado-msg">
+        <div class="estado-msg-icon">${m.icon}</div>
+        <div>
+          <div class="estado-msg-title">${m.title}</div>
+          <div class="estado-msg-sub">${m.sub}</div>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  function render(pedidos) {
     document.getElementById('loading-state').classList.add('hidden');
     document.getElementById('content').classList.remove('hidden');
 
+    const p = pedidos[0];
     if (p.cliente) {
       const saludoEl = document.getElementById('p-saludo');
       saludoEl.textContent = `¡Hola, ${formatearNombre(p.cliente)}! 👋`;
       saludoEl.classList.remove('hidden');
     }
 
-    const sufijo = p.sufijo ? `-${p.sufijo}` : '';
-    document.getElementById('p-orden').textContent = `Pedido #${p.orden}${sufijo}`;
+    const esDoble = pedidos.length > 1;
+    document.getElementById('p-orden').textContent = `Pedido #${p.orden}`;
     const fecha = p.fecha_pedido ? new Date(p.fecha_pedido).toLocaleDateString('es-AR',{day:'2-digit',month:'long',year:'numeric'}) : '—';
     document.getElementById('p-meta').textContent = `Fecha: ${fecha}${p.tipo ? ' · Tipo: '+esc(p.tipo) : ''}`;
 
+    const todosRetirados = pedidos.every(x => x.estado === 'Retirado');
     const badge = document.getElementById('p-badge');
-    if (p.estado === 'Retirado') { badge.textContent = 'RETIRADO'; badge.classList.add('retirado'); }
+    if (todosRetirados) { badge.textContent = 'RETIRADO'; badge.classList.add('retirado'); }
     else { badge.textContent = 'EN PROCESO'; }
 
-    const stepIdx = getStepIndex(p.estado); // 0..4
-    const pct = Math.round(((stepIdx + 1) / PASOS.length) * 100);
-    document.getElementById('p-pct').textContent = pct + '%';
-    document.getElementById('p-progress').style.width = pct + '%';
-
-    const stepsEl = document.getElementById('p-steps');
-    stepsEl.innerHTML = PASOS.map((paso, i) => {
-      const done = i < stepIdx;
-      const active = i === stepIdx;
-      const icon = done ? '✓' : paso.icon;
-      const fecha = (done || active) ? (i===0 ? fecha_txt(p.fecha_pedido) : '') : '—';
-      return `<div class="step ${done?'done':''} ${active?'active':''}">
-        <div class="step-circle">${icon}</div>
-        <div class="step-label">${paso.label.split('\n').join('<br>')}</div>
-      </div>`;
-    }).join('');
-
-    const MSGS = {
-      'Cristales pedidos a lab':     { icon:'📋', title:'Recibimos tu pedido', sub:'Ya estamos gestionando los cristales de tus lentes.' },
-      'Armazón enviado p/calibrado': { icon:'📦', title:'Tu armazón está en preparación', sub:'Lo estamos enviando para el calibrado correspondiente.' },
-      'En laboratorio':              { icon:'🔬', title:'Tu pedido se encuentra en laboratorio', sub:'Estamos trabajando en tus lentes con el máximo cuidado y calidad.' },
-      'Pendiente de retirar':        { icon:'✅', title:'¡Tu pedido está listo!', sub:'Ya podés pasar a retirarlo por nuestro local.' },
-      'Retirado':                    { icon:'📦', title:'Pedido retirado', sub:'Gracias por confiar en OLVISIÓN.' },
-    };
-    const m = MSGS[p.estado] || MSGS['En laboratorio'];
-    document.getElementById('p-msg-icon').textContent = m.icon;
-    document.getElementById('p-msg-title').textContent = m.title;
-    document.getElementById('p-msg-sub').textContent = m.sub;
+    document.getElementById('p-estados-container').innerHTML = pedidos
+      .map(x => buildEstadoCardHTML(x, esDoble ? labelTrabajo(x) : null))
+      .join('');
 
     document.getElementById('p-contacto').href = 'https://wa.me/5493814061713';
   }
