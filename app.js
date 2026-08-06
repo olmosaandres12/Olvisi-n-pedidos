@@ -11,6 +11,7 @@ const App = (() => {
   let _segTab         = 'lab';
   let _pendingGuardar = null;
   let _detalleId      = null;
+  let _edicionOriginal = null;
   let _expandedId     = null;
   let _editingConfig  = null;
 
@@ -1449,7 +1450,7 @@ const App = (() => {
     document.getElementById('kd-estado-sel').value    = p.estado;
 
     const esAdmin = Auth.isAdmin();
-    document.getElementById('kd-edit-btn').style.display = esAdmin ? '' : 'none';
+    document.getElementById('kd-edit-btn').style.display = '';
     document.getElementById('kd-del-btn').style.display  = esAdmin ? '' : 'none';
 
     const body     = document.getElementById('kd-body');
@@ -1583,7 +1584,7 @@ const App = (() => {
     const el = document.getElementById('kd-historial');
     if (!el) return;
     try {
-      const { estados, comunicaciones } = await Pedidos.getHistorialCompleto(pedidoId);
+      const { estados, comunicaciones, ediciones } = await Pedidos.getHistorialCompleto(pedidoId);
       const eventos = [
         ...estados.map(e => ({
           fecha: e.fecha_hora,
@@ -1594,6 +1595,11 @@ const App = (() => {
           fecha: c.fecha_hora,
           texto: `${TIPO_COMUNICACION_LABEL[c.tipo] || c.tipo} — ${c.enviado ? '✓ enviado' : '✕ no enviado'}`,
           usuario: c.usuario,
+        })),
+        ...ediciones.map(ed => ({
+          fecha: ed.fecha_hora,
+          texto: `✏️ ${esc(ed.campo)}: ${esc(ed.valor_anterior||'—')} → ${esc(ed.valor_nuevo||'—')}`,
+          usuario: ed.usuario,
         })),
       ].sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
 
@@ -2445,7 +2451,7 @@ const App = (() => {
       const sufijo=p.sufijo?`-${p.sufijo}`:'';
       document.getElementById('detalle-orden').textContent=`#${p.orden}${sufijo}`;
       const esAdmin=Auth.isAdmin();
-      document.getElementById('btn-abrir-edicion').style.display=esAdmin?'':'none';
+      document.getElementById('btn-abrir-edicion').style.display='';
       document.getElementById('btn-eliminar-pedido').style.display=esAdmin?'':'none';
       const fechaCarga=p.fecha_carga?new Date(p.fecha_carga).toLocaleDateString('es-AR'):'—';
       const fechaRetiro=p.fecha_retiro?new Date(p.fecha_retiro).toLocaleDateString('es-AR'):'—';
@@ -2488,6 +2494,7 @@ const App = (() => {
     const desc=p?`#${p.orden}${p.sufijo?'-'+p.sufijo:''} — ${p.cliente}`:`ID ${id}`;
     if (!confirm(`¿Eliminar el pedido ${desc}?\n\nEsta acción no se puede deshacer.`)) return;
     try {
+      if (p) await Pedidos.registrarEliminacion(p, Auth.getNombre());
       const {error}=await window.supabaseClient.from('pedidos').delete().eq('id',id);
       if (error) throw error;
       cerrarDetalle(); cerrarEdicion(); _expandedId=null;
@@ -2509,6 +2516,15 @@ const App = (() => {
       const p=await Pedidos.getPedidoById(id);
       const idx=_pedidosCache.findIndex(x=>x.id===id);
       if (idx!==-1) _pedidosCache[idx]=p;
+      const datosCliente = await _buscarDatosCliente(p.cliente_id);
+      _edicionOriginal = {
+        cliente: p.cliente||'', telefono: datosCliente?.telefono||'', orden: p.orden||'',
+        urgente: p.urgente||'', tipo: p.tipo||'', laboratorio: p.laboratorio||'',
+        tipo_lente: p.tipo_lente||'', tratamiento: p.tratamiento||'', graduacion: p.graduacion||'',
+        fecha_prometida: p.fecha_prometida||'', dos_etapas: p.dos_etapas||'', armazon: p.armazon||'',
+        observaciones: p.observaciones||'', numero_afiliado: p.numero_afiliado||'',
+        tipo_trabajo_pami: p.tipo_trabajo_pami||'', diferencia_pami: p.diferencia_pami||'',
+      };
       const labs=_configCache.laboratorios.map(l=>`<option value="${esc(l)}"${l===p.laboratorio?' selected':''}>${esc(l)}</option>`).join('');
       const lentes=['Monofocal','Bifocal','Ocupacional','Progresivo','Teñido'].map(l=>`<option value="${l}"${l===p.tipo_lente?' selected':''}>${l}</option>`).join('');
       const tipos=['Cristales','Armazón + Cristales','Armazón'].map(t=>`<option value="${t}"${t===p.tipo?' selected':''}>${t}</option>`).join('');
@@ -2551,6 +2567,10 @@ const App = (() => {
       eb.innerHTML=`
         <div class="form-section"><div class="form-section-title">Cliente</div>
           <div class="form-group"><label class="form-label">Nombre</label><input type="text" id="e-cliente" class="form-control" value="${esc(p.cliente||'')}"></div>
+          <div class="form-group"><label class="form-label">Teléfono (WhatsApp)</label>
+            <input type="tel" id="e-telefono" class="form-control" value="${esc(datosCliente?.telefono||'')}" placeholder="Ej: 3814061713"${p.cliente_id?'':' disabled'}>
+            ${p.cliente_id?'':'<div style="font-size:.75rem;color:var(--gris-texto);margin-top:4px">Este pedido no tiene un cliente vinculado — no se puede editar el teléfono desde acá.</div>'}
+          </div>
           <div class="form-row">
             <div class="form-group"><label class="form-label">Nº de orden</label><input type="text" id="e-orden" class="form-control" value="${esc(p.orden||'')}"></div>
             <div class="form-group"><label class="form-label">Urgente</label><select id="e-urgente" class="form-control">${urgentes}</select></div>
@@ -2579,7 +2599,33 @@ const App = (() => {
         </div>
         <div class="form-section"><div class="form-section-title">Foto</div>${fotoSection}</div>
         <button class="edit-save-btn" onclick="App.guardarEdicion(${p.id})">Guardar cambios</button>`;
-    } catch(e){eb.innerHTML=`<p style="padding:16px;color:var(--rojo)">Error: ${e.message}</p>`;}
+    } catch(e){
+      eb.innerHTML=`<p style="padding:16px;color:var(--rojo)">${esc(e.message)}</p>`;
+      try {
+        _pedidosCache = await Pedidos.getTodosPedidos();
+        if (_currentScreen==='pedidos')     renderPedidosList();
+        if (_currentScreen==='seguimiento') { _renderKanban(_pedidosCache); _renderKanbanKPIs(_pedidosCache); }
+      } catch {}
+    }
+  }
+
+  const CAMPOS_EDICION_LABEL = {
+    cliente: 'Cliente', telefono: 'Teléfono', orden: 'N° de orden', urgente: 'Urgente',
+    tipo: 'Tipo', laboratorio: 'Laboratorio', tipo_lente: 'Tipo de lente', tratamiento: 'Tratamiento',
+    graduacion: 'Graduación', fecha_prometida: 'Fecha prometida', dos_etapas: '2 etapas',
+    armazon: 'Armazón', observaciones: 'Observaciones', numero_afiliado: 'N° de afiliado (PAMI)',
+    tipo_trabajo_pami: 'Tipo de trabajo (PAMI)', diferencia_pami: 'Diferencia (PAMI)',
+  };
+
+  function _diffCambiosPedido(original, nuevo) {
+    if (!original) return [];
+    const cambios = [];
+    for (const campo in CAMPOS_EDICION_LABEL) {
+      const a = (original[campo] ?? '').toString().trim();
+      const b = (nuevo[campo] ?? '').toString().trim();
+      if (a !== b) cambios.push({ campo: CAMPOS_EDICION_LABEL[campo], anterior: a || '—', nuevo: b || '—' });
+    }
+    return cambios;
   }
 
   async function guardarEdicion(id) {
@@ -2607,7 +2653,15 @@ const App = (() => {
         diferencia_pami:document.getElementById('e-diferencia-pami')?.value||null,
       };
       if (nuevoEstado==='Retirado') campos.fecha_retiro=new Date().toISOString();
+      const clienteIdActual = _pedidosCache.find(x=>x.id===id)?.cliente_id;
+      const nuevoTelefono = document.getElementById('e-telefono')?.value.trim();
+      const cambiosDatos = _diffCambiosPedido(_edicionOriginal, { ...campos, telefono: nuevoTelefono||'' });
       await Pedidos.actualizarPedido(id,campos);
+      if (clienteIdActual && nuevoTelefono !== undefined) {
+        try { await window.supabaseClient.from('clientes').update({ telefono: nuevoTelefono || null }).eq('id', clienteIdActual); }
+        catch(e) { console.warn('No se pudo actualizar el teléfono del cliente:', e); }
+      }
+      if (cambiosDatos.length) Pedidos.registrarEdicion(id, cambiosDatos, Auth.getNombre());
       if (nuevoEstado !== estadoAnterior) Pedidos.registrarCambioEstado(id, estadoAnterior, nuevoEstado, Auth.getNombre());
       cerrarEdicion(); toast('Pedido actualizado ✓','success');
       _pedidosCache=await Pedidos.getTodosPedidos();
@@ -3365,7 +3419,7 @@ const App = (() => {
         <div class="ped-row-detail-actions">
           <select class="estado-select ${scls} estado-select-inline" data-id="${p.id}" data-prev="${esc(p.estado)}" onclick="event.stopPropagation()">${opts}</select>
           <button onclick="event.stopPropagation();App._abrirEnvioWhatsapp([App._pedidoPorId(${p.id})])" style="background:#25D366;color:#fff;border:none;border-radius:8px;padding:8px 12px;font-weight:700;font-size:.82rem;cursor:pointer">📲</button>
-          ${Auth.isAdmin()?`<button class="ped-row-edit-btn" onclick="event.stopPropagation();App._abrirDetalleRapido(${p.id})">✏️ Editar</button>`:''}
+          <button class="ped-row-edit-btn" onclick="event.stopPropagation();App._abrirDetalleRapido(${p.id})">✏️ Editar</button>
           ${Auth.isAdmin()?`<button class="ped-row-del-btn" onclick="event.stopPropagation();App.eliminarPedido(${p.id})">🗑️</button>`:''}
         </div>
       </div>`;
@@ -3433,7 +3487,7 @@ const App = (() => {
         ${_fotoSubRow(p)}
         <div class="ped-pair-actions">
           <select class="estado-select ${scls} estado-select-inline" data-id="${p.id}" data-prev="${esc(p.estado)}" onclick="event.stopPropagation()">${opts}</select>
-          ${Auth.isAdmin()?`<button class="ped-row-edit-btn" onclick="event.stopPropagation();App._abrirDetalleRapido(${p.id})">✏️</button>`:''}
+          <button class="ped-row-edit-btn" onclick="event.stopPropagation();App._abrirDetalleRapido(${p.id})">✏️</button>
           ${Auth.isAdmin()?`<button class="ped-row-del-btn" onclick="event.stopPropagation();App.eliminarPedido(${p.id})">🗑️</button>`:''}
         </div>
       </div>`;
