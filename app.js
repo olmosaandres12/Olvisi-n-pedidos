@@ -1840,8 +1840,11 @@ const App = (() => {
     _segPedidoActual = p;
     document.getElementById('seg-pub-paso-enviar').classList.remove('hidden');
     document.getElementById('seg-pub-paso-confirmar').classList.add('hidden');
-    const sufijo = p.sufijo ? `-${p.sufijo}` : '';
-    document.getElementById('seg-pub-orden').textContent = `${p.cliente} — #${p.orden}${sufijo}`;
+    const par = p.sufijo
+      ? _pedidosCache.find(x => x.orden === p.orden && x.sufijo && x.sufijo !== p.sufijo && x.codigo_seguimiento === p.codigo_seguimiento)
+      : null;
+    const ordenTxt = par ? `#${p.orden} (trabajos ${p.sufijo} y ${par.sufijo})` : `#${p.orden}${p.sufijo ? '-'+p.sufijo : ''}`;
+    document.getElementById('seg-pub-orden').textContent = `${p.cliente} — ${ordenTxt}`;
     const url = `${window.location.origin}/seguimiento.html?codigo=${encodeURIComponent(p.codigo_seguimiento)}`;
     document.getElementById('seg-pub-link').value = url;
     document.getElementById('seg-pub-qr').src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(url)}`;
