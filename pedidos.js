@@ -57,8 +57,9 @@ const Pedidos = (() => {
 
   async function getPedidoById(id) {
     const { data, error } = await window.supabaseClient
-      .from('pedidos').select('*').eq('id', id).single();
+      .from('pedidos').select('*').eq('id', id).maybeSingle();
     if (error) throw error;
+    if (!data) throw new Error('No se encontró el pedido — puede que haya sido eliminado o modificado desde otro dispositivo. La lista se va a actualizar sola.');
     return enrich(data);
   }
 
@@ -228,12 +229,45 @@ const Pedidos = (() => {
     } catch (e) { console.warn('No se pudo registrar comunicación:', e); }
   }
 
+  // ── Postventa: registro permanente de eliminaciones ─
+  async function registrarEliminacion(p, usuario) {
+    try {
+      await window.supabaseClient.from('pedidos_eliminados_log').insert({
+        pedido_id: p.id,
+        orden: p.orden != null ? String(p.orden) : null,
+        sufijo: p.sufijo || null,
+        cliente: p.cliente || null,
+        laboratorio: p.laboratorio || null,
+        tipo_lente: p.tipo_lente || null,
+        tratamiento: p.tratamiento || null,
+        estado: p.estado || null,
+        usuario: usuario || null,
+      });
+    } catch (e) { console.warn('No se pudo registrar la eliminación:', e); }
+  }
+
+  // ── Postventa: historial de ediciones de datos ─────
+  async function registrarEdicion(pedidoId, cambios, usuario) {
+    if (!cambios || !cambios.length) return;
+    try {
+      const rows = cambios.map(c => ({
+        pedido_id: pedidoId,
+        campo: c.campo,
+        valor_anterior: c.anterior,
+        valor_nuevo: c.nuevo,
+        usuario: usuario || null,
+      }));
+      await window.supabaseClient.from('pedidos_historial_ediciones').insert(rows);
+    } catch (e) { console.warn('No se pudo registrar historial de edición:', e); }
+  }
+
   async function getHistorialCompleto(pedidoId) {
-    const [estadosRes, comsRes] = await Promise.all([
+    const [estadosRes, comsRes, edicionesRes] = await Promise.all([
       window.supabaseClient.from('pedidos_historial_estados').select('*').eq('pedido_id', pedidoId).order('fecha_hora', { ascending: true }),
       window.supabaseClient.from('pedidos_comunicaciones').select('*').eq('pedido_id', pedidoId).order('fecha_hora', { ascending: true }),
+      window.supabaseClient.from('pedidos_historial_ediciones').select('*').eq('pedido_id', pedidoId).order('fecha_hora', { ascending: true }),
     ]);
-    return { estados: estadosRes.data || [], comunicaciones: comsRes.data || [] };
+    return { estados: estadosRes.data || [], comunicaciones: comsRes.data || [], ediciones: edicionesRes.data || [] };
   }
 
   // ── Postventa: resultado de reseña y satisfacción ──
@@ -296,7 +330,7 @@ const Pedidos = (() => {
     calcEstInteligente, calcDias, enrich, claseEstado,
     uploadFoto, eliminarFoto,
     getPedidosParaResenar, marcarResenaSolicitada,
-    registrarCambioEstado, registrarComunicacion, getHistorialCompleto,
+    registrarCambioEstado, registrarComunicacion, registrarEdicion, registrarEliminacion, getHistorialCompleto,
     actualizarResenaResultado, actualizarPostventa, getKPIsPostventa,
   };
 })();
