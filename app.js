@@ -1897,11 +1897,24 @@ const App = (() => {
     });
   }
 
-  function _generarCodigoSeguimiento() {
+  async function _generarCodigoSeguimiento() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    let out = '';
-    for (let i = 0; i < 8; i++) out += chars[Math.floor(Math.random() * chars.length)];
-    return out;
+    const generar = () => {
+      let out = '';
+      for (let i = 0; i < 8; i++) out += chars[Math.floor(Math.random() * chars.length)];
+      return out;
+    };
+    for (let intento = 0; intento < 5; intento++) {
+      const candidato = generar();
+      try {
+        const { data, error } = await window.supabaseClient
+          .from('pedidos').select('id').eq('codigo_seguimiento', candidato).limit(1);
+        if (error) { console.warn('No se pudo verificar unicidad del código, se usa igual:', error); return candidato; }
+        if (!data || data.length === 0) return candidato;
+        // colisión real (rarísima) — probamos con otro código
+      } catch (e) { console.warn('No se pudo verificar unicidad del código, se usa igual:', e); return candidato; }
+    }
+    return generar(); // último recurso tras 5 intentos, prácticamente inalcanzable
   }
 
   // ══════════════════════════════════════════════════
@@ -3045,7 +3058,7 @@ const App = (() => {
         } catch(e) { console.warn('No se pudo crear cliente:', e); }
       }
 
-      const codigoSeg = _generarCodigoSeguimiento();
+      const codigoSeg = await _generarCodigoSeguimiento();
 
       const buildRow = (ant, sufijo) => ({
         cliente:          data.base.cliente,
